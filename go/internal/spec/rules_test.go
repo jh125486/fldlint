@@ -1,22 +1,35 @@
 package spec_test
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/jh125486/fldlint/go/internal/spec"
 )
 
-const okRules = `
-version: 1
+const okRules = `version: 1
 skipCategories:
-  detail: {severity: warning, message: m}
+  detail: {severity: warning, message: d}
+  bulk: {severity: warning, message: b}
+  dynamic-key: {severity: warning, message: k}
+  unbound-client: {severity: warning, message: u}
+  type-mismatch: {severity: warning, message: t}
+  context-unproven: {severity: warning, message: c}
 rules:
   - id: a
+    valueType: boolean
+    risk: low
     keyArg: 0
+    defaultArg: 2
+    contextArg: 1
+    message: "flag {{key}} migrates"
     languages:
-      go: {methods: [A, ACtx], ctxArg: {ACtx: 0}, template: "{{client}}.X({{key}})"}
+      js: {methods: [aJS], async: true, template: "{{client}}.get({{key}}, {{default}}, {{context}})"}
+      go: {methods: [A, ACtx], ctxArg: {ACtx: 0}, requires: [context-unproven], template: "{{client}}.X({{goctx}}, {{key}}, {{default}}, {{evalctx}})"}
+      java: {methods: [aJava], template: "#{any(dev.openfeature.sdk.Client)}.get(#{key}, #{default}, #{context})"}
   - id: b
+    risk: high
     skip: detail
     languages:
       go: {methods: [B]}
@@ -24,26 +37,77 @@ rules:
 
 func TestParseRules(t *testing.T) {
 	t.Parallel()
+	// each case replaces old with new in okRules and expects the error text.
 	tests := []struct {
-		name    string
-		yaml    string
-		wantErr string
+		name     string
+		old, new string
+		wantErr  string
 	}{
-		{name: "ok", yaml: okRules},
-		{name: "bad yaml", yaml: "version: [", wantErr: "parse rules"},
-		{name: "bad version", yaml: "version: 2", wantErr: "unsupported version"},
-		{name: "duplicate id", yaml: strings.Replace(okRules, "id: b", "id: a", 1), wantErr: "duplicate rule id"},
-		{name: "duplicate method", yaml: strings.Replace(okRules, "methods: [B]", "methods: [A]", 1), wantErr: "already bound"},
-		{name: "unknown skip", yaml: strings.Replace(okRules, "skip: detail", "skip: nope", 1), wantErr: "unknown skip category"},
-		{name: "unknown placeholder", yaml: strings.Replace(okRules, "{{key}}", "{{bogus}}", 1), wantErr: "unknown placeholder"},
-		{name: "skip and template", yaml: strings.Replace(okRules, "id: a\n", "id: a\n    skip: detail\n", 1), wantErr: "mutually exclusive"},
-		{name: "missing template", yaml: strings.Replace(okRules, `, template: "{{client}}.X({{key}})"`, "", 1), wantErr: "needs a template"},
-		{name: "ctxArg unlisted", yaml: strings.Replace(okRules, "ACtx: 0", "Zed: 0", 1), wantErr: "unlisted method"},
+		{name: "ok"},
+		{name: "bad yaml", old: "version: 1", new: "version: [", wantErr: "parse rules"},
+		{name: "bad version", old: "version: 1", new: "version: 2", wantErr: "unsupported version"},
+		{name: "string version", old: "version: 1", new: `version: "1"`, wantErr: "must be an integer"},
+		{name: "unknown top key", old: "version: 1", new: "version: 1\nextra: 1", wantErr: `unknown key "extra"`},
+		{name: "duplicate top key", old: "version: 1", new: "version: 1\nversion: 1", wantErr: "duplicate key"},
+		{name: "missing skip category", old: "  bulk: {severity: warning, message: b}\n", new: "", wantErr: `missing required key "bulk"`},
+		{name: "extra skip category", old: "  bulk:", new: "  other: {severity: warning, message: o}\n  bulk:", wantErr: `unknown key "other"`},
+		{name: "bad severity", old: "severity: warning, message: d", new: "severity: fatal, message: d", wantErr: "is not one of"},
+		{name: "empty skip message", old: "message: d}", new: `message: ""}`, wantErr: "must not be empty"},
+		{name: "duplicate id", old: "id: b", new: "id: a", wantErr: "duplicate rule id"},
+		{name: "bad id pattern", old: "id: b", new: "id: Bad_ID", wantErr: "rule id pattern"},
+		{name: "numeric id", old: "id: b", new: "id: 5", wantErr: "must be a string"},
+		{name: "bad valueType", old: "valueType: boolean", new: "valueType: bool", wantErr: "is not one of"},
+		{name: "bad risk", old: "risk: low", new: "risk: extreme", wantErr: "is not one of"},
+		{name: "missing risk", old: "    risk: low\n", new: "", wantErr: `missing required key "risk"`},
+		{name: "unknown rule key", old: "keyArg: 0", new: "keyArg: 0\n    bogus: 1", wantErr: `unknown key "bogus"`},
+		{name: "float arg", old: "keyArg: 0", new: "keyArg: 0.5", wantErr: "must be an integer"},
+		{name: "negative arg", old: "keyArg: 0", new: "keyArg: -1", wantErr: "must be >= 0"},
+		{name: "missing keyArg", old: "    keyArg: 0\n", new: "", wantErr: "requires keyArg"},
+		{name: "missing defaultArg", old: "    defaultArg: 2\n", new: "", wantErr: "requires defaultArg"},
+		{name: "missing contextArg", old: "    contextArg: 1\n", new: "", wantErr: "requires contextArg"},
+		{name: "missing valueType", old: "    valueType: boolean\n", new: "", wantErr: "requires valueType"},
+		{name: "missing message", old: "    message: \"flag {{key}} migrates\"\n", new: "", wantErr: "requires message"},
+		{name: "message bad placeholder", old: "flag {{key}} migrates", new: "flag {{client}} migrates", wantErr: "{{key}} placeholder"},
+		{name: "message stray brace", old: "flag {{key}} migrates", new: "flag { migrates", wantErr: "{{key}} placeholder"},
+		{name: "empty message", old: `"flag {{key}} migrates"`, new: `""`, wantErr: "non-empty"},
+		{name: "numeric message", old: `message: "flag {{key}} migrates"`, new: "message: 5", wantErr: "must be a string"},
+		{name: "bad skip name", old: "skip: detail", new: "skip: nope", wantErr: "is not one of"},
+		{name: "duplicate go method", old: "methods: [B]", new: "methods: [A]", wantErr: "already bound"},
+		{name: "duplicate method in one rule", old: "methods: [B]", new: "methods: [B, B]", wantErr: "duplicate item"},
+		{name: "same js method in two rules", old: "go: {methods: [B]}", new: "js: {methods: [aJS]}", wantErr: "js method"},
+		{name: "same java method in two rules", old: "go: {methods: [B]}", new: "java: {methods: [aJava]}", wantErr: "java method"},
+		{name: "empty methods", old: "methods: [B]", new: "methods: []", wantErr: "at least 1"},
+		{name: "empty method name", old: "methods: [B]", new: `methods: [""]`, wantErr: "must not be empty"},
+		{name: "unknown placeholder", old: "{{goctx}}", new: "{{bogus}}", wantErr: "template must be non-empty"},
+		{name: "spaced placeholder", old: "{{goctx}}", new: "{{ goctx }}", wantErr: "template must be non-empty"},
+		{name: "stray brace", old: "{{client}}.X(", new: "{{client}}.X({", wantErr: "template must be non-empty"},
+		{name: "empty template", old: `template: "{{client}}.get({{key}}, {{default}}, {{context}})"`, new: `template: ""`, wantErr: "template must be non-empty"},
+		{name: "java double-brace placeholder", old: "#{key}", new: "{{key}}", wantErr: "template must be non-empty"},
+		{name: "java unknown placeholder", old: "#{default}", new: "#{nope}", wantErr: "template must be non-empty"},
+		{name: "java stray hash", old: "#{key}", new: "#key", wantErr: "template must be non-empty"},
+		{name: "ctxArg unlisted", old: "ACtx: 0", new: "Zed: 0", wantErr: "unlisted method"},
+		{name: "ctxArg negative", old: "ACtx: 0", new: "ACtx: -1", wantErr: "must be >= 0"},
+		{name: "requires unknown", old: "requires: [context-unproven]", new: "requires: [nope]", wantErr: "not a skip category"},
+		{name: "requires duplicate", old: "requires: [context-unproven]", new: "requires: [bulk, bulk]", wantErr: "duplicate item"},
+		{name: "async not bool", old: "async: true", new: "async: yes", wantErr: "must be a boolean"},
+		{name: "unknown binding key", old: "async: true", new: "async: true, temlate: x", wantErr: `unknown key "temlate"`},
+		{name: "unknown language", old: "go: {methods: [B]}", new: "rust: {methods: [B]}", wantErr: `unknown key "rust"`},
+		{name: "null language", old: "go: {methods: [B]}", new: "go:", wantErr: "must not be null"},
+		{name: "no languages", old: "languages:\n      go: {methods: [B]}", new: "languages: {}", wantErr: "at least 1 language"},
+		{name: "skip and template", old: "go: {methods: [B]}", new: `go: {methods: [B], template: "x"}`, wantErr: "mutually exclusive"},
+		{name: "missing template", old: `, template: "{{client}}.X({{goctx}}, {{key}}, {{default}}, {{evalctx}})"`, new: "", wantErr: "needs a template"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			rf, err := spec.ParseRules([]byte(tt.yaml))
+			src := okRules
+			if tt.old != "" {
+				if !strings.Contains(src, tt.old) {
+					t.Fatalf("test bug: %q not in base rules", tt.old)
+				}
+				src = strings.Replace(src, tt.old, tt.new, 1)
+			}
+			rf, err := spec.ParseRules([]byte(src))
 			if tt.wantErr != "" {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
@@ -53,8 +117,28 @@ func TestParseRules(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if len(rf.Rules) != 2 || rf.Rules[0].KeyArg != 0 || rf.Rules[0].DefaultArg != -1 {
+			a := rf.Rules[0]
+			if len(rf.Rules) != 2 || a.KeyArg != 0 || a.DefaultArg != 2 || a.Message == "" || len(a.Langs) != 3 || a.Go == nil || !a.Langs["js"].Async {
 				t.Fatalf("unexpected rules: %+v", rf.Rules)
+			}
+			if b := rf.Rules[1]; b.DefaultArg != -1 || b.Skip != "detail" {
+				t.Fatalf("unexpected skip rule: %+v", b)
+			}
+		})
+	}
+}
+
+func TestParseRules_probes(t *testing.T) {
+	t.Parallel()
+	paths, err := filepath.Glob("testdata/probes/r_*.yaml")
+	if err != nil || len(paths) == 0 {
+		t.Fatalf("no probes: %v", err)
+	}
+	for _, p := range paths {
+		t.Run(filepath.Base(p), func(t *testing.T) {
+			t.Parallel()
+			if _, err := spec.LoadRules(p); err == nil {
+				t.Fatal("expected the probe to be rejected")
 			}
 		})
 	}
