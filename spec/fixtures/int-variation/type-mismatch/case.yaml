@@ -1,0 +1,6 @@
+id: type-mismatch
+rule: int-variation
+tags: []
+description: Go IntVariation returns int while OpenFeature IntValue returns int64, so the call is skipped as type-mismatch.
+expect:
+  go: {diagnostics: [{line: 14, col: 10, ruleId: int-variation, skip: type-mismatch}], output: false}

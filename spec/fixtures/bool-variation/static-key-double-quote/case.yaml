@@ -3,5 +3,5 @@ rule: bool-variation
 tags: [quote-double]
 description: A double-quoted static flag key is rewritten to getBooleanValue with the OpenFeature client.
 expect:
-  js: {diagnostics: [{line: 9, col: 25, ruleId: bool-variation}], output: true}
-  go: {diagnostics: [{line: 19, col: 18, ruleId: bool-variation}], output: true}
+  js: {diagnostics: [{line: 8, col: 25, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 20, col: 18, ruleId: bool-variation}], output: true}

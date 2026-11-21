@@ -16,6 +16,7 @@ func CheckoutEnabled() bool {
 	if err != nil {
 		return false
 	}
+	defer ldClient.Close()
 	enabled, err := ldClient.BoolVariation("new-checkout", ldcontext.New("user"), false)
 	if err != nil {
 		fmt.Println("flag error:", err)

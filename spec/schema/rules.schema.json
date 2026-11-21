@@ -87,6 +87,12 @@
         }
       }
     },
+    "message": {
+      "description": "Diagnostic text for a rewritable finding. The only placeholder allowed is {{key}}; any other brace is rejected.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:[^{}]|\\{\\{key\\}\\})*$"
+    },
     "argIndex": {
       "type": "integer",
       "minimum": 0
@@ -123,6 +129,9 @@
         "id": {
           "type": "string",
           "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+        },
+        "message": {
+          "$ref": "#/$defs/message"
         },
         "valueType": {
           "enum": [
@@ -179,8 +188,9 @@
         ]
       },
       "then": {
-        "description": "skip rules are report-only: no language block may carry a template.",
+        "description": "skip rules are report-only: no `message` (the skipCategories message is used) and no language block may carry a template.",
         "properties": {
+          "message": false,
           "languages": {
             "type": "object",
             "additionalProperties": {
@@ -199,14 +209,16 @@
         }
       },
       "else": {
-        "description": "rewriting rules need arg positions and a template for every language block.",
+        "description": "rewriting rules need a message, arg positions and a template for every language block.",
         "required": [
+          "message",
           "valueType",
           "keyArg",
           "defaultArg",
           "contextArg"
         ],
         "properties": {
+          "message": true,
           "valueType": true,
           "keyArg": true,
           "defaultArg": true,

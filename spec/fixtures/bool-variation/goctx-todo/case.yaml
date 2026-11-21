@@ -1,0 +1,6 @@
+id: goctx-todo
+rule: bool-variation
+tags: [goctx]
+description: A plain BoolVariation in a function without a context.Context parameter uses context.TODO() and adds the context import.
+expect:
+  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation}], output: true}

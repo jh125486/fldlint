@@ -17,6 +17,7 @@ func DarkMode() bool {
 		fmt.Println("init error:", err)
 		return false
 	}
+	defer ldClient.Close()
 	on, _ := ldClient.BoolVariation("dark-mode", ldcontext.New("user"), false)
 	return on
 }
