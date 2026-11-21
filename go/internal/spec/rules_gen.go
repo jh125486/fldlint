@@ -15,7 +15,7 @@ var genRules = []Rule{
 	{
 		ID: "bool-variation", ValueType: "boolean", Risk: "low",
 		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
-		Skip: "", Message: "Migrate boolean flag {{key}} to OpenFeature getBooleanValue",
+		Skip: "", Message: "Migrate boolean flag {{key}} to OpenFeature",
 		Go: &GoBinding{
 			Methods:  []string{"BoolVariation", "BoolVariationCtx"},
 			CtxArg:   map[string]int{"BoolVariationCtx": 0},
@@ -26,7 +26,7 @@ var genRules = []Rule{
 	{
 		ID: "string-variation", ValueType: "string", Risk: "low",
 		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
-		Skip: "", Message: "Migrate string flag {{key}} to OpenFeature getStringValue",
+		Skip: "", Message: "Migrate string flag {{key}} to OpenFeature",
 		Go: &GoBinding{
 			Methods:  []string{"StringVariation", "StringVariationCtx"},
 			CtxArg:   map[string]int{"StringVariationCtx": 0},
@@ -37,7 +37,7 @@ var genRules = []Rule{
 	{
 		ID: "number-variation", ValueType: "number", Risk: "low",
 		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
-		Skip: "", Message: "Migrate number flag {{key}} to OpenFeature getNumberValue",
+		Skip: "", Message: "Migrate number flag {{key}} to OpenFeature",
 		Go: &GoBinding{
 			Methods:  []string{"Float64Variation", "Float64VariationCtx"},
 			CtxArg:   map[string]int{"Float64VariationCtx": 0},
@@ -48,7 +48,7 @@ var genRules = []Rule{
 	{
 		ID: "json-variation", ValueType: "object", Risk: "medium",
 		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
-		Skip: "", Message: "Migrate JSON flag {{key}} to OpenFeature getObjectValue",
+		Skip: "", Message: "Migrate JSON flag {{key}} to OpenFeature",
 	},
 	{
 		ID: "int-variation", ValueType: "integer", Risk: "low",

@@ -68,7 +68,7 @@ export const rules: readonly Rule[] = [
         "template": "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})"
       }
     },
-    "message": "Migrate boolean flag {{key}} to OpenFeature getBooleanValue",
+    "message": "Migrate boolean flag {{key}} to OpenFeature",
     "risk": "low",
     "valueType": "boolean"
   },
@@ -102,7 +102,7 @@ export const rules: readonly Rule[] = [
         "template": "{{client}}.getStringValue({{key}}, {{default}}, {{context}})"
       }
     },
-    "message": "Migrate string flag {{key}} to OpenFeature getStringValue",
+    "message": "Migrate string flag {{key}} to OpenFeature",
     "risk": "low",
     "valueType": "string"
   },
@@ -136,7 +136,7 @@ export const rules: readonly Rule[] = [
         "template": "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})"
       }
     },
-    "message": "Migrate number flag {{key}} to OpenFeature getNumberValue",
+    "message": "Migrate number flag {{key}} to OpenFeature",
     "risk": "low",
     "valueType": "number"
   },
@@ -157,7 +157,7 @@ export const rules: readonly Rule[] = [
         "template": "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})"
       }
     },
-    "message": "Migrate JSON flag {{key}} to OpenFeature getObjectValue",
+    "message": "Migrate JSON flag {{key}} to OpenFeature",
     "risk": "medium",
     "valueType": "object"
   },
