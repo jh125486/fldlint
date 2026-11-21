@@ -1,0 +1,7 @@
+id: shadowed-client
+rule: bool-variation
+tags: [shadowed-client]
+description: An inner-scope binding shadows the OpenFeature client name, so the rewrite is skipped as unbound-client.
+expect:
+  js: {diagnostics: [{line: 9, col: 20, ruleId: bool-variation, skip: unbound-client}], output: false}
+  go: {diagnostics: [{line: 21, col: 11, ruleId: bool-variation, skip: unbound-client}], output: false}

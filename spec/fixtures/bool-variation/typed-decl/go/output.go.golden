@@ -1,0 +1,22 @@
+package flags
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("search")
+
+var c *ldclient.LDClient
+
+func ShowSearch() bool {
+	on, err := client.BooleanValue(context.Background(), "new-search", false, openfeature.NewEvaluationContext("user", nil))
+	if err != nil {
+		fmt.Println("flag error:", err)
+	}
+	return on
+}
