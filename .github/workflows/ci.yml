@@ -32,7 +32,7 @@ jobs:
           if [ "$EVENT" != "pull_request" ]; then
             files="spec/"
           else
-            files=$(git diff --name-only "$BASE_SHA" "$HEAD_SHA")
+            files=$(git diff --name-only "$BASE_SHA...$HEAD_SHA")
           fi
           has() { printf '%s\n' "$files" | grep -Eq "$1" && echo true || echo false; }
           spec=$(has '^(spec/|Makefile$|\.github/)')
@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [20, 22]
+        node: [22, 24]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -107,6 +107,8 @@ jobs:
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-      - name: Install golangci-lint
-        run: go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.1.6
-      - run: make lint
+      - uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        with:
+          version: v2.15.0
+          working-directory: go
+      - run: make lint-js
