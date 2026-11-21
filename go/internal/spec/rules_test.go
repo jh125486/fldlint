@@ -71,6 +71,7 @@ func TestParseRules(t *testing.T) {
 		{name: "message stray brace", old: "flag {{key}} migrates", new: "flag { migrates", wantErr: "{{key}} placeholder"},
 		{name: "empty message", old: `"flag {{key}} migrates"`, new: `""`, wantErr: "non-empty"},
 		{name: "numeric message", old: `message: "flag {{key}} migrates"`, new: "message: 5", wantErr: "must be a string"},
+		{name: "skip rule with message", old: "    skip: detail\n", new: "    skip: detail\n    message: \"m\"\n", wantErr: "must not carry a message"},
 		{name: "bad skip name", old: "skip: detail", new: "skip: nope", wantErr: "is not one of"},
 		{name: "duplicate go method", old: "methods: [B]", new: "methods: [A]", wantErr: "already bound"},
 		{name: "duplicate method in one rule", old: "methods: [B]", new: "methods: [B, B]", wantErr: "duplicate item"},
