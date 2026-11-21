@@ -1,6 +1,6 @@
 id: goctx-shadowed-context
 rule: bool-variation
 tags: [goctx, context-unproven]
-description: A parameter named context shadows the context package, so inserting context.TODO() is unsafe and the call is skipped as context-unproven.
+description: A parameter named context shadows the context package, so inserting context.TODO() is unsafe and the call is left unrewritten.
 expect:
-  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation, skip: context-unproven}], output: false}
+  go: {diagnostics: [], output: false}

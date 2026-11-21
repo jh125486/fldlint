@@ -31,7 +31,7 @@ skipCategories:
 rules:
   # ---- rewritable rules ----
   - id: bool-variation
-    message: "Migrate boolean flag {{key}} to OpenFeature getBooleanValue"
+    message: "Migrate boolean flag {{key}} to OpenFeature"
     valueType: boolean
     risk: low
     keyArg: 0
@@ -48,7 +48,7 @@ rules:
       java: {methods: [boolVariation],
              template: "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"}
   - id: string-variation
-    message: "Migrate string flag {{key}} to OpenFeature getStringValue"
+    message: "Migrate string flag {{key}} to OpenFeature"
     valueType: string
     risk: low
     keyArg: 0
@@ -62,7 +62,7 @@ rules:
            template: "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
            requires: [context-unproven]}
   - id: number-variation
-    message: "Migrate number flag {{key}} to OpenFeature getNumberValue"
+    message: "Migrate number flag {{key}} to OpenFeature"
     valueType: number
     risk: low
     keyArg: 0
@@ -76,7 +76,7 @@ rules:
            template: "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
            requires: [context-unproven]}
   - id: json-variation
-    message: "Migrate JSON flag {{key}} to OpenFeature getObjectValue"
+    message: "Migrate JSON flag {{key}} to OpenFeature"
     valueType: object
     risk: medium
     keyArg: 0

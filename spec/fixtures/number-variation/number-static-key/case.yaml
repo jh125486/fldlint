@@ -1,4 +1,4 @@
-id: static-key
+id: number-static-key
 rule: number-variation
 tags: []
 description: A static number flag is rewritten to getNumberValue (JS) and Go Float64Variation to FloatValue.
