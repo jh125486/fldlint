@@ -62,9 +62,13 @@ export const rules: readonly Rule[] = [
         "methods": [
           "boolVariation"
         ],
+        "requires": [
+          "context-unproven"
+        ],
         "template": "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})"
       }
     },
+    "message": "Migrate boolean flag {{key}} to OpenFeature getBooleanValue",
     "risk": "low",
     "valueType": "boolean"
   },
@@ -92,9 +96,13 @@ export const rules: readonly Rule[] = [
         "methods": [
           "stringVariation"
         ],
+        "requires": [
+          "context-unproven"
+        ],
         "template": "{{client}}.getStringValue({{key}}, {{default}}, {{context}})"
       }
     },
+    "message": "Migrate string flag {{key}} to OpenFeature getStringValue",
     "risk": "low",
     "valueType": "string"
   },
@@ -122,9 +130,13 @@ export const rules: readonly Rule[] = [
         "methods": [
           "numberVariation"
         ],
+        "requires": [
+          "context-unproven"
+        ],
         "template": "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})"
       }
     },
+    "message": "Migrate number flag {{key}} to OpenFeature getNumberValue",
     "risk": "low",
     "valueType": "number"
   },
@@ -139,9 +151,13 @@ export const rules: readonly Rule[] = [
         "methods": [
           "jsonVariation"
         ],
+        "requires": [
+          "context-unproven"
+        ],
         "template": "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})"
       }
     },
+    "message": "Migrate JSON flag {{key}} to OpenFeature getObjectValue",
     "risk": "medium",
     "valueType": "object"
   },
@@ -184,12 +200,32 @@ export const rules: readonly Rule[] = [
     "languages": {
       "js": {
         "methods": [
-          "variation",
-          "isFeatureEnabled"
+          "variation"
         ]
       }
     },
     "risk": "medium",
+    "skip": "type-mismatch"
+  },
+  {
+    "id": "migration-variation",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "MigrationVariationCtx": 0
+        },
+        "methods": [
+          "MigrationVariation",
+          "MigrationVariationCtx"
+        ]
+      },
+      "js": {
+        "methods": [
+          "migrationVariation"
+        ]
+      }
+    },
+    "risk": "high",
     "skip": "type-mismatch"
   },
   {
@@ -303,18 +339,6 @@ export const rules: readonly Rule[] = [
     },
     "risk": "high",
     "skip": "detail"
-  },
-  {
-    "id": "all-flags",
-    "languages": {
-      "js": {
-        "methods": [
-          "allFlags"
-        ]
-      }
-    },
-    "risk": "high",
-    "skip": "bulk"
   },
   {
     "id": "all-flags-state",
