@@ -68,6 +68,7 @@ func TestParseRules(t *testing.T) {
 		{name: "missing valueType", old: "    valueType: boolean\n", new: "", wantErr: "requires valueType"},
 		{name: "missing message", old: "    message: \"flag {{key}} migrates\"\n", new: "", wantErr: "requires message"},
 		{name: "message bad placeholder", old: "flag {{key}} migrates", new: "flag {{client}} migrates", wantErr: "{{key}} placeholder"},
+		{name: "message lone close brace", old: "flag {{key}} migrates", new: "flag } migrates", wantErr: "{{key}} placeholder"},
 		{name: "message stray brace", old: "flag {{key}} migrates", new: "flag { migrates", wantErr: "{{key}} placeholder"},
 		{name: "empty message", old: `"flag {{key}} migrates"`, new: `""`, wantErr: "non-empty"},
 		{name: "numeric message", old: `message: "flag {{key}} migrates"`, new: "message: 5", wantErr: "must be a string"},
@@ -127,16 +128,13 @@ func TestParseRules(t *testing.T) {
 			}
 		})
 	}
-}
-
-func TestParseRules_probes(t *testing.T) {
-	t.Parallel()
+	// Probe files from the reviewers must be rejected.
 	paths, err := filepath.Glob("testdata/probes/r_*.yaml")
 	if err != nil || len(paths) == 0 {
 		t.Fatalf("no probes: %v", err)
 	}
 	for _, p := range paths {
-		t.Run(filepath.Base(p), func(t *testing.T) {
+		t.Run("probe "+filepath.Base(p), func(t *testing.T) {
 			t.Parallel()
 			if _, err := spec.LoadRules(p); err == nil {
 				t.Fatal("expected the probe to be rejected")
@@ -164,6 +162,57 @@ func TestLoadRules(t *testing.T) {
 			}
 			if err == nil && len(rf.Rules) == 0 {
 				t.Fatal("no rules loaded")
+			}
+		})
+	}
+}
+
+func TestRulesFile_Validate(t *testing.T) {
+	t.Parallel()
+	cats := map[string]spec.SkipCategory{"detail": {}, "bulk": {}}
+	bind := func(tmpl string, methods ...string) map[string]*spec.Binding {
+		return map[string]*spec.Binding{"go": {Methods: methods, Template: tmpl}}
+	}
+	rewrite := func(id string, langs map[string]*spec.Binding) spec.Rule {
+		return spec.Rule{ID: id, ValueType: "boolean", Message: "m", KeyArg: 0, DefaultArg: 2, ContextArg: 1, Langs: langs}
+	}
+	skip := func(id string, langs map[string]*spec.Binding) spec.Rule {
+		return spec.Rule{ID: id, Skip: "detail", KeyArg: -1, DefaultArg: -1, ContextArg: -1, Langs: langs}
+	}
+	tests := []struct {
+		name    string
+		version int
+		rules   []spec.Rule
+		wantErr string
+	}{
+		{name: "ok", version: 1, rules: []spec.Rule{rewrite("a", bind("t", "A")), skip("b", bind("", "B"))}},
+		{name: "bad version", version: 2, rules: []spec.Rule{skip("b", bind("", "B"))}, wantErr: "unsupported version"},
+		{name: "empty id", version: 1, rules: []spec.Rule{skip("", bind("", "B"))}, wantErr: "empty id"},
+		{name: "duplicate id", version: 1, rules: []spec.Rule{skip("b", bind("", "B")), skip("b", bind("", "C"))}, wantErr: "duplicate rule id"},
+		{name: "unknown skip", version: 1, rules: []spec.Rule{{ID: "b", Skip: "zzz", Langs: bind("", "B")}}, wantErr: "unknown skip category"},
+		{name: "skip with message", version: 1, rules: []spec.Rule{{ID: "b", Skip: "bulk", Message: "m", Langs: bind("", "B")}}, wantErr: "must not carry a message"},
+		{name: "rewrite missing keyArg", version: 1, rules: []spec.Rule{{ID: "a", ValueType: "boolean", Message: "m", KeyArg: -1, Langs: bind("t", "A")}}, wantErr: "requires"},
+		{name: "rewrite missing message", version: 1, rules: []spec.Rule{{ID: "a", ValueType: "boolean", KeyArg: 0, DefaultArg: 2, ContextArg: 1, Langs: bind("t", "A")}}, wantErr: "requires message"},
+		{name: "no methods", version: 1, rules: []spec.Rule{skip("b", bind(""))}, wantErr: "no methods"},
+		{name: "method bound twice", version: 1, rules: []spec.Rule{skip("b", bind("", "B")), skip("c", bind("", "B"))}, wantErr: "already bound"},
+		{name: "ctxArg unlisted", version: 1, rules: []spec.Rule{skip("b", map[string]*spec.Binding{"go": {Methods: []string{"B"}, CtxArg: map[string]int{"Z": 0}}})}, wantErr: "unlisted method"},
+		{name: "requires unknown", version: 1, rules: []spec.Rule{skip("b", map[string]*spec.Binding{"go": {Methods: []string{"B"}, Requires: []string{"zzz"}}})}, wantErr: "unknown category"},
+		{name: "skip with template", version: 1, rules: []spec.Rule{skip("b", bind("t", "B"))}, wantErr: "mutually exclusive"},
+		{name: "rewrite without template", version: 1, rules: []spec.Rule{rewrite("a", bind("", "A"))}, wantErr: "needs a template"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rf := &spec.RulesFile{Version: tt.version, SkipCategories: cats, Rules: tt.rules}
+			err := rf.Validate()
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
 			}
 		})
 	}
