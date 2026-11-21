@@ -253,3 +253,58 @@ CodeQL and dependency-review run only when the repo is public
 (same `gh api repos/golangci/golangci-lint/releases/latest` lookup for everyone)
 and give `go/` a `.golangci.yml`. Use `BASE...HEAD` for path filters and
 `git status --porcelain` for drift checks.
+
+## M0.2 amendments (second review round; override anything above that conflicts)
+
+### Fixture discovery and semantics (JS and Go validators must both enforce)
+- Every directory under `spec/fixtures/<rule>/<case>/` must contain `case.yaml`
+  (not `case.yml`); any other directory depth, or a directory without
+  `case.yaml`, is an error. Case ids are unique across the whole spec.
+- A case's `rule` must exist; every `diagnostics[].ruleId` must equal the case's
+  `rule`; `diagnostics[].skip`, when present, must equal that rule's own `skip`,
+  and a rule with `skip` requires every diagnostic to carry it; a rewriting rule's
+  diagnostics carry no `skip` unless the language has no template for it (then the
+  language must not appear in `expect` at all).
+- `skip` on a diagnostic implies `output: false`; `output: true` requires at
+  least one diagnostic, and the output file must differ from the input file.
+- `expect.<lang>` is only allowed when the rule binds that language
+  (`languages.<lang>` exists).
+
+### Coverage (`spec:tags`)
+- `bool-variation` covers the seven shape tags (unchanged).
+- Every rewriting rule (no `skip`) needs at least one rewrite case (`output: true`,
+  >=1 diagnostic) for EACH language that has a template. The earlier claim of
+  "and one skip case" is dropped everywhere.
+
+### Positions
+`line`/`col` are 1-based; `col` counts UTF-16 code units from the start of the
+line, a tab counts as one column (SARIF's default `columnKind`). Go
+implementations must convert from byte offsets. Add a non-ASCII fixture where a
+multi-byte character precedes the call on the same line.
+
+### Fix-mode exit code
+A run that applies fixes uses the same exit-code rules as a check run, evaluated
+on what REMAINS after fixing (like ESLint `--fix`): any remaining non-baselined
+finding with default `--max-warnings 0` exits 1; everything fixed exits 0.
+Baselined findings are excluded from `summary.warnings`/`errors` counts and
+reported in `summary.baselined`; add an `info` counter.
+
+### Rule messages
+Messages are shared across languages, so they must not name a language API
+(no `getBooleanValue`/`BooleanValue`); use neutral wording such as
+"Migrate boolean flag {{key}} to OpenFeature".
+
+### CI gating
+CodeQL and dependency-review are gated by the repository variable
+`vars.GHAS_ENABLED == 'true'` (not by repository privacy, which is absent from
+`schedule` events). Document setting it when the repo goes public. In the CodeQL
+job, `actions/setup-go` runs BEFORE `github/codeql-action/init`.
+
+### Loaders
+- An explicit `-spec` (Go) / `--spec-root` (JS) that is missing or invalid is a
+  hard error, never a silent fallback to the stub. The stub fallback only applies
+  when no spec root is given at all.
+- Go message regex rejects a lone `}` like the schema (`[^{}]`).
+- Known, deferred to a tracked issue (do NOT work on it now): YAML scalar typing
+  differences between ajv's YAML parser and yaml.v3 (octal/binary/underscore/1e17
+  integers, timestamps, custom tags, `%YAML 1.1`).
