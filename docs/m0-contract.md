@@ -134,10 +134,11 @@ validate them against the schema, and fail on a malformed case.
 
 ## Exit codes (output of the CLIs, documented by WP3)
 
-`0` clean, `1` problems found, `2` usage or config error (including a missing
-explicit `--config` path), `130` SIGINT. Results to stdout, diagnostics to
-stderr, line format `file:line:col  rule-id  message`. JSON and SARIF
-formatters. `--max-warnings` and `--quiet`. No `v2` labelling anywhere.
+SUPERSEDED by M0.3 (idiomatic per ecosystem): exit codes, flags and severity
+behaviour are per ecosystem, not shared. See spec/contracts/exit-codes.md. Still
+true everywhere: results to stdout, diagnostics to stderr, line format
+`file:line:col  rule-id  message`, JSON and SARIF formatters, and no `v2`
+labelling anywhere.
 
 ## Fingerprint
 
@@ -290,7 +291,8 @@ multi-byte character precedes the call on the same line.
 ### Fix-mode exit code
 A run that applies fixes uses the same exit-code rules as a check run, evaluated
 on what REMAINS after fixing (like ESLint `--fix`): any remaining non-baselined
-finding with default `--max-warnings 0` exits 1; everything fixed exits 0.
+finding exits per the ecosystem rules (JS: errors, or warnings over
+`--max-warnings`, which defaults to unlimited, exit 1); everything fixed exits 0.
 Baselined findings are excluded from `summary.warnings`/`errors` counts and
 reported in `summary.baselined`; add an `info` counter.
 
