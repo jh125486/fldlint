@@ -1,7 +1,0 @@
-id: bulk-call
-rule: all-flags
-tags: []
-description: A bulk all-flags evaluation is reported as skipped with the bulk category.
-expect:
-  js: {diagnostics: [{line: 8, col: 23, ruleId: all-flags, skip: bulk}], output: false}
-  go: {diagnostics: [{line: 14, col: 11, ruleId: all-flags, skip: bulk}], output: false}

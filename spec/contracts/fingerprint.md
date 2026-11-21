@@ -82,9 +82,8 @@ with an independent throwaway script.
 | all-flags-state | `svc/main.go` | (none) | 0 | `990be9e272e7aebbdf1c140532da54e1` |
 | bool-variation | `src/ünï/a.ts` | `clé` | 0 | `d323baf0889c2c95e1dea4eeab9485c9` |
 
-Note: `all-flags-state` is an illustrative rule id for the bulk vector; use the
-actual id from `rules.yaml` once it exists. The algorithm, not the id, is what
-the vector pins.
+Note: `all-flags-state` is the real bulk rule id in `spec/rules.yaml`. The
+algorithm, not the id, is what the vector pins.
 
 ## Difference from flaglint
 
