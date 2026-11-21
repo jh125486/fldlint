@@ -25,11 +25,17 @@ language-independent, and `tool.driver.name` already namespaces it.
 - A finding with a skip category takes its level from
   `skipCategories.<category>.severity`: `error` -> `error`, `warning` ->
   `warning`, `info` -> `note`.
-- A finding that is rewritable (no skip) has level `warning`.
+- A finding that is rewritable (no skip) has level `warning`. All current skip
+  categories are also `warning`.
+- `--quiet` filters SARIF results exactly as it filters `text`, and never
+  alters the exit code ([output-format.md](output-format.md#flags)).
 
 ## Skip categories
 
-`result.message.text` is the category's `message`. The category key is recorded
+`result.message.text` is the category's `message` for a skipped finding and
+the rule's `message` (with `{{key}}` substituted) for a rewritable one, the
+same strings as the `text` formatter minus its `[skip: ...]` suffix
+([output-format.md](output-format.md)). The category key is recorded
 in `result.properties.skip` (e.g. `"dynamic-key"`). Results with no `skip`
 property are rewritable. The rule's `risk` is in `result.properties.risk`.
 

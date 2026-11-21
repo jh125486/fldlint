@@ -12,22 +12,26 @@
 
 | Target | Does |
 |--------|------|
-| `make spec-check` | Validates `rules.yaml` and every `case.yaml`, runs both codegens and fails on drift, checks fixture tag coverage |
+| `make help` | Lists targets |
+| `make spec-check` | Validates `rules.yaml` and every `case.yaml`, runs both codegens and fails on drift, then runs `fixture-tags` |
 | `make spec-gen` | Regenerates the committed JS and Go rule tables |
-| `make js-test` | JS tests (`npm test` in `js/`) |
-| `make go-test` | Go tests (`go test ./...` in `go/`) |
-| `make lint` | Linters |
-| `make test` | Everything |
+| `make fixture-tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and per-rule rewrite/skip cases |
+| `make js-test` | Installs and runs JS tests (`npm test` in `js/`) |
+| `make go-test` | Go tests with the race detector (`go test ./...` in `go/`) |
+| `make lint` | `lint-go` and `lint-js` |
+| `make test` | `js-test` and `go-test` |
 
-CI calls only these targets. If you change `spec/rules.yaml`, run
+CI calls only these targets. Requires Node `>=22.12` (CI runs 22 and 24) and
+the Go version in `go/go.mod`. CodeQL and dependency review run only when the
+repo is public. If you change `spec/rules.yaml`, run
 `make spec-gen` and commit the generated files.
 
 ## Dependencies
 
 Only approved dependencies may be used.
 
-- JS: `eslint` 9.x, `@typescript-eslint/parser`, `@typescript-eslint/utils`,
-  `ajv` (+ `ajv-formats`), `yaml`, `vitest`, `typescript`.
+- JS: `eslint` 9.x, `@types/node` ^22, `@typescript-eslint/parser`, `@typescript-eslint/utils`,
+  `ajv` (+ `ajv-formats`), `yaml`, `vitest` ^5.1.1, `typescript`.
 - Go: `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not approved.
 
 Anything else: ask first, in an issue or on the PR, before adding it.
@@ -51,4 +55,17 @@ Port targeted algorithms only. Keep an SPDX header and a
 ## Spec changes
 
 Rules, schemas, fixtures and contracts are the source of truth. Change the
-spec first, then the engines. ADRs are immutable; supersede them with a new one.
+spec first, then the engines. ADRs are immutable once accepted; supersede them
+with a new one (the pre-release amendments noted in the ADR index are the one
+exception).
+
+- The JS and Go validators must accept and reject the same inputs; add a
+  shared negative probe with any new check
+  ([validation-parity.md](spec/contracts/validation-parity.md)).
+- Shape tags are mandatory for `bool-variation` only; every other rewriting
+  rule needs a rewrite case and, where skipped, a skip case
+  ([ADR 007](docs/adr/007-shape-tag-coverage-reference-rule-only.md)).
+- Rewrites that change the context argument must follow
+  [placeholders.md](spec/contracts/placeholders.md).
+- JS fixtures import `@launchdarkly/node-server-sdk`, not the legacy
+  `launchdarkly-node-server-sdk`.
