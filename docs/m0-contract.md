@@ -176,3 +176,80 @@ upstream repos and SHAs. Do not copy whole modules.
 - Never commit secrets. Do not edit `vendor/`. Do not add unapproved deps.
 - Run your own verification (tests/lint) before finishing and report the
   commands and results honestly, including failures and anything skipped.
+
+## M0.1 amendments (post-review; these override anything above that conflicts)
+
+Decided after the first integration review. Authors working on the fix round
+must follow these.
+
+### Toolchain
+- Node `>=22.12`; CI matrix `[22, 24]`; `vitest ^5.1.1`; `@types/node ^22` (approved).
+- Node 20 is dropped (end of life).
+
+### Context policy (both languages)
+A rewrite that changes the evaluation-context argument is only allowed when
+the LaunchDarkly context is a simple single-kind literal. Otherwise the call is
+reported as `skip: context-unproven`. So JS rules also carry
+`requires: [context-unproven]`, same as Go.
+- JS: rewrite only when the context argument is an object literal whose only
+  properties are `key` (any expression) and optionally `kind: "user"`; emit
+  `{ targetingKey: <key expr> }`. Any other context expression (identifier,
+  spread, extra attributes, other kinds, multi-kind) is skipped.
+- Go: rewrite only for `ldcontext.New(<expr>)`; emit
+  `openfeature.NewEvaluationContext(<expr>, nil)`. Anything else is skipped.
+- The JS `complex-context` fixture therefore becomes a skip, like Go's.
+
+### Placeholder semantics (document in spec/contracts/placeholders.md)
+- `{{client}}`: identifier of the proven OpenFeature client binding in scope.
+- `{{key}}`, `{{default}}`: source text of those arguments.
+- `{{context}}` (JS) / `{{evalctx}}` (Go): the converted context per the policy above.
+- `{{goctx}}`: for `*Ctx` variants, the source text of argument 0. For plain
+  variants, the enclosing function's `context.Context` parameter name if there
+  is exactly one, else `context.TODO()` (add `"context"` to imports if absent).
+  If inserting `context.TODO()` and the identifier `context` is shadowed in
+  scope at the call, skip with `context-unproven`.
+
+### Compilable output
+Rewrites must leave code that compiles. Go: remove an import only if the file
+no longer references it (e.g. `ldcontext` after its only use is rewritten); a
+rewrite must not leave an unused local variable, so Go fixtures keep the LD
+client referenced elsewhere (e.g. `defer ldClient.Close()`). TypeScript
+tolerates unused locals, so JS outputs may keep the now-unused client; state
+this difference in the contracts.
+
+### Fixture coverage
+- The seven mandatory shape tags apply to the reference rule `bool-variation`
+  only (detection shapes are shared engine behaviour, not per-method).
+- Every other rewriting rule needs at least one rewrite case and, where a
+  language skips it, one skip case, in a directory named for the rule.
+- Add `*Ctx` Go cases, including a `context`-named-parameter case, and a
+  `migrationVariation` skip case.
+- JS fixtures import `@launchdarkly/node-server-sdk` (not the legacy
+  `launchdarkly-node-server-sdk`, whose typings lack `boolVariation`).
+- `spec/rules.yaml`: add a `migration-variation` rule (`skip: type-mismatch`)
+  for JS `migrationVariation` and Go `MigrationVariation`/`MigrationVariationCtx`.
+  Drop JS `allFlags` and `isFeatureEnabled` only if verified absent from the
+  current LD Node SDK typings; otherwise keep them and say where they exist.
+
+### Validator parity (JS and Go must accept and reject the same inputs)
+Both loaders: reject unknown keys, enforce enums/patterns/required fields,
+integer `line`/`col`, `output` boolean, non-null language entries; reject a
+case whose `rule` or any `diagnostics[].ruleId` is not in `rules.yaml`; reject
+`ctxArg` for a method not in `methods`; reject the same method appearing in two
+rules for one language; reject a case that promises `expect.<lang>` without the
+language input file, or `output: true` without the output file (and vice versa).
+JS exposes `npm run spec:tags` (fails, naming rule and missing tag, when the
+coverage rules above are not met); the Makefile `fixture-tags` target calls it.
+
+### Output contract
+Reconcile `--quiet` with severities: `--quiet` suppresses findings below the
+configured failing threshold only in output and never changes the exit code;
+define a message for rewritable findings (add a `message` field to rewriting
+rules in rules.yaml, with placeholders limited to `{{key}}`).
+
+### CI
+CodeQL and dependency-review run only when the repo is public
+(`github.event.repository.private == false`). Pin the latest golangci-lint v2.x
+(same `gh api repos/golangci/golangci-lint/releases/latest` lookup for everyone)
+and give `go/` a `.golangci.yml`. Use `BASE...HEAD` for path filters and
+`git status --porcelain` for drift checks.
