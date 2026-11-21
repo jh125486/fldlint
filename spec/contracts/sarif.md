@@ -10,9 +10,38 @@
   a result, with `id` equal to the `rules.yaml` rule id, sorted by id.
 - Locations use `artifactLocation.uri` = normalized relative path (see
   [fingerprint.md](fingerprint.md#path-normalization)) and `uriBaseId: "%SRCROOT%"`;
-  `region.startLine`/`startColumn` are 1-based.
+  `region.startLine`/`startColumn` are 1-based. `startColumn` counts UTF-16
+  code units from the start of the line with a tab as one column, which is
+  SARIF's default `columnKind`; the run sets it explicitly (see the example).
+  Go implementations must convert from byte offsets
+  ([output-format.md](output-format.md#positions)).
 - Results are in the deterministic order of [output-format.md](output-format.md).
   No timestamps or absolute paths.
+
+## Example
+
+```json
+{
+  "$schema": "https://json.schemastore.org/sarif-2.1.0.json",
+  "version": "2.1.0",
+  "runs": [{
+    "tool": {"driver": {"name": "fldlint", "version": "0.0.0",
+      "rules": [{"id": "bool-variation"}]}},
+    "columnKind": "utf16CodeUnits",
+    "results": [{
+      "ruleId": "bool-variation",
+      "level": "warning",
+      "message": {"text": "Migrate boolean flag 'new-ui' to OpenFeature"},
+      "locations": [{"physicalLocation": {
+        "artifactLocation": {"uri": "src/flags.ts", "uriBaseId": "%SRCROOT%"},
+        "region": {"startLine": 3, "startColumn": 18}}}],
+      "partialFingerprints": {"fldlint/fingerprint": "<see fingerprint.md>"},
+      "baselineState": "new",
+      "properties": {"risk": "low"}
+    }]
+  }]
+}
+```
 
 ## Rule ids
 
@@ -46,4 +75,6 @@ property are rewritable. The rule's `risk` is in `result.properties.risk`.
   deduplicate across runs.
 - With `--baseline`, `result.baselineState` is `"unchanged"` for baselined
   findings and `"new"` otherwise ([baseline.md](baseline.md)). Without
-  `--baseline`, `baselineState` is omitted.
+  `--baseline`, `baselineState` is omitted. SARIF has no summary object; the
+  `summary.baselined`/`info` counters of the `json` format have no SARIF
+  equivalent, consumers count by `baselineState` and `level`.
