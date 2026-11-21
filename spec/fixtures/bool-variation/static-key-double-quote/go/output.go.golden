@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
 	"github.com/launchdarkly/go-server-sdk/v7"
 	"github.com/open-feature/go-sdk/openfeature"
 )
@@ -17,7 +16,8 @@ func CheckoutEnabled() bool {
 	if err != nil {
 		return false
 	}
-	enabled, err := client.BooleanValue(context.Background(), "new-checkout", false, openfeature.NewEvaluationContext("user", nil))
+	defer ldClient.Close()
+	enabled, err := client.BooleanValue(context.TODO(), "new-checkout", false, openfeature.NewEvaluationContext("user", nil))
 	if err != nil {
 		fmt.Println("flag error:", err)
 	}

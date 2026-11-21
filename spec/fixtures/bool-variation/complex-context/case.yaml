@@ -1,7 +1,7 @@
 id: complex-context
 rule: bool-variation
 tags: [context-unproven]
-description: A multi-kind or builder-made LD context is passed through in JS but skipped in Go as context-unproven.
+description: A multi-kind or builder-made LD context cannot be converted to an EvaluationContext and is skipped as context-unproven in both languages.
 expect:
-  js: {diagnostics: [{line: 13, col: 16, ruleId: bool-variation}], output: true}
+  js: {diagnostics: [{line: 13, col: 16, ruleId: bool-variation, skip: context-unproven}], output: false}
   go: {diagnostics: [{line: 15, col: 11, ruleId: bool-variation, skip: context-unproven}], output: false}

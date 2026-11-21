@@ -4,4 +4,4 @@ tags: [aliased-import]
 description: A call through an aliased SDK import is recognised and rewritten.
 expect:
   js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
-  go: {diagnostics: [{line: 20, col: 11, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 21, col: 11, ruleId: bool-variation}], output: true}

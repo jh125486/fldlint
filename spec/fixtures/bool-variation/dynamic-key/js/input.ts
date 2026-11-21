@@ -1,4 +1,4 @@
-import { init } from "launchdarkly-node-server-sdk";
+import { init } from "@launchdarkly/node-server-sdk";
 import { OpenFeature } from "@openfeature/server-sdk";
 
 const ldClient = init("sdk-key");

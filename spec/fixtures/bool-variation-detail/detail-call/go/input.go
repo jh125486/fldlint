@@ -12,5 +12,5 @@ var ldClient *ldclient.LDClient
 
 func WhyEnabled() string {
 	_, detail, _ := ldClient.BoolVariationDetail("new-checkout", ldcontext.New("user"), false)
-	return detail.Reason.GetKind().String()
+	return string(detail.Reason.GetKind())
 }

@@ -8,9 +8,18 @@
 # Sources: JS method list from flaglint-js scanner (LD_FLAG_KEY_METHODS,
 # LD_ALL_FLAGS_METHODS); Go from flaglint-go methodSpecs, signatures checked
 # against go-server-sdk v7 ldclient.go and openfeature-go client.go.
-# Go "requires: [context-unproven]" means the rewrite is only applied when the
-# LD context -> EvaluationContext conversion can be proven; otherwise the
-# planner reports skip=context-unproven.
+# "requires: [context-unproven]" (JS and Go) means the rewrite is only applied
+# when the LD context -> EvaluationContext conversion can be proven (JS: a
+# literal { key } / { kind: "user", key } object; Go: ldcontext.New(x));
+# otherwise the planner reports skip=context-unproven.
+#
+# `message` (rewriting rules only) is the diagnostic text for a rewritable
+# finding; the only placeholder allowed in it is {{key}}.
+#
+# JS method list verified against @launchdarkly/node-server-sdk 9.17.1 and
+# @launchdarkly/js-server-sdk-common 2.26.8 typings: allFlags and
+# isFeatureEnabled do not exist there (they were only in the legacy
+# launchdarkly-node-server-sdk) and are therefore not listed.
 version: 1
 skipCategories:
   detail:           {severity: warning, message: "Detail call; reason/variation metadata has no 1:1 rewrite"}
@@ -22,6 +31,7 @@ skipCategories:
 rules:
   # ---- rewritable rules ----
   - id: bool-variation
+    message: "Migrate boolean flag {{key}} to OpenFeature getBooleanValue"
     valueType: boolean
     risk: low
     keyArg: 0
@@ -29,7 +39,8 @@ rules:
     contextArg: 1
     languages:
       js:   {methods: [boolVariation], async: true,
-             template: "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})"}
+             template: "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})",
+             requires: [context-unproven]}
       go:   {methods: [BoolVariation, BoolVariationCtx], ctxArg: {BoolVariationCtx: 0},
              template: "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
              requires: [context-unproven]}
@@ -37,6 +48,7 @@ rules:
       java: {methods: [boolVariation],
              template: "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"}
   - id: string-variation
+    message: "Migrate string flag {{key}} to OpenFeature getStringValue"
     valueType: string
     risk: low
     keyArg: 0
@@ -44,11 +56,13 @@ rules:
     contextArg: 1
     languages:
       js: {methods: [stringVariation], async: true,
-           template: "{{client}}.getStringValue({{key}}, {{default}}, {{context}})"}
+           template: "{{client}}.getStringValue({{key}}, {{default}}, {{context}})",
+           requires: [context-unproven]}
       go: {methods: [StringVariation, StringVariationCtx], ctxArg: {StringVariationCtx: 0},
            template: "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
            requires: [context-unproven]}
   - id: number-variation
+    message: "Migrate number flag {{key}} to OpenFeature getNumberValue"
     valueType: number
     risk: low
     keyArg: 0
@@ -56,11 +70,13 @@ rules:
     contextArg: 1
     languages:
       js: {methods: [numberVariation], async: true,
-           template: "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})"}
+           template: "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})",
+           requires: [context-unproven]}
       go: {methods: [Float64Variation, Float64VariationCtx], ctxArg: {Float64VariationCtx: 0},
            template: "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
            requires: [context-unproven]}
   - id: json-variation
+    message: "Migrate JSON flag {{key}} to OpenFeature getObjectValue"
     valueType: object
     risk: medium
     keyArg: 0
@@ -68,7 +84,8 @@ rules:
     contextArg: 1
     languages:
       js: {methods: [jsonVariation], async: true,
-           template: "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})"}
+           template: "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})",
+           requires: [context-unproven]}
 
   # ---- report-only: type mismatch ----
   # Go IntVariation returns int; OpenFeature IntValue returns int64.
@@ -86,12 +103,20 @@ rules:
     languages:
       go: {methods: [JSONVariation, JSONVariationCtx], ctxArg: {JSONVariationCtx: 0}}
     skip: type-mismatch
-  # JS generic variation()/isFeatureEnabled() (deprecated boolean alias) return any;
-  # the target typed method cannot be chosen from the call alone.
+  # JS generic variation() returns any; the target typed method cannot be
+  # chosen from the call alone.
   - id: variation
     risk: medium
     languages:
-      js: {methods: [variation, isFeatureEnabled]}
+      js: {methods: [variation]}
+    skip: type-mismatch
+
+  # Migration flags return a stage plus an operation tracker, not a plain value.
+  - id: migration-variation
+    risk: high
+    languages:
+      js: {methods: [migrationVariation]}
+      go: {methods: [MigrationVariation, MigrationVariationCtx], ctxArg: {MigrationVariationCtx: 0}}
     skip: type-mismatch
 
   # ---- report-only: detail ----
@@ -131,11 +156,6 @@ rules:
     skip: detail
 
   # ---- report-only: bulk ----
-  - id: all-flags
-    risk: high
-    languages:
-      js: {methods: [allFlags]}
-    skip: bulk
   - id: all-flags-state
     risk: high
     languages:

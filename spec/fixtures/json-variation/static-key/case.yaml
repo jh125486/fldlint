@@ -1,0 +1,6 @@
+id: static-key
+rule: json-variation
+tags: []
+description: A static JSON flag is rewritten to getObjectValue in JS; Go JSONVariation is a separate skipped rule.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: json-variation}], output: true}
