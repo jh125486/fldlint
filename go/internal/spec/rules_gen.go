@@ -3,9 +3,12 @@
 package spec
 
 var genSkipCategories = map[string]SkipCategory{
+	"bulk":             {Severity: "warning", Message: "Bulk evaluation; migrate manually"},
 	"context-unproven": {Severity: "warning", Message: "Cannot prove LD context -> EvaluationContext conversion"},
 	"detail":           {Severity: "warning", Message: "Detail call; reason/variation metadata has no 1:1 rewrite"},
 	"dynamic-key":      {Severity: "warning", Message: "Flag key is not a static string"},
+	"type-mismatch":    {Severity: "warning", Message: "Return/default type differs between SDKs"},
+	"unbound-client":   {Severity: "warning", Message: "OpenFeature client binding not proven in scope"},
 }
 
 var genRules = []Rule{
@@ -21,18 +24,148 @@ var genRules = []Rule{
 		},
 	},
 	{
+		ID: "string-variation", ValueType: "string", Risk: "low",
+		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
+		Skip: "",
+		Go: &GoBinding{
+			Methods:  []string{"StringVariation", "StringVariationCtx"},
+			CtxArg:   map[string]int{"StringVariationCtx": 0},
+			Template: "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
+			Requires: []string{"context-unproven"},
+		},
+	},
+	{
+		ID: "number-variation", ValueType: "number", Risk: "low",
+		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
+		Skip: "",
+		Go: &GoBinding{
+			Methods:  []string{"Float64Variation", "Float64VariationCtx"},
+			CtxArg:   map[string]int{"Float64VariationCtx": 0},
+			Template: "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
+			Requires: []string{"context-unproven"},
+		},
+	},
+	{
+		ID: "json-variation", ValueType: "object", Risk: "medium",
+		KeyArg: 0, DefaultArg: 2, ContextArg: 1,
+		Skip: "",
+	},
+	{
+		ID: "int-variation", ValueType: "integer", Risk: "low",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "type-mismatch",
+		Go: &GoBinding{
+			Methods:  []string{"IntVariation", "IntVariationCtx"},
+			CtxArg:   map[string]int{"IntVariationCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "go-json-variation", ValueType: "object", Risk: "medium",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "type-mismatch",
+		Go: &GoBinding{
+			Methods:  []string{"JSONVariation", "JSONVariationCtx"},
+			CtxArg:   map[string]int{"JSONVariationCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "variation", ValueType: "", Risk: "medium",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "type-mismatch",
+	},
+	{
 		ID: "bool-variation-detail", ValueType: "", Risk: "high",
 		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail",
 		Go: &GoBinding{
-			Methods:  []string{"BoolVariationDetail"},
+			Methods:  []string{"BoolVariationDetail", "BoolVariationDetailCtx"},
+			CtxArg:   map[string]int{"BoolVariationDetailCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "string-variation-detail", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "detail",
+		Go: &GoBinding{
+			Methods:  []string{"StringVariationDetail", "StringVariationDetailCtx"},
+			CtxArg:   map[string]int{"StringVariationDetailCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "number-variation-detail", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "detail",
+		Go: &GoBinding{
+			Methods:  []string{"Float64VariationDetail", "Float64VariationDetailCtx"},
+			CtxArg:   map[string]int{"Float64VariationDetailCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "int-variation-detail", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "detail",
+		Go: &GoBinding{
+			Methods:  []string{"IntVariationDetail", "IntVariationDetailCtx"},
+			CtxArg:   map[string]int{"IntVariationDetailCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "json-variation-detail", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "detail",
+		Go: &GoBinding{
+			Methods:  []string{"JSONVariationDetail", "JSONVariationDetailCtx"},
+			CtxArg:   map[string]int{"JSONVariationDetailCtx": 0},
+			Template: "",
+		},
+	},
+	{
+		ID: "variation-detail", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "detail",
+	},
+	{
+		ID: "all-flags", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "bulk",
+	},
+	{
+		ID: "all-flags-state", ValueType: "", Risk: "high",
+		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		Skip: "bulk",
+		Go: &GoBinding{
+			Methods:  []string{"AllFlagsState"},
 			Template: "",
 		},
 	},
 }
 
 var genGoIndex = map[string]int{
-	"BoolVariation":       0,
-	"BoolVariationCtx":    0,
-	"BoolVariationDetail": 1,
+	"AllFlagsState":             14,
+	"BoolVariation":             0,
+	"BoolVariationCtx":          0,
+	"BoolVariationDetail":       7,
+	"BoolVariationDetailCtx":    7,
+	"Float64Variation":          2,
+	"Float64VariationCtx":       2,
+	"Float64VariationDetail":    9,
+	"Float64VariationDetailCtx": 9,
+	"IntVariation":              4,
+	"IntVariationCtx":           4,
+	"IntVariationDetail":        10,
+	"IntVariationDetailCtx":     10,
+	"JSONVariation":             5,
+	"JSONVariationCtx":          5,
+	"JSONVariationDetail":       11,
+	"JSONVariationDetailCtx":    11,
+	"StringVariation":           1,
+	"StringVariationCtx":        1,
+	"StringVariationDetail":     8,
+	"StringVariationDetailCtx":  8,
 }

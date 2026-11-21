@@ -5,8 +5,24 @@ import type { Rule, SkipCategory } from "./types.js";
 export const SPEC_VERSION = 1;
 
 export const skipCategories: Readonly<Record<string, SkipCategory>> = {
+  "bulk": {
+    "message": "Bulk evaluation; migrate manually",
+    "severity": "warning"
+  },
+  "context-unproven": {
+    "message": "Cannot prove LD context -> EvaluationContext conversion",
+    "severity": "warning"
+  },
+  "detail": {
+    "message": "Detail call; reason/variation metadata has no 1:1 rewrite",
+    "severity": "warning"
+  },
   "dynamic-key": {
     "message": "Flag key is not a static string",
+    "severity": "warning"
+  },
+  "type-mismatch": {
+    "message": "Return/default type differs between SDKs",
     "severity": "warning"
   },
   "unbound-client": {
@@ -22,6 +38,25 @@ export const rules: readonly Rule[] = [
     "id": "bool-variation",
     "keyArg": 0,
     "languages": {
+      "go": {
+        "ctxArg": {
+          "BoolVariationCtx": 0
+        },
+        "methods": [
+          "BoolVariation",
+          "BoolVariationCtx"
+        ],
+        "requires": [
+          "context-unproven"
+        ],
+        "template": "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"
+      },
+      "java": {
+        "methods": [
+          "boolVariation"
+        ],
+        "template": "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"
+      },
       "js": {
         "async": true,
         "methods": [
@@ -32,5 +67,270 @@ export const rules: readonly Rule[] = [
     },
     "risk": "low",
     "valueType": "boolean"
+  },
+  {
+    "contextArg": 1,
+    "defaultArg": 2,
+    "id": "string-variation",
+    "keyArg": 0,
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "StringVariationCtx": 0
+        },
+        "methods": [
+          "StringVariation",
+          "StringVariationCtx"
+        ],
+        "requires": [
+          "context-unproven"
+        ],
+        "template": "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"
+      },
+      "js": {
+        "async": true,
+        "methods": [
+          "stringVariation"
+        ],
+        "template": "{{client}}.getStringValue({{key}}, {{default}}, {{context}})"
+      }
+    },
+    "risk": "low",
+    "valueType": "string"
+  },
+  {
+    "contextArg": 1,
+    "defaultArg": 2,
+    "id": "number-variation",
+    "keyArg": 0,
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "Float64VariationCtx": 0
+        },
+        "methods": [
+          "Float64Variation",
+          "Float64VariationCtx"
+        ],
+        "requires": [
+          "context-unproven"
+        ],
+        "template": "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"
+      },
+      "js": {
+        "async": true,
+        "methods": [
+          "numberVariation"
+        ],
+        "template": "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})"
+      }
+    },
+    "risk": "low",
+    "valueType": "number"
+  },
+  {
+    "contextArg": 1,
+    "defaultArg": 2,
+    "id": "json-variation",
+    "keyArg": 0,
+    "languages": {
+      "js": {
+        "async": true,
+        "methods": [
+          "jsonVariation"
+        ],
+        "template": "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})"
+      }
+    },
+    "risk": "medium",
+    "valueType": "object"
+  },
+  {
+    "id": "int-variation",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "IntVariationCtx": 0
+        },
+        "methods": [
+          "IntVariation",
+          "IntVariationCtx"
+        ]
+      }
+    },
+    "risk": "low",
+    "skip": "type-mismatch",
+    "valueType": "integer"
+  },
+  {
+    "id": "go-json-variation",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "JSONVariationCtx": 0
+        },
+        "methods": [
+          "JSONVariation",
+          "JSONVariationCtx"
+        ]
+      }
+    },
+    "risk": "medium",
+    "skip": "type-mismatch",
+    "valueType": "object"
+  },
+  {
+    "id": "variation",
+    "languages": {
+      "js": {
+        "methods": [
+          "variation",
+          "isFeatureEnabled"
+        ]
+      }
+    },
+    "risk": "medium",
+    "skip": "type-mismatch"
+  },
+  {
+    "id": "bool-variation-detail",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "BoolVariationDetailCtx": 0
+        },
+        "methods": [
+          "BoolVariationDetail",
+          "BoolVariationDetailCtx"
+        ]
+      },
+      "js": {
+        "methods": [
+          "boolVariationDetail"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "detail"
+  },
+  {
+    "id": "string-variation-detail",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "StringVariationDetailCtx": 0
+        },
+        "methods": [
+          "StringVariationDetail",
+          "StringVariationDetailCtx"
+        ]
+      },
+      "js": {
+        "methods": [
+          "stringVariationDetail"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "detail"
+  },
+  {
+    "id": "number-variation-detail",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "Float64VariationDetailCtx": 0
+        },
+        "methods": [
+          "Float64VariationDetail",
+          "Float64VariationDetailCtx"
+        ]
+      },
+      "js": {
+        "methods": [
+          "numberVariationDetail"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "detail"
+  },
+  {
+    "id": "int-variation-detail",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "IntVariationDetailCtx": 0
+        },
+        "methods": [
+          "IntVariationDetail",
+          "IntVariationDetailCtx"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "detail"
+  },
+  {
+    "id": "json-variation-detail",
+    "languages": {
+      "go": {
+        "ctxArg": {
+          "JSONVariationDetailCtx": 0
+        },
+        "methods": [
+          "JSONVariationDetail",
+          "JSONVariationDetailCtx"
+        ]
+      },
+      "js": {
+        "methods": [
+          "jsonVariationDetail"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "detail"
+  },
+  {
+    "id": "variation-detail",
+    "languages": {
+      "js": {
+        "methods": [
+          "variationDetail"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "detail"
+  },
+  {
+    "id": "all-flags",
+    "languages": {
+      "js": {
+        "methods": [
+          "allFlags"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "bulk"
+  },
+  {
+    "id": "all-flags-state",
+    "languages": {
+      "go": {
+        "methods": [
+          "AllFlagsState"
+        ]
+      },
+      "js": {
+        "methods": [
+          "allFlagsState"
+        ]
+      }
+    },
+    "risk": "high",
+    "skip": "bulk"
   }
 ];
