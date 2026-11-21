@@ -223,9 +223,10 @@ this difference in the contracts.
 ### Fixture coverage
 - The seven mandatory shape tags apply to the reference rule `bool-variation`
   only (detection shapes are shared engine behaviour, not per-method).
-- Every other rewriting rule needs at least one rewrite case and, where a
-  language skips it, a skip case was originally required here; M0.2 drops that and
-  M0.2b limits M0 coverage to js and go. Cases live in a directory named for the rule.
+- Every other rewriting rule needs at least one rewrite case per language that
+  has a template, in a directory named for the rule. (M0.1 originally also
+  required a skip case; M0.2 dropped that, and M0.2b limits M0 coverage to js
+  and go.)
 - Add `*Ctx` Go cases, including a `context`-named-parameter case, and a
   `migrationVariation` skip case.
 - JS fixtures import `@launchdarkly/node-server-sdk` (not the legacy
