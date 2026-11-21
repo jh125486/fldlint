@@ -49,7 +49,7 @@ describe("semantic validation", () => {
   it("rejects a diagnostic ruleId that is not in rules.yaml", () => {
     const dir = copyStub();
     write(dir, `${CASE}/case.yaml`, caseYaml({ ruleId: "ghost-rule" }));
-    expect(validateSpec(dir).errors.join("\n")).toContain('ruleId "ghost-rule" is not defined');
+    expect(validateSpec(dir).errors.join("\n")).toContain('ruleId "ghost-rule" must equal the case rule "bool-variation"');
   });
 
   it("rejects expect.<lang> without the input file", () => {
@@ -148,7 +148,7 @@ describe("checkTags", () => {
       rules,
       `${cpSyncRead(rules)}  - id: string-variation\n    risk: low\n    languages:\n      js: {methods: [stringVariation], template: "x"}\n`,
     );
-    expect(checkTags(dir).errors).toContain('rule "string-variation": no case with a rewrite (expect.<lang>.output: true)');
+    expect(checkTags(dir).errors.join("\n")).toContain('rule "string-variation": no rewrite case for language "js"');
   });
 
   it("does not require cases for skip rules", () => {

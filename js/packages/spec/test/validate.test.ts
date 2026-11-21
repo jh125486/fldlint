@@ -1,4 +1,4 @@
-import { cpSync, mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -14,8 +14,28 @@ function copyStub(): string {
 
 describe("resolveSpecRoot", () => {
   it("prefers explicit arg, then env", () => {
-    expect(resolveSpecRoot("/a", { FLDLINT_SPEC_ROOT: "/b" })).toBe("/a");
-    expect(resolveSpecRoot(undefined, { FLDLINT_SPEC_ROOT: "/b" })).toBe("/b");
+    const a = copyStub();
+    const b = copyStub();
+    expect(resolveSpecRoot(a, { FLDLINT_SPEC_ROOT: b })).toBe(a);
+    expect(resolveSpecRoot(undefined, { FLDLINT_SPEC_ROOT: b })).toBe(b);
+  });
+
+  it("hard-errors on an explicit root that is missing or lacks rules/schema", () => {
+    expect(() => resolveSpecRoot("/no/such/spec-root", {})).toThrow(/explicit spec root .* missing or invalid/);
+    const noRules = copyStub();
+    rmSync(join(noRules, "rules.yaml"));
+    expect(() => resolveSpecRoot(noRules, {})).toThrow(/rules\.yaml/);
+    const noSchema = copyStub();
+    rmSync(join(noSchema, "schema"), { recursive: true });
+    expect(() => resolveSpecRoot(noSchema, {})).toThrow(/schema\/fixture\.schema\.json/);
+  });
+
+  it("hard-errors on an invalid FLDLINT_SPEC_ROOT instead of falling back", () => {
+    expect(() => resolveSpecRoot(undefined, { FLDLINT_SPEC_ROOT: "/no/such" })).toThrow(/FLDLINT_SPEC_ROOT spec root/);
+  });
+
+  it("falls back to the repo spec or stub only when nothing is given", () => {
+    expect(() => resolveSpecRoot(undefined, {})).not.toThrow();
   });
 });
 

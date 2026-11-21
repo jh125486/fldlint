@@ -1,6 +1,6 @@
 id: dynamic-key
 rule: bool-variation
 tags: [dynamic-key]
-description: Non-literal key is reported but not rewritten.
+description: Non-literal key is not rewritten.
 expect:
-  js: {diagnostics: [{line: 3, col: 18, ruleId: bool-variation, skip: dynamic-key}], output: false}
+  js: {diagnostics: [], output: false}

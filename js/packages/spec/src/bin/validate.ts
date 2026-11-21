@@ -1,10 +1,16 @@
-import { resolveSpecRoot } from "../specRoot.js";
+import { parseArgs, resolveSpecRoot } from "../specRoot.js";
 import { validateSpec } from "../validate.js";
 
-const args = process.argv.slice(2);
-const allowMissing = args.includes("--allow-missing-schema");
-const rootArg = args.find((a) => a.startsWith("--spec-root="))?.slice("--spec-root=".length);
-const root = resolveSpecRoot(rootArg);
+let root: string;
+let allowMissing: boolean;
+try {
+  const args = parseArgs(process.argv.slice(2), ["--allow-missing-schema"]);
+  root = resolveSpecRoot(args.specRoot);
+  allowMissing = args.flags.has("--allow-missing-schema");
+} catch (e) {
+  console.error(`spec:validate: error: ${(e as Error).message}`);
+  process.exit(2);
+}
 const res = validateSpec(root);
 
 for (const e of res.errors) console.error(`spec:validate: ${e}`);
