@@ -1,0 +1,19 @@
+{
+  "name": "fldlint-js",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=20" },
+  "workspaces": ["packages/*"],
+  "scripts": {
+    "build": "npm run build --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present",
+    "lint": "npm run typecheck",
+    "gen": "npm run gen -w @fldlint/spec",
+    "spec:validate": "npm run build -w @fldlint/spec --silent && node packages/spec/dist/bin/validate.js"
+  },
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^2.1.0"
+  }
+}
