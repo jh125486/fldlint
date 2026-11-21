@@ -40,18 +40,8 @@ func checkCase(path string, rf *spec.RulesFile) (*spec.Case, error) {
 	if err := c.Validate(rf); err != nil {
 		return nil, err
 	}
-	if want, ok := c.Expect["go"]; ok {
-		dir := filepath.Join(filepath.Dir(path), "go")
-		if _, err := os.Stat(filepath.Join(dir, "input.go")); err != nil {
-			return nil, fmt.Errorf("case %q: go/input.go: %w", c.ID, err)
-		}
-		_, err := os.Stat(filepath.Join(dir, "output.go.golden"))
-		if want.Output && err != nil {
-			return nil, fmt.Errorf("case %q: output: true but go/output.go.golden missing", c.ID)
-		}
-		if !want.Output && err == nil {
-			return nil, fmt.Errorf("case %q: output: false but go/output.go.golden present", c.ID)
-		}
+	if err := c.CheckFixtureDir(filepath.Dir(path)); err != nil {
+		return nil, err
 	}
 	return c, nil
 }
@@ -95,46 +85,66 @@ func TestCheckCase(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	write := func(t *testing.T, caseYAML string, files ...string) string {
+	// write lays out <tmp>/<ruleDir>/x/case.yaml plus the given files.
+	write := func(t *testing.T, ruleDir, caseYAML string, files ...string) string {
 		t.Helper()
-		dir := t.TempDir()
-		if err := os.MkdirAll(filepath.Join(dir, "go"), 0o755); err != nil {
+		dir := filepath.Join(t.TempDir(), ruleDir, "x")
+		if err := os.MkdirAll(dir, 0o755); err != nil {
 			t.Fatal(err)
 		}
 		if err := os.WriteFile(filepath.Join(dir, "case.yaml"), []byte(caseYAML), 0o644); err != nil {
 			t.Fatal(err)
 		}
 		for _, f := range files {
-			if err := os.WriteFile(filepath.Join(dir, "go", f), nil, 0o644); err != nil {
+			if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(f)), 0o755); err != nil {
+				t.Fatal(err)
+			}
+			if err := os.WriteFile(filepath.Join(dir, f), nil, 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}
 		return filepath.Join(dir, "case.yaml")
 	}
 	const base = "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  go: {diagnostics: [{line: 1, col: 1, ruleId: bool-variation}], output: %v}\n"
+	const jsOnly = "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  js: {diagnostics: [], output: false}\n"
 	tests := []struct {
 		name    string
+		dir     string
 		yaml    string
 		files   []string
-		wantErr bool
+		wantErr string
 	}{
-		{name: "ok no output", yaml: fmt.Sprintf(base, false), files: []string{"input.go"}},
-		{name: "ok with output", yaml: fmt.Sprintf(base, true), files: []string{"input.go", "output.go.golden"}},
-		{name: "unknown rule", yaml: strings.Replace(fmt.Sprintf(base, false), "rule: bool-variation", "rule: nope", 1), files: []string{"input.go"}, wantErr: true},
-		{name: "unknown diagnostic ruleId", yaml: strings.Replace(fmt.Sprintf(base, false), "ruleId: bool-variation", "ruleId: nope", 1), files: []string{"input.go"}, wantErr: true},
-		{name: "no go expectation needs no go files", yaml: "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  js: {diagnostics: [], output: false}\n"},
-		{name: "malformed yaml", yaml: "id: [", wantErr: true},
-		{name: "invalid case", yaml: "id: x\n", wantErr: true},
-		{name: "missing input", yaml: fmt.Sprintf(base, false), wantErr: true},
-		{name: "missing golden", yaml: fmt.Sprintf(base, true), files: []string{"input.go"}, wantErr: true},
-		{name: "unexpected golden", yaml: fmt.Sprintf(base, false), files: []string{"input.go", "output.go.golden"}, wantErr: true},
+		{name: "ok no output", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go"}},
+		{name: "ok with output", yaml: fmt.Sprintf(base, true), files: []string{"go/input.go", "go/output.go.golden"}},
+		{name: "unknown rule", yaml: strings.Replace(fmt.Sprintf(base, false), "rule: bool-variation", "rule: nope", 1), files: []string{"go/input.go"}, wantErr: "unknown rule"},
+		{name: "unknown diagnostic ruleId", yaml: strings.Replace(fmt.Sprintf(base, false), "ruleId: bool-variation", "ruleId: nope", 1), files: []string{"go/input.go"}, wantErr: "unknown ruleId"},
+		{name: "rule differs from directory", dir: "bool-variation-detail", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go"}, wantErr: `does not match its directory name "bool-variation-detail"`},
+		{name: "stray go golden without expect.go", yaml: jsOnly, files: []string{"js/input.ts", "go/output.go.golden"}, wantErr: "go/output.go.golden exists but case.yaml has no expect.go"},
+		{name: "stray js output without expect.js", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go", "js/output.ts"}, wantErr: "js/output.ts exists but case.yaml has no expect.js"},
+		{name: "stray java output without expect.java", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go", "java/After.java"}, wantErr: "java/After.java exists but case.yaml has no expect.java"},
+		{name: "js expectation needs js input", yaml: jsOnly, wantErr: "js/input.ts, which does not exist"},
+		{name: "malformed yaml", yaml: "id: [", wantErr: "parse case"},
+		{name: "invalid case", yaml: "id: x\n", wantErr: "missing required key"},
+		{name: "missing input", yaml: fmt.Sprintf(base, false), wantErr: "go/input.go, which does not exist"},
+		{name: "missing golden", yaml: fmt.Sprintf(base, true), files: []string{"go/input.go"}, wantErr: "go/output.go.golden does not exist"},
+		{name: "unexpected golden", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go", "go/output.go.golden"}, wantErr: "go/output.go.golden exists"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := checkCase(write(t, tt.yaml, tt.files...), rf)
-			if (err != nil) != tt.wantErr {
-				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			dir := tt.dir
+			if dir == "" {
+				dir = "bool-variation"
+			}
+			_, err := checkCase(write(t, dir, tt.yaml, tt.files...), rf)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
 			}
 		})
 	}

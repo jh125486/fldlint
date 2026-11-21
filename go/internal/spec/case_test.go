@@ -180,3 +180,62 @@ func TestCase_Validate_probes(t *testing.T) {
 		})
 	}
 }
+
+func TestCase_CheckFixtureDir(t *testing.T) {
+	t.Parallel()
+	const withGo = `
+id: c1
+rule: bool-variation
+tags: []
+description: d
+expect:
+  go: {diagnostics: [], output: %s}
+`
+	tests := []struct {
+		name    string
+		ruleDir string
+		output  string
+		files   []string
+		wantErr string
+	}{
+		{name: "ok", ruleDir: "bool-variation", output: "false", files: []string{"go/input.go"}},
+		{name: "ok with output", ruleDir: "bool-variation", output: "true", files: []string{"go/input.go", "go/output.go.golden"}},
+		{name: "directory mismatch", ruleDir: "string-variation", output: "false", files: []string{"go/input.go"}, wantErr: `rule "bool-variation" does not match its directory name "string-variation"`},
+		{name: "missing input", ruleDir: "bool-variation", output: "false", wantErr: "go/input.go, which does not exist"},
+		{name: "missing output", ruleDir: "bool-variation", output: "true", files: []string{"go/input.go"}, wantErr: "output is true but go/output.go.golden does not exist"},
+		{name: "unexpected output", ruleDir: "bool-variation", output: "false", files: []string{"go/input.go", "go/output.go.golden"}, wantErr: "output is false but go/output.go.golden exists"},
+		{name: "stray js output", ruleDir: "bool-variation", output: "false", files: []string{"go/input.go", "js/output.ts"}, wantErr: "js/output.ts exists but case.yaml has no expect.js"},
+		{name: "stray java output", ruleDir: "bool-variation", output: "false", files: []string{"go/input.go", "java/After.java"}, wantErr: "java/After.java exists but case.yaml has no expect.java"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			dir := filepath.Join(t.TempDir(), tt.ruleDir, "c1")
+			for _, f := range tt.files {
+				if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(f)), 0o755); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.WriteFile(filepath.Join(dir, f), nil, 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				t.Fatal(err)
+			}
+			c, err := spec.ParseCase([]byte(strings.Replace(withGo, "%s", tt.output, 1)))
+			if err != nil {
+				t.Fatal(err)
+			}
+			err = c.CheckFixtureDir(dir)
+			if tt.wantErr == "" {
+				if err != nil {
+					t.Fatal(err)
+				}
+				return
+			}
+			if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
+				t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
+			}
+		})
+	}
+}

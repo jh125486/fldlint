@@ -3,6 +3,7 @@ package spec
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"slices"
 
 	"gopkg.in/yaml.v3"
@@ -180,6 +181,53 @@ func (c *Case) Validate(rf *RulesFile) error {
 					return fmt.Errorf("case %q: %s diagnostic %d: unknown skip category %q", c.ID, lang, i, d.Skip)
 				}
 			}
+		}
+	}
+	return nil
+}
+
+// langFiles maps each language to its fixture input and expected-output file.
+var langFiles = map[string][2]string{
+	"js":   {"js/input.ts", "js/output.ts"},
+	"go":   {"go/input.go", "go/output.go.golden"},
+	"java": {"java/Before.java", "java/After.java"},
+}
+
+// CheckFixtureDir verifies the case against its directory, which must be
+// <...>/<rule-id>/<case-id>: the rule must equal the parent directory name,
+// an expected language needs its input file (and its output file exactly when
+// output is true), and a language without an expectation must have no output
+// file. It mirrors the semantic checks of the JS validator.
+func (c *Case) CheckFixtureDir(dir string) error {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return fmt.Errorf("case %q: %w", c.ID, err)
+	}
+	if parent := filepath.Base(filepath.Dir(abs)); parent != c.Rule {
+		return fmt.Errorf("case %q: rule %q does not match its directory name %q", c.ID, c.Rule, parent)
+	}
+	exists := func(rel string) bool {
+		_, err := os.Stat(filepath.Join(abs, filepath.FromSlash(rel)))
+		return err == nil
+	}
+	for _, lang := range Languages {
+		in, out := langFiles[lang][0], langFiles[lang][1]
+		hasOut := exists(out)
+		exp, ok := c.Expect[lang]
+		if !ok {
+			if hasOut {
+				return fmt.Errorf("case %q: %s exists but case.yaml has no expect.%s", c.ID, out, lang)
+			}
+			continue
+		}
+		if !exists(in) {
+			return fmt.Errorf("case %q: expect.%s requires %s, which does not exist", c.ID, lang, in)
+		}
+		if exp.Output && !hasOut {
+			return fmt.Errorf("case %q: expect.%s.output is true but %s does not exist", c.ID, lang, out)
+		}
+		if !exp.Output && hasOut {
+			return fmt.Errorf("case %q: expect.%s.output is false but %s exists", c.ID, lang, out)
 		}
 	}
 	return nil

@@ -290,6 +290,9 @@ func (rf *RulesFile) Validate() error {
 			if _, ok := rf.SkipCategories[r.Skip]; !ok {
 				return fmt.Errorf("rule %q: unknown skip category %q", r.ID, r.Skip)
 			}
+			if r.Message != "" {
+				return fmt.Errorf("rule %q: skip rules must not carry a message (the skipCategories message is used)", r.ID)
+			}
 		} else {
 			for name, v := range map[string]int{"keyArg": r.KeyArg, "defaultArg": r.DefaultArg, "contextArg": r.ContextArg} {
 				if v < 0 {
