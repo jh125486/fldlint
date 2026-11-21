@@ -162,10 +162,24 @@ describe("case semantics", () => {
     expect(errs(r)).toContain('must carry skip "detail"');
   });
 
-  it("rejects skip on a rewriting rule's diagnostic", () => {
+  it("rejects a rule-level skip (detail) on a rewriting rule", () => {
     const r = mkSpec();
     set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D(", skip: detail")}], output: false}`);
-    expect(errs(r)).toContain("rewriting rule; diagnostics of rewriting rules carry no skip");
+    expect(errs(r)).toContain("only allows call-site skips");
+  });
+
+  it("accepts a call-site skip (dynamic-key) on a rewriting rule with output false", () => {
+    const r = mkSpec();
+    set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D(", skip: dynamic-key")}], output: false}`);
+    rmSync(join(r, "fixtures/bool-variation/rw/js/output.ts"));
+    rmSync(join(r, "fixtures/bool-variation/rw/go"), { recursive: true });
+    expect(errs(r)).toBe("");
+  });
+
+  it("rejects a no-skip diagnostic on a rewriting rule when output is false", () => {
+    const r = mkSpec();
+    set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D()}], output: false}`);
+    expect(errs(r)).toContain("has no skip on rewriting rule");
   });
 
   it("rejects skip together with output: true", () => {
@@ -193,12 +207,6 @@ describe("case semantics", () => {
     set(r, "fixtures/js-only/rw/case.yaml", `  js: {diagnostics: [{line: 1, col: 1, ruleId: js-only}], output: true}\n  go: {diagnostics: [], output: false}`, "js-only", "js-only-rw");
     w(r, "fixtures/js-only/rw/go/input.go", "a\n");
     expect(errs(r)).toContain('expect.go is not allowed: rule "js-only" does not bind language go');
-  });
-
-  it("rejects expect.<lang> for a rewriting rule bound without a template", () => {
-    const r = mkSpec();
-    w(r, "rules.yaml", RULES.replace(' template: "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"}', "}").replace("go: {methods: [BoolVariation],", "go: {methods: [BoolVariation]"));
-    expect(errs(r)).toContain("has no go template");
   });
 });
 
@@ -235,6 +243,20 @@ describe("spec:tags coverage", () => {
     const r = mkSpec();
     withShapeTags(r);
     w(r, "fixtures/js-only/rw/js/output.ts", "a\n");
+    expect(checkTags(r).errors.join("\n")).toContain('rule "js-only": no rewrite case for language "js"');
+  });
+
+  it("does not require java rewrite cases for a java template", () => {
+    const r = mkSpec();
+    withShapeTags(r);
+    w(r, "rules.yaml", RULES.replace('go: {methods: [BoolVariation],', 'java: {methods: [boolVariation], template: "#{key}"}\n      go: {methods: [BoolVariation],'));
+    expect(checkTags(r).errors).toEqual([]);
+  });
+
+  it("is not satisfied by a rewrite case whose diagnostic carries a skip", () => {
+    const r = mkSpec();
+    withShapeTags(r);
+    w(r, "fixtures/js-only/rw/case.yaml", caseYaml("js-only-rw", "js-only", "  js: {diagnostics: [{line: 1, col: 1, ruleId: js-only, skip: dynamic-key}], output: true}"));
     expect(checkTags(r).errors.join("\n")).toContain('rule "js-only": no rewrite case for language "js"');
   });
 

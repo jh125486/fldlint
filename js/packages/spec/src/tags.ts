@@ -2,10 +2,12 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { discoverCases, loadRules } from "./load.js";
 import { LANG_FILES } from "./semantic.js";
-import { LANGUAGES, type Language } from "./types.js";
+import { type Language } from "./types.js";
 
 /** The reference rule that must cover every shape tag. */
 export const REFERENCE_RULE = "bool-variation";
+/** Rewrite coverage is required for js and go only (M0.2b); java arrives in M3. */
+export const COVERAGE_LANGUAGES: readonly Language[] = ["js", "go"];
 export const MANDATORY_TAGS: readonly string[] = [
   "quote-single",
   "quote-double",
@@ -38,6 +40,7 @@ function isRewriteFor(c: LoadedCase, lang: Language): boolean {
   const e = c.data.expect?.[lang];
   if (!e || e.output !== true) return false;
   if (!Array.isArray(e.diagnostics) || e.diagnostics.length === 0) return false;
+  if (e.diagnostics.some((d) => (d as { skip?: unknown })?.skip !== undefined)) return false;
   try {
     const input = readFileSync(join(c.dir, LANG_FILES[lang].input));
     const output = readFileSync(join(c.dir, LANG_FILES[lang].output));
@@ -80,7 +83,7 @@ export function checkTags(specRoot: string, opts: { allowEmpty?: boolean } = {})
         if (!have.has(tag)) errors.push(`rule "${rule.id}": missing mandatory tag "${tag}"`);
       }
     }
-    for (const lang of LANGUAGES) {
+    for (const lang of COVERAGE_LANGUAGES) {
       if (rule.languages[lang]?.template === undefined) continue;
       if (!mine.some((c) => isRewriteFor(c, lang))) {
         errors.push(

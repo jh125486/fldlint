@@ -49,6 +49,9 @@ export function findDuplicateMethods(rf: RulesFile): string[] {
   return errors;
 }
 
+/** Call-site skip categories allowed on rewriting rules (M0.2a). */
+export const CALL_SITE_SKIPS: readonly string[] = ["dynamic-key", "unbound-client", "context-unproven"];
+
 interface Diag {
   ruleId: string;
   skip?: string;
@@ -95,9 +98,6 @@ export function validateCaseSemantics(rf: RulesFile, c: CaseFile): string[] {
     }
     const cfg = rule?.languages[lang];
     if (rule && !cfg) err(`expect.${lang} is not allowed: rule "${rule.id}" does not bind language ${lang}`);
-    if (rule && cfg && rule.skip === undefined && cfg.template === undefined) {
-      err(`expect.${lang} is not allowed: rewriting rule "${rule.id}" has no ${lang} template`);
-    }
     if (!hasInput) err(`expect.${lang} requires ${files.input}, which does not exist`);
     if (exp.output && !hasOutput) err(`expect.${lang}.output is true but ${files.output} does not exist`);
     if (!exp.output && hasOutput) err(`expect.${lang}.output is false but ${files.output} exists`);
@@ -117,7 +117,11 @@ export function validateCaseSemantics(rf: RulesFile, c: CaseFile): string[] {
           err(`${at} must carry skip "${rule.skip}" (rule "${rule.id}" is report-only), got ${diag.skip === undefined ? "none" : `"${diag.skip}"`}`);
         }
       } else if (diag.skip !== undefined) {
-        err(`${at} has skip "${diag.skip}" but rule "${rule.id}" is a rewriting rule; diagnostics of rewriting rules carry no skip`);
+        if (!CALL_SITE_SKIPS.includes(diag.skip)) {
+          err(`${at} has skip "${diag.skip}" but rewriting rule "${rule.id}" only allows call-site skips (${CALL_SITE_SKIPS.join(", ")})`);
+        }
+      } else if (!exp.output) {
+        err(`${at} has no skip on rewriting rule "${rule.id}" but output is false`);
       }
     });
   }
