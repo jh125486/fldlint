@@ -330,3 +330,10 @@ with `output: false`; any other `skip` value on a rewriting rule is an error;
 rewrites, the other skips) only if each language's `expect` is internally
 consistent. Coverage for a rewriting rule counts only cases with `output: true`
 and no `skip`.
+
+### M0.2b correction (coverage languages)
+In M0 the fixture languages are `js` and `go` only. `java` templates in
+rules.yaml are unverified and Java fixtures arrive in M3, so rewrite-coverage
+(`spec:tags`, the Go/JS validators and every checker) requires a rewrite case
+only for `js` and `go`, never `java`. A `java` entry in `expect` is still
+allowed by the schema but is not required or checked beyond file presence.
