@@ -2,7 +2,7 @@ import { existsSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import AjvModule from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv/dist/2020.js";
-import { discoverCases, loadYaml, type CaseFile } from "./load.js";
+import { checkFixtureLayout, discoverCases, loadYaml, type CaseFile } from "./load.js";
 import { validateCaseSemantics, validateRulesSemantics } from "./semantic.js";
 import type { RulesFile } from "./types.js";
 
@@ -62,12 +62,20 @@ export function validateSpec(specRoot: string): ValidateResult {
       errors.push(`rules.yaml: ${(e as Error).message}`);
     }
   } else missingSchemas.push(RULES_SCHEMA);
+  errors.push(...checkFixtureLayout(specRoot));
   const cases = discoverCases(specRoot);
   if (v.fixture) {
+    const seenIds = new Map<string, string>();
     for (const c of cases) {
       const err = validateCase(v.fixture, c);
       if (err) errors.push(err);
-      else if (rulesFile) errors.push(...validateCaseSemantics(rulesFile, c));
+      else {
+        if (rulesFile) errors.push(...validateCaseSemantics(rulesFile, c));
+        const id = (c.data as { id: string }).id;
+        const prev = seenIds.get(id);
+        if (prev !== undefined) errors.push(`${c.relPath}: duplicate case id "${id}" (also used by ${prev})`);
+        else seenIds.set(id, c.relPath);
+      }
     }
   } else missingSchemas.push(FIXTURE_SCHEMA);
   return { errors, missingSchemas, casesChecked: v.fixture ? cases.length : 0 };

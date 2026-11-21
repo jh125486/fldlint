@@ -1,10 +1,17 @@
-import { resolveSpecRoot } from "../specRoot.js";
+import { parseArgs, resolveSpecRoot } from "../specRoot.js";
 import { checkTags } from "../tags.js";
 
-const args = process.argv.slice(2);
-const rootArg = args.find((a) => a.startsWith("--spec-root="))?.slice("--spec-root=".length);
-const root = resolveSpecRoot(rootArg);
-const res = checkTags(root, { allowEmpty: args.includes("--allow-empty") });
+let root: string;
+let allowEmpty: boolean;
+try {
+  const args = parseArgs(process.argv.slice(2), ["--allow-empty"]);
+  root = resolveSpecRoot(args.specRoot);
+  allowEmpty = args.flags.has("--allow-empty");
+} catch (e) {
+  console.error(`spec:tags: error: ${(e as Error).message}`);
+  process.exit(2);
+}
+const res = checkTags(root, { allowEmpty });
 if (res.note) {
   console.log(`spec:tags: ${res.note}`);
   process.exit(0);

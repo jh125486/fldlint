@@ -1,4 +1,4 @@
-import { existsSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { CaseFile } from "./load.js";
 import { LANGUAGES, type Language, type RulesFile } from "./types.js";
@@ -49,14 +49,27 @@ export function findDuplicateMethods(rf: RulesFile): string[] {
   return errors;
 }
 
+/** Call-site skip categories allowed on rewriting rules (M0.2a). */
+export const CALL_SITE_SKIPS: readonly string[] = ["dynamic-key", "unbound-client", "context-unproven"];
+
+interface Diag {
+  ruleId: string;
+  skip?: string;
+}
 interface CaseShape {
+  id?: string;
   rule: string;
-  expect: Partial<Record<Language, { diagnostics: { ruleId: string }[]; output: boolean }>>;
+  expect: Partial<Record<Language, { diagnostics: Diag[]; output: boolean }>>;
+}
+
+function sameBytes(a: string, b: string): boolean {
+  return readFileSync(a).equals(readFileSync(b));
 }
 
 /**
  * Semantic checks for a case that already passed schema validation:
- * known rule ids, directory/rule agreement, and fixture-file presence.
+ * rule agreement, diagnostic/skip consistency, language binding and
+ * fixture-file presence.
  */
 export function validateCaseSemantics(rf: RulesFile, c: CaseFile): string[] {
   const errors: string[] = [];
@@ -64,30 +77,53 @@ export function validateCaseSemantics(rf: RulesFile, c: CaseFile): string[] {
     return [`${c.relPath}: not a schema-valid case; semantic checks skipped`];
   }
   const d = c.data as CaseShape;
-  const known = new Set(rf.rules.map((r) => r.id));
+  const rule = rf.rules.find((r) => r.id === d.rule);
   const err = (msg: string): void => {
     errors.push(`${c.relPath}: ${msg}`);
   };
-  if (!known.has(d.rule)) err(`rule "${d.rule}" is not defined in rules.yaml`);
+  if (!rule) err(`rule "${d.rule}" is not defined in rules.yaml`);
   const dirRule = basename(dirname(c.dir));
   if (dirRule !== d.rule) err(`rule "${d.rule}" does not match its directory name "${dirRule}"`);
   for (const lang of LANGUAGES) {
     const files = LANG_FILES[lang];
     const exp = d.expect[lang];
-    const hasInput = existsSync(join(c.dir, files.input));
-    const hasOutput = existsSync(join(c.dir, files.output));
+    const inputPath = join(c.dir, files.input);
+    const outputPath = join(c.dir, files.output);
+    const hasInput = existsSync(inputPath);
+    const hasOutput = existsSync(outputPath);
     if (!exp) {
       if (hasOutput) err(`${files.output} exists but case.yaml has no expect.${lang}`);
+      if (hasInput) err(`${files.input} exists but case.yaml has no expect.${lang}`);
       continue;
     }
+    const cfg = rule?.languages[lang];
+    if (rule && !cfg) err(`expect.${lang} is not allowed: rule "${rule.id}" does not bind language ${lang}`);
     if (!hasInput) err(`expect.${lang} requires ${files.input}, which does not exist`);
     if (exp.output && !hasOutput) err(`expect.${lang}.output is true but ${files.output} does not exist`);
     if (!exp.output && hasOutput) err(`expect.${lang}.output is false but ${files.output} exists`);
-    for (const diag of exp.diagnostics) {
-      if (!known.has(diag.ruleId)) {
-        err(`expect.${lang}.diagnostics ruleId "${diag.ruleId}" is not defined in rules.yaml`);
-      }
+    if (exp.output && exp.diagnostics.length === 0) {
+      err(`expect.${lang}.output is true but there are no diagnostics`);
     }
+    if (exp.output && hasInput && hasOutput && sameBytes(inputPath, outputPath)) {
+      err(`expect.${lang}.output is true but ${files.output} is identical to ${files.input}`);
+    }
+    exp.diagnostics.forEach((diag, i) => {
+      const at = `expect.${lang}.diagnostics[${i}]`;
+      if (diag.ruleId !== d.rule) err(`${at} ruleId "${diag.ruleId}" must equal the case rule "${d.rule}"`);
+      if (diag.skip !== undefined && exp.output) err(`${at} has skip "${diag.skip}" but output is true`);
+      if (!rule) return;
+      if (rule.skip !== undefined) {
+        if (diag.skip !== rule.skip) {
+          err(`${at} must carry skip "${rule.skip}" (rule "${rule.id}" is report-only), got ${diag.skip === undefined ? "none" : `"${diag.skip}"`}`);
+        }
+      } else if (diag.skip !== undefined) {
+        if (!CALL_SITE_SKIPS.includes(diag.skip)) {
+          err(`${at} has skip "${diag.skip}" but rewriting rule "${rule.id}" only allows call-site skips (${CALL_SITE_SKIPS.join(", ")})`);
+        }
+      } else if (!exp.output) {
+        err(`${at} has no skip on rewriting rule "${rule.id}" but output is false`);
+      }
+    });
   }
   return errors;
 }
