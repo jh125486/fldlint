@@ -45,8 +45,16 @@ docs/adr/   architecture decision records
 ```
 
 Each language has its own detection engine; they share data, not code
-([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)). Output and
-behavior contracts live in [spec/contracts](spec/contracts/).
+([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)). Output shapes
+and data contracts live in [spec/contracts](spec/contracts/).
+
+Each tool is idiomatic for its ecosystem ([ADR 008](docs/adr/008-idiomatic-per-ecosystem.md)).
+Shared: rule ids, messages, positions, fingerprint, baseline and SARIF shapes,
+fixtures. Per ecosystem: exit codes, flags, severity configuration and fix
+workflow. JS/TS behaves like ESLint (rules default to `warn`; gate CI with
+`error` severity or `--max-warnings 0`); Go behaves like a `go/analysis` tool
+(`go vet -vettool`, golangci-lint); Java will follow the OpenRewrite
+Maven/Gradle plugins. See [exit-codes.md](spec/contracts/exit-codes.md).
 
 ## Status and requirements
 

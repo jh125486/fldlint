@@ -1,6 +1,13 @@
 # Output format
 
-Applies to every fldlint CLI. Status: planned; not yet implemented.
+Status: planned; not yet implemented.
+
+**Shared vs per ecosystem.** The finding shape, messages, positions, ordering
+and the `json`/`sarif` document shapes below are the shared contract. Flags,
+exit codes and severity configuration are per ecosystem; see
+[exit-codes.md](exit-codes.md). The `--format`/`--quiet`/`--max-warnings`
+flags described here are the JS/TS (ESLint-style) tools'; the Go tools use the
+`go/analysis` flags (`-json`, `-c`, `-fix`) and may offer SARIF as an extra.
 
 ## Streams
 
@@ -28,7 +35,8 @@ Applies to every fldlint CLI. Status: planned; not yet implemented.
   `[skip: <category>]`. The same strings are the `message` in `json` output.
 - `json`: a single JSON document on stdout:
   `{"version": 1, "findings": [...], "summary": {"errors": n, "warnings": n, "info": n, "baselined": n}}`.
-  `errors`, `warnings` and `info` count **non-baselined** findings by severity;
+  `errors`, `warnings` and `info` count **non-baselined** findings by their
+  **configured** severity (ESLint `error`/`warn`; `info` for severity `info`);
   baselined findings are excluded from those three and counted only in
   `baselined`. Example:
 
@@ -55,20 +63,17 @@ An unknown `--format` is exit `2`.
 
 ## Flags
 
-- `--quiet`: suppress the printing of findings **below the failing
-  threshold**. Errors always fail the run, so they are always printed.
-  Warnings are printed when they are what fails the run (non-baselined
-  warnings exceed `--max-warnings`) and suppressed when they are not (within
-  the allowance, or `--max-warnings -1`). `--quiet` affects printing only: it
-  never changes the exit code, and the summary line still prints to stderr.
-- `--max-warnings N`: see [exit-codes.md](exit-codes.md). Default `0`, so any
-  non-baselined warning fails the run and `--quiet` therefore hides nothing by
-  default; `--quiet` only has an effect together with a positive `N` or `-1`.
+JS/TS tools (ESLint semantics):
 
-Severity note: every skip category and every rewritable finding is `warning`
-today. Because `--quiet` prints whatever fails the run, a run that exits `1`
-never prints nothing (the old "error-severity only" definition did, which
-contradicted the exit code).
+- `--quiet`: report errors only, like ESLint. It affects printing only and
+  never changes the exit code.
+- `--max-warnings N`: see [exit-codes.md](exit-codes.md). Default `-1`
+  (unlimited), exactly like ESLint.
+
+Severity note: a finding's severity is configuration (`off`/`warn`/`error`
+per rule). The severities in `spec/rules.yaml` are the defaults of the
+`recommended` preset, which sets every rule to `warn`. The `severity` field
+in `json` output and `level` in SARIF carry the configured value.
 
 ## Positions
 
@@ -83,7 +88,8 @@ same line (a fixture covers this) is what exposes a missing conversion.
 
 A run that applies fixes uses the same exit-code and summary rules as a check
 run, evaluated on what **remains** after fixing (like ESLint `--fix`): the
-summary counts and the printed findings are the ones left unfixed. See
+summary counts and the printed findings are the ones left unfixed. (JS/TS
+tools; Go `-fix` follows the Go checker, see exit-codes.md.) See
 [exit-codes.md](exit-codes.md).
 
 ## Ordering and determinism
