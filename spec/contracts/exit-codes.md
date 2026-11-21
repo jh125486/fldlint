@@ -13,7 +13,13 @@ Rules:
 
 - Absence of a config file found by auto-discovery is not an error. A path
   passed explicitly with `--config` that does not exist is exit `2`.
-- Findings that are matched by `--baseline` do not count toward exit `1`.
+- Findings that are matched by `--baseline` do not count toward exit `1`, nor
+  toward `summary.errors`/`summary.warnings`; they are reported in
+  `summary.baselined` ([output-format.md](output-format.md#formatters---format)).
+- A run that applies fixes (fix mode) uses the same rules as a check run,
+  evaluated on what **remains** after fixing, like ESLint `--fix`: any
+  remaining non-baselined finding with the default `--max-warnings 0` exits `1`;
+  if everything was fixed it exits `0`.
 - `--quiet` changes what is printed only ([output-format.md](output-format.md#flags));
   the exit code is computed as if it were absent, and the summary line still
   prints to stderr.
@@ -25,8 +31,10 @@ Rules:
   finding fails the run; with `--quiet` the failing warnings are still printed.
 - Unexpected internal errors (bugs) also exit `2` with a message on stderr
   asking for a bug report; there is no separate internal-error code.
-- A run that rewrites files (codemod) exits `0` when it completed, even if it
-  reported skipped findings; skipped findings are listed on stdout.
+- The codemod follows the fix-mode rule above: skipped findings are
+  remaining findings, so a codemod run that leaves any non-baselined skipped
+  finding exits `1` under the default `--max-warnings 0`; when nothing remains
+  it exits `0`. Skipped findings are listed on stdout.
 
 ## Deliberate difference from flaglint
 

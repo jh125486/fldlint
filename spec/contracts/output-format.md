@@ -19,7 +19,7 @@ Applies to every fldlint CLI. Status: planned; not yet implemented.
 
   Two spaces between fields. `file` is the normalized relative path (see
   [fingerprint.md](fingerprint.md#path-normalization)); `line` and `col` are
-  1-based; `rule-id` is an id from `spec/rules.yaml`.
+  1-based (see [Positions](#positions)); `rule-id` is an id from `spec/rules.yaml`.
 
   Messages: a **rewritable** finding uses the rule's `message` field in
   `spec/rules.yaml` (placeholder `{{key}}` only, substituted with the flag key
@@ -27,8 +27,27 @@ Applies to every fldlint CLI. Status: planned; not yet implemented.
   category's `message` from `skipCategories`, suffixed with
   `[skip: <category>]`. The same strings are the `message` in `json` output.
 - `json`: a single JSON document on stdout:
-  `{"version": 1, "findings": [...], "summary": {"errors": n, "warnings": n, "baselined": n}}`.
-  Each finding has `file`, `line`, `col`, `ruleId`, `severity`, `message`,
+  `{"version": 1, "findings": [...], "summary": {"errors": n, "warnings": n, "info": n, "baselined": n}}`.
+  `errors`, `warnings` and `info` count **non-baselined** findings by severity;
+  baselined findings are excluded from those three and counted only in
+  `baselined`. Example:
+
+  ```json
+  {
+    "version": 1,
+    "findings": [
+      {"file": "src/flags.ts", "line": 3, "col": 18, "ruleId": "bool-variation",
+       "severity": "warning", "message": "Migrate boolean flag 'new-ui' to OpenFeature",
+       "fingerprint": "<see fingerprint.md>", "baselined": false},
+      {"file": "src/old.ts", "line": 9, "col": 5, "ruleId": "bool-variation",
+       "severity": "warning", "message": "Migrate boolean flag 'legacy' to OpenFeature",
+       "fingerprint": "<see fingerprint.md>", "baselined": true}
+    ],
+    "summary": {"errors": 0, "warnings": 1, "info": 0, "baselined": 1}
+  }
+  ```
+
+  The `skip` key is shown absent because both findings are rewritable. Each finding has `file`, `line`, `col`, `ruleId`, `severity`, `message`,
   `fingerprint`, `skip` (category or absent), `baselined` (bool).
 - `sarif`: SARIF 2.1.0; see [sarif.md](sarif.md).
 
@@ -50,6 +69,22 @@ Severity note: every skip category and every rewritable finding is `warning`
 today. Because `--quiet` prints whatever fails the run, a run that exits `1`
 never prints nothing (the old "error-severity only" definition did, which
 contradicted the exit code).
+
+## Positions
+
+`line` and `col` are 1-based. `col` counts **UTF-16 code units** from the start
+of the line, and a tab counts as one column. This is SARIF's default
+`columnKind` (`utf16CodeUnits`), so `text`, `json` and `sarif` all report the
+same position. Engines whose native offsets are bytes (Go) must convert from
+byte offsets to UTF-16 code units; a non-ASCII character before the call on the
+same line (a fixture covers this) is what exposes a missing conversion.
+
+## Fix mode
+
+A run that applies fixes uses the same exit-code and summary rules as a check
+run, evaluated on what **remains** after fixing (like ESLint `--fix`): the
+summary counts and the printed findings are the ones left unfixed. See
+[exit-codes.md](exit-codes.md).
 
 ## Ordering and determinism
 

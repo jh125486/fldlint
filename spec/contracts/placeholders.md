@@ -58,8 +58,13 @@ Rewritten only for a direct `ldcontext.New(<expr>)` call; the engine emits
 // input
 v, _ := ldClient.BoolVariation("new-ui", ldcontext.New(userID), false)
 // output
-v := ofClient.BooleanValue(context.TODO(), "new-ui", false, openfeature.NewEvaluationContext(userID, nil))
+v, err := ofClient.BooleanValue(context.TODO(), "new-ui", false, openfeature.NewEvaluationContext(userID, nil))
 ```
+
+`BooleanValue` takes a `context.Context` first and returns `(bool, error)`, so
+a rewrite that keeps the result must bind both values (`v, err :=`, or
+`v, _ :=` when the original discarded the second value). The snippet above was
+compile-checked against go-server-sdk v7.23.0 and open-feature go-sdk v1.20.0.
 
 Skipped as `context-unproven`: a variable (`ctx`), `ldcontext.NewBuilder(...)`,
 `ldcontext.NewMulti(...)`, `ldcontext.NewWithKind(...)`, or anything that is

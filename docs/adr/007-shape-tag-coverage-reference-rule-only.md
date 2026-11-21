@@ -9,10 +9,10 @@ The seven shape tags (`quote-single`, `quote-double`, `typed-decl`, `multi-decla
 
 ## Decision
 
-The seven tags are mandatory for the reference rule `bool-variation` only. Every other rewriting rule needs at least one rewrite case and, where a language skips it, at least one skip case, in a directory named for the rule. `npm run spec:tags` enforces this and names the rule and tag that is missing; `make fixture-tags` calls it.
+The seven tags are mandatory for the reference rule `bool-variation` only. Every rewriting rule needs at least one rewrite case for each language that has a template, in a directory named for the rule. There is no skip-case requirement. `npm run spec:tags` enforces this and names the rule and tag that is missing; `make fixture-tags` calls it.
 
 ## Consequences
 
 - Small fixture set that stays reviewable.
-- A detection bug that only affects one method's shape would not be caught by tags alone; per-rule rewrite and skip cases are the backstop.
+- A detection bug that only affects one method's shape would not be caught by tags alone; per-rule, per-language rewrite cases are the backstop.
 - If a rule gains method-specific detection behaviour, add cases for it explicitly.

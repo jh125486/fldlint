@@ -2,7 +2,7 @@
 
 Date: 2026-11
 Status: Accepted
-Amended 2026-11: corrected before any release; the Go validator is hand-written, not generated from the schema.
+Amended 2026-11: corrected before any release; the Go validator is hand-written, not generated from the schema, and the suites do not share probes.
 
 ## Context
 
@@ -10,12 +10,12 @@ The shared rule table needs a source format with a validator and per-language co
 
 ## Decision
 
-Author rules in `spec/rules.yaml`, validated by JSON Schema (draft 2020-12) in `spec/schema/`. YAML supports comments and readable multi-line templates; JSON Schema validates both rules and fixture `case.yaml` files with a validator in JS (ajv). Go does not generate its checks from the schema: it parses with yaml.v3 and re-implements the same checks by hand, and parity between the two is a stated requirement ([validation-parity.md](../../spec/contracts/validation-parity.md)) verified by shared negative tests. Template placeholders are a closed enum. Each language generates its own typed rule table (the table only, not the validation); no proto toolchain is introduced.
+Author rules in `spec/rules.yaml`, validated by JSON Schema (draft 2020-12) in `spec/schema/`. YAML supports comments and readable multi-line templates; JSON Schema validates both rules and fixture `case.yaml` files with a validator in JS (ajv). Go does not generate its checks from the schema: it parses with yaml.v3 and re-implements the same checks by hand, and parity between the two is a stated requirement ([validation-parity.md](../../spec/contracts/validation-parity.md)) kept honest by each suite's own negative tests (the JS and Go suites do not share a probe set). Template placeholders are a closed enum. Each language generates its own typed rule table (the table only, not the validation); no proto toolchain is introduced.
 
 ## Consequences
 
 - Low authoring friction and easy review of rule diffs.
 - No protoc or generated-code dependency in any language.
 - We lose proto's compile-time cross-language types; the schema, codegen and `make spec-check` drift checks stand in for them.
-- Two implementations of the validation can drift; the shared negative probes are what catch it.
-- YAML pitfalls (implicit typing) are mitigated by the schema.
+- Two implementations of the validation can drift; each suite's own negative tests catch only what that suite thought to test, so gaps are closed in review.
+- YAML implicit typing is **not** mitigated by the schema, which validates what the parser produced. The two parsers differ on some scalars (octal/binary/underscore/large integers, timestamps, custom tags, `%YAML 1.1`; e.g. `col: 017` reads as 17 in one and 15 in the other). This is a known issue tracked as deferred; it is not fixed.
