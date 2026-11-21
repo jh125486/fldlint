@@ -115,6 +115,9 @@ are committed and CI fails on any `git diff` after regenerating.
 
 ## Make targets (the ONLY entry points CI calls; owned by WP6)
 
+Exception: CI runs `golangci-lint` through `golangci/golangci-lint-action` pinned to
+the same version as local `make lint`; every other CI step calls a Make target.
+
 `make spec-check` (schema-validate rules.yaml + every case.yaml, run both
 codegens, fail on drift, fixture tag-coverage check), `make spec-gen`,
 `make js-test`, `make go-test`, `make lint`, `make test` (all).
@@ -221,7 +224,8 @@ this difference in the contracts.
 - The seven mandatory shape tags apply to the reference rule `bool-variation`
   only (detection shapes are shared engine behaviour, not per-method).
 - Every other rewriting rule needs at least one rewrite case and, where a
-  language skips it, one skip case, in a directory named for the rule.
+  language skips it, a skip case was originally required here; M0.2 drops that and
+  M0.2b limits M0 coverage to js and go. Cases live in a directory named for the rule.
 - Add `*Ctx` Go cases, including a `context`-named-parameter case, and a
   `migrationVariation` skip case.
 - JS fixtures import `@launchdarkly/node-server-sdk` (not the legacy

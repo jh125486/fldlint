@@ -2,6 +2,7 @@
 
 Date: 2026-11
 Status: Accepted
+Amended 2026-11 (pre-release): coverage is per language with a template, js and go only in M0.
 
 ## Context
 
