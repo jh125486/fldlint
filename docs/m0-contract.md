@@ -308,3 +308,25 @@ job, `actions/setup-go` runs BEFORE `github/codeql-action/init`.
 - Known, deferred to a tracked issue (do NOT work on it now): YAML scalar typing
   differences between ajv's YAML parser and yaml.v3 (octal/binary/underscore/1e17
   integers, timestamps, custom tags, `%YAML 1.1`).
+
+### M0.2a correction (supersedes the M0.2 diagnostic/skip bullets above)
+
+There are two kinds of skip. Do not conflate them:
+- **Rule-level skip** (`skip:` on the rule in rules.yaml: `detail`, `bulk`,
+  `type-mismatch`): the call shape is never rewritten. Every diagnostic for that
+  rule MUST carry `skip` equal to the rule's `skip`; `output` is false.
+- **Call-site skip** (only on rewriting rules, i.e. rules WITHOUT `skip`): a call
+  that the rule would normally rewrite but that is left alone because of how it
+  is written or where it sits. Allowed categories: `dynamic-key`,
+  `unbound-client`, `context-unproven`. A diagnostic on a rewriting rule either
+  carries no `skip` (it is rewritten; `output: true` for that language) or
+  carries one of those three call-site categories (`output: false` for that
+  language).
+
+Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
+`shadowed-client`, `goctx-shadowed-context`) assert their `skip` category again
+with `output: false`; any other `skip` value on a rewriting rule is an error;
+`ruleId` still equals the case's `rule`. A case may mix languages (e.g. one
+rewrites, the other skips) only if each language's `expect` is internally
+consistent. Coverage for a rewriting rule counts only cases with `output: true`
+and no `skip`.
