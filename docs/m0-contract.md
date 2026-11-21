@@ -342,3 +342,55 @@ rules.yaml are unverified and Java fixtures arrive in M3, so rewrite-coverage
 (`spec:tags`, the Go/JS validators and every checker) requires a rewrite case
 only for `js` and `go`, never `java`. A `java` entry in `expect` is still
 allowed by the schema but is not required or checked beyond file presence.
+
+## M0.3 amendments (idiomatic per ecosystem; override anything above that conflicts)
+
+Decided by the maintainer: each language's tool must be as idiomatic as possible
+for its own ecosystem, and nothing should catch a developer off guard. Process
+behaviour follows the ecosystem, not a cross-language contract.
+
+### What is shared across languages (the contract)
+Rule ids and `rules.yaml`, message text, positions (1-based line, UTF-16 column,
+tab = 1), the fingerprint, the baseline and SARIF shapes, and the fixtures.
+Anything a CI system aggregates across languages stays shared.
+
+### What is per ecosystem (NOT shared)
+Exit codes, flags, severity configuration, config file format, fix workflow and
+help text. Do not copy one ecosystem's conventions into another.
+
+- **JS/TS (ESLint plugin and CLI):** follow ESLint exactly.
+  - Exit `0` when there are no errors and warnings do not exceed `--max-warnings`;
+    `1` when there are errors or warnings exceed `--max-warnings`; `2` for
+    config, usage or internal errors. `130` is not specified by ESLint: do not
+    document it as part of the contract.
+  - `--max-warnings` defaults to `-1` (unlimited), exactly like ESLint. The
+    prior default of 0 is withdrawn.
+  - Severity is per rule via ESLint configuration (`off`/`warn`/`error`,
+    flat config, ESLint 9). The preset `recommended` sets every fldlint rule to
+    `warn`; a team gates CI with `error` severity or `--max-warnings 0`.
+  - `--quiet` is ESLint's: report errors only; it does not change the exit code.
+  - `--fix`, `--fix-dry-run`, `-f/--format` (including json and sarif),
+    `--no-inline-config`, and inline `// eslint-disable-next-line fldlint/<rule>`
+    suppression work as in ESLint. Prefer ESLint's own suppression mechanisms
+    over inventing new ones. fldlint's own baseline file is only for the
+    standalone CLI; record in a follow-up issue whether ESLint's bulk
+    suppressions should replace it for the plugin.
+  - The codemod follows `npx codemod` conventions (verify at M1).
+- **Go (go/analysis analyzer, `fldlint`, `fldlint-fix`):** follow the Go
+  analyzer ecosystem. Verify the real behaviour of `singlechecker` and
+  `unitchecker` binaries empirically (exit code when diagnostics are reported,
+  `-fix`, `-json`, `-c`, `-flags`, vet-tool use via `go vet -vettool`) and
+  document what you observe. No `--max-warnings` or severity in the Go tools:
+  analyzer diagnostics are all equal, and golangci-lint or the user decides
+  what fails. SARIF/baseline are optional extras, not default behaviour.
+- **Java (OpenRewrite, M3):** follow the Maven/Gradle rewrite plugin
+  conventions; unverified, do not specify details now.
+
+### Consequences for existing docs
+- ADR 004 ("exit codes follow ESLint") is narrowed to the JS tools; add ADR 008
+  "Idiomatic per ecosystem" recording this decision. Pre-release in-place
+  amendment is allowed (note "Amended 2026-11").
+- exit-codes.md, output-format.md, sarif.md, baseline.md, README.md,
+  CONTRIBUTING.md and validation-parity.md must say which parts are shared and
+  which are per ecosystem, and must drop any claim that all tools share exit
+  codes, flags or `--max-warnings 0`.
