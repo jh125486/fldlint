@@ -1,0 +1,3 @@
+package a
+
+var _ = ofClient.BooleanValue(context.TODO(), "k", false, evalctx)

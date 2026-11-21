@@ -25,7 +25,7 @@ var (
 	caseIDRe     = regexp.MustCompile(`\A[a-z0-9]+(?:-[a-z0-9]+)*\z`)
 	tmplJSGoRe   = regexp.MustCompile(`\A(?:[^{]|\{\{(?:client|key|default|context|goctx|evalctx)\}\})*\z`)
 	tmplJavaRe   = regexp.MustCompile(`\A(?:[^#{]|#\{(?:key|default|context|any\([A-Za-z0-9_.]+\))\})*\z`)
-	messageRe    = regexp.MustCompile(`\A(?:[^{]|\{\{key\}\})*\z`)
+	messageRe    = regexp.MustCompile(`\A(?:[^{}]|\{\{key\}\})*\z`)
 	valueTypes   = []string{"boolean", "string", "number", "integer", "object"}
 	risks        = []string{"low", "medium", "high"}
 	severities   = []string{"error", "warning", "info"}

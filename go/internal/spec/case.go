@@ -1,16 +1,25 @@
 package spec
 
 import (
+	"bytes"
+	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v3"
 )
 
 // Languages is the closed set of language keys allowed under expect.
 var Languages = []string{"js", "go", "java"}
+
+// callSiteSkips are the skip categories allowed on a rewriting rule's
+// diagnostics (the call is left alone because of how or where it is written).
+var callSiteSkips = []string{"dynamic-key", "unbound-client", "context-unproven"}
 
 // Diagnostic is one expected report. Line and Col are 1-based.
 type Diagnostic struct {
@@ -161,27 +170,117 @@ func LoadCase(path string) (*Case, error) {
 	return ParseCase(data)
 }
 
-// Validate checks the cross-references into rf: the case rule, every
-// diagnostic ruleId and every skip category must exist.
+// Validate checks the cross-references into rf and the semantic rules of the
+// fixture contract: the case rule must exist and bind every expected language;
+// every diagnostic ruleId must equal the case rule; on a skip rule every diagnostic must carry the rule's skip, on a rewriting
+// rule a diagnostic carries no skip or a call-site skip; any skip implies
+// output false, and output true needs at least one diagnostic.
 func (c *Case) Validate(rf *RulesFile) error {
-	if !slices.ContainsFunc(rf.Rules, func(r Rule) bool { return r.ID == c.Rule }) {
+	idx := slices.IndexFunc(rf.Rules, func(r Rule) bool { return r.ID == c.Rule })
+	if idx < 0 {
 		return fmt.Errorf("case %q: unknown rule %q", c.ID, c.Rule)
 	}
+	rule := rf.Rules[idx]
 	for _, lang := range Languages {
 		e, ok := c.Expect[lang]
 		if !ok {
 			continue
 		}
+		if rule.Langs[lang] == nil {
+			return fmt.Errorf("case %q: expect.%s is not allowed because rule %q has no %s binding", c.ID, lang, c.Rule, lang)
+		}
 		for i, d := range e.Diagnostics {
 			if !slices.ContainsFunc(rf.Rules, func(r Rule) bool { return r.ID == d.RuleID }) {
 				return fmt.Errorf("case %q: %s diagnostic %d: unknown ruleId %q", c.ID, lang, i, d.RuleID)
+			}
+			if d.RuleID != c.Rule {
+				return fmt.Errorf("case %q: %s diagnostic %d: ruleId %q must equal the case rule %q", c.ID, lang, i, d.RuleID, c.Rule)
 			}
 			if d.Skip != "" {
 				if _, ok := rf.SkipCategories[d.Skip]; !ok {
 					return fmt.Errorf("case %q: %s diagnostic %d: unknown skip category %q", c.ID, lang, i, d.Skip)
 				}
 			}
+			switch {
+			case rule.Skip != "" && d.Skip != rule.Skip:
+				return fmt.Errorf("case %q: %s diagnostic %d: skip %q must equal the rule's skip %q", c.ID, lang, i, d.Skip, rule.Skip)
+			case rule.Skip == "" && d.Skip != "" && !slices.Contains(callSiteSkips, d.Skip):
+				return fmt.Errorf("case %q: %s diagnostic %d: skip %q is not a call-site skip (dynamic-key, unbound-client, context-unproven) allowed on rewriting rule %q", c.ID, lang, i, d.Skip, c.Rule)
+			}
+			if d.Skip != "" && e.Output {
+				return fmt.Errorf("case %q: expect.%s.output must be false when a diagnostic carries skip %q", c.ID, lang, d.Skip)
+			}
 		}
+		if e.Output && len(e.Diagnostics) == 0 {
+			return fmt.Errorf("case %q: expect.%s.output is true but there are no diagnostics", c.ID, lang)
+		}
+	}
+	return nil
+}
+
+// DiscoverFixtures returns the sorted case.yaml paths under root, which must be
+// laid out as <root>/<rule>/<case>/case.yaml. A case directory without
+// case.yaml, a case.yml, or a case file at any other depth is an error.
+// Regular files directly under root or a rule directory are ignored.
+func DiscoverFixtures(root string) ([]string, error) {
+	if fi, err := os.Stat(root); err != nil {
+		return nil, fmt.Errorf("fixtures: %w", err)
+	} else if !fi.IsDir() {
+		return nil, fmt.Errorf("fixtures: %s is not a directory", root)
+	}
+	var paths []string
+	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(root, p)
+		if err != nil {
+			return err
+		}
+		if rel == "." {
+			return nil
+		}
+		depth := len(strings.Split(rel, string(filepath.Separator)))
+		if d.IsDir() {
+			if depth == 2 {
+				if _, err := os.Stat(filepath.Join(p, "case.yaml")); err != nil {
+					return fmt.Errorf("fixtures: %s has no case.yaml", filepath.ToSlash(rel))
+				}
+			}
+			return nil
+		}
+		switch d.Name() {
+		case "case.yml":
+			return fmt.Errorf("fixtures: %s: case.yml is not allowed, use case.yaml", filepath.ToSlash(rel))
+		case "case.yaml":
+			if depth != 3 {
+				return fmt.Errorf("fixtures: %s is at an unexpected depth, expected <rule>/<case>/case.yaml", filepath.ToSlash(rel))
+			}
+			paths = append(paths, p)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	sort.Strings(paths)
+	return paths, nil
+}
+
+// CheckUniqueIDs reports an error when two cases share an id.
+func CheckUniqueIDs(cases map[string]*Case) error {
+	seen := map[string]string{}
+	paths := make([]string, 0, len(cases))
+	for p := range cases {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	for _, p := range paths {
+		id := cases[p].ID
+		if prev, dup := seen[id]; dup {
+			return fmt.Errorf("duplicate case id %q in %s and %s", id, prev, p)
+		}
+		seen[id] = p
 	}
 	return nil
 }
@@ -228,6 +327,16 @@ func (c *Case) CheckFixtureDir(dir string) error {
 		}
 		if !exp.Output && hasOut {
 			return fmt.Errorf("case %q: expect.%s.output is false but %s exists", c.ID, lang, out)
+		}
+		if exp.Output {
+			a, errA := os.ReadFile(filepath.Join(abs, filepath.FromSlash(in)))
+			b, errB := os.ReadFile(filepath.Join(abs, filepath.FromSlash(out)))
+			if errA != nil || errB != nil {
+				return fmt.Errorf("case %q: read %s/%s: %w", c.ID, in, out, errors.Join(errA, errB))
+			}
+			if bytes.Equal(a, b) {
+				return fmt.Errorf("case %q: expect.%s.output is true but %s is identical to %s", c.ID, lang, out, in)
+			}
 		}
 	}
 	return nil

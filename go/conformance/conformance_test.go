@@ -11,23 +11,42 @@ import (
 	"github.com/jh125486/fldlint/go/internal/spec"
 )
 
-var specRoot = flag.String("spec", "../../spec", "spec root; falls back to the stub spec under testdata when rules.yaml or fixtures are missing")
+var specRoot = flag.String("spec", defaultSpecRoot, "spec root; an explicit value must contain rules.yaml and fixtures/ (the stub spec under testdata is used only when -spec is not given and the default root is missing)")
 
 const (
-	stubRulesPath = "../internal/spec/testdata/rules.yaml"
-	stubFixtures  = "testdata/fixtures"
+	defaultSpecRoot = "../../spec"
+	stubRulesPath   = "../internal/spec/testdata/rules.yaml"
+	stubFixtures    = "testdata/fixtures"
 )
 
-// locate returns the rules path and fixtures dir, preferring the real spec.
-func locate() (rules, fixtures string) {
-	r := filepath.Join(*specRoot, "rules.yaml")
-	f := filepath.Join(*specRoot, "fixtures")
+// specExplicit reports whether -spec was given on the command line.
+func specExplicit() bool {
+	explicit := false
+	flag.Visit(func(f *flag.Flag) {
+		if f.Name == "spec" {
+			explicit = true
+		}
+	})
+	return explicit
+}
+
+// locate returns the rules path and fixtures dir. An explicit root must be
+// complete, otherwise it is an error; the stub is used only when no root was
+// given and the default root is incomplete.
+func locate(root string, explicit bool) (rules, fixtures string, err error) {
+	r := filepath.Join(root, "rules.yaml")
+	f := filepath.Join(root, "fixtures")
 	_, errR := os.Stat(r)
-	_, errF := os.Stat(f)
-	if errR != nil || errF != nil {
-		return stubRulesPath, stubFixtures
+	fi, errF := os.Stat(f)
+	complete := errR == nil && errF == nil && fi.IsDir()
+	switch {
+	case complete:
+		return r, f, nil
+	case explicit:
+		return "", "", fmt.Errorf("-spec %q must contain rules.yaml and a fixtures/ directory", root)
+	default:
+		return stubRulesPath, stubFixtures, nil
 	}
-	return r, f
 }
 
 // checkCase loads and validates one case.yaml and verifies that the files its
@@ -48,17 +67,29 @@ func checkCase(path string, rf *spec.RulesFile) (*spec.Case, error) {
 
 func TestConformance(t *testing.T) {
 	t.Parallel()
-	rulesPath, fixtures := locate()
+	rulesPath, fixtures, err := locate(*specRoot, specExplicit())
+	if err != nil {
+		t.Fatal(err)
+	}
 	rf, err := spec.LoadRules(rulesPath)
 	if err != nil {
 		t.Fatal(err)
 	}
-	paths, err := filepath.Glob(filepath.Join(fixtures, "*", "*", "case.yaml"))
+	paths, err := spec.DiscoverFixtures(fixtures)
 	if err != nil {
 		t.Fatal(err)
 	}
 	if len(paths) == 0 {
 		t.Fatalf("no fixture cases discovered under %s", fixtures)
+	}
+	loaded := map[string]*spec.Case{}
+	for _, p := range paths {
+		if c, err := spec.LoadCase(p); err == nil {
+			loaded[p] = c
+		}
+	}
+	if err := spec.CheckUniqueIDs(loaded); err != nil {
+		t.Error(err)
 	}
 	t.Logf("discovered %d cases under %s (rules: %s)", len(paths), fixtures, rulesPath)
 	for _, p := range paths {
@@ -75,6 +106,51 @@ func TestConformance(t *testing.T) {
 			// TODO(M2): replace with analysistest.RunWithSuggestedFixes once the
 			// real engine lands; until then the case is only counted, not passed.
 			t.Skip("pending: Go engine lands in M2 (analysistest.RunWithSuggestedFixes)")
+		})
+	}
+}
+
+func TestLocate(t *testing.T) {
+	t.Parallel()
+	full := t.TempDir()
+	if err := os.MkdirAll(filepath.Join(full, "fixtures"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(full, "rules.yaml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	noFixtures := t.TempDir()
+	if err := os.WriteFile(filepath.Join(noFixtures, "rules.yaml"), nil, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	missing := filepath.Join(t.TempDir(), "nope")
+	tests := []struct {
+		name     string
+		root     string
+		explicit bool
+		wantStub bool
+		wantErr  bool
+	}{
+		{name: "complete explicit", root: full, explicit: true},
+		{name: "complete default", root: full},
+		{name: "missing explicit", root: missing, explicit: true, wantErr: true},
+		{name: "no fixtures explicit", root: noFixtures, explicit: true, wantErr: true},
+		{name: "missing default falls back", root: missing, wantStub: true},
+		{name: "no fixtures default falls back", root: noFixtures, wantStub: true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			r, f, err := locate(tt.root, tt.explicit)
+			if (err != nil) != tt.wantErr {
+				t.Fatalf("err = %v, wantErr %v", err, tt.wantErr)
+			}
+			if err != nil {
+				return
+			}
+			if stub := r == stubRulesPath && f == stubFixtures; stub != tt.wantStub {
+				t.Fatalf("got rules=%q fixtures=%q, wantStub %v", r, f, tt.wantStub)
+			}
 		})
 	}
 }
@@ -99,7 +175,7 @@ func TestCheckCase(t *testing.T) {
 			if err := os.MkdirAll(filepath.Join(dir, filepath.Dir(f)), 0o755); err != nil {
 				t.Fatal(err)
 			}
-			if err := os.WriteFile(filepath.Join(dir, f), nil, 0o644); err != nil {
+			if err := os.WriteFile(filepath.Join(dir, f), []byte(f), 0o644); err != nil {
 				t.Fatal(err)
 			}
 		}

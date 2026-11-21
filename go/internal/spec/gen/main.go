@@ -22,13 +22,22 @@ func main() {
 
 func run(args []string) error {
 	fs := flag.NewFlagSet("gen", flag.ContinueOnError)
-	root := fs.String("spec", "../spec", "spec root containing rules.yaml (falls back to the stub spec when missing)")
+	root := fs.String("spec", "../spec", "spec root containing rules.yaml; an explicit -spec that lacks it is an error (the stub is used only when -spec is not given and the default root is missing)")
 	out := fs.String("out", "internal/spec/rules_gen.go", "output file")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	explicit := false
+	fs.Visit(func(f *flag.Flag) {
+		if f.Name == "spec" {
+			explicit = true
+		}
+	})
 	path := filepath.Join(*root, "rules.yaml")
 	if _, err := os.Stat(path); err != nil {
+		if explicit {
+			return fmt.Errorf("-spec %q: %w", *root, err)
+		}
 		fmt.Fprintf(os.Stderr, "gen: %s not found, using stub %s\n", path, stubRules)
 		path = stubRules
 	}

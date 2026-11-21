@@ -1,6 +1,6 @@
 id: static-key-double-quote
 rule: bool-variation
 tags: [quote-double]
-description: Static double-quoted key is reported with an unproven context conversion.
+description: Stub case, a rewritten call with a static double-quoted key.
 expect:
-  go: {diagnostics: [{line: 9, col: 12, ruleId: bool-variation, skip: context-unproven}], output: false}
+  go: {diagnostics: [{line: 3, col: 1, ruleId: bool-variation}], output: true}
