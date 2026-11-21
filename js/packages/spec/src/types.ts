@@ -25,6 +25,8 @@ export interface Rule {
   defaultArg?: number;
   contextArg?: number;
   skip?: string;
+  /** Finding message for rewritable rules; placeholders limited to {{key}}. */
+  message?: string;
   languages: Partial<Record<Language, LanguageRule>>;
 }
 

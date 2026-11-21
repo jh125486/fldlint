@@ -2,7 +2,7 @@ import { findRuleByMethod } from "./lookup.js";
 import type { Language } from "./types.js";
 
 export interface Edit {
-  /** Half-open [start, end) byte offsets in the source file. */
+  /** Half-open [start, end) UTF-16 code unit indices in the source file. */
   range: [number, number];
   text: string;
 }

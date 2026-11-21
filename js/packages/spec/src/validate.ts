@@ -3,6 +3,8 @@ import { join } from "node:path";
 import AjvModule from "ajv/dist/2020.js";
 import type { ValidateFunction } from "ajv/dist/2020.js";
 import { discoverCases, loadYaml, type CaseFile } from "./load.js";
+import { validateCaseSemantics, validateRulesSemantics } from "./semantic.js";
+import type { RulesFile } from "./types.js";
 
 // ajv is CommonJS; under NodeNext the constructor is on `.default`.
 const Ajv2020 = AjvModule.default;
@@ -47,10 +49,15 @@ export function validateSpec(specRoot: string): ValidateResult {
   const errors: string[] = [];
   const missingSchemas: string[] = [];
   const v = loadValidators(specRoot);
+  let rulesFile: RulesFile | undefined;
   if (v.rules) {
     try {
       const data = loadYaml(join(specRoot, "rules.yaml"));
       if (!v.rules(data)) errors.push(`rules.yaml: ${formatErrors(v.rules)}`);
+      else {
+        rulesFile = data as RulesFile;
+        errors.push(...validateRulesSemantics(rulesFile));
+      }
     } catch (e) {
       errors.push(`rules.yaml: ${(e as Error).message}`);
     }
@@ -60,6 +67,7 @@ export function validateSpec(specRoot: string): ValidateResult {
     for (const c of cases) {
       const err = validateCase(v.fixture, c);
       if (err) errors.push(err);
+      else if (rulesFile) errors.push(...validateCaseSemantics(rulesFile, c));
     }
   } else missingSchemas.push(FIXTURE_SCHEMA);
   return { errors, missingSchemas, casesChecked: v.fixture ? cases.length : 0 };
