@@ -2,6 +2,13 @@
 
 A baseline freezes existing findings so CI fails only on new ones. Status: planned.
 
+The baseline file shape and matching are shared across languages. The CLI
+flags below belong to the standalone JS/TS CLI; the ESLint plugin should prefer
+ESLint's own suppressions (inline comments, bulk suppressions; a follow-up
+issue decides whether they replace this file). In Go, a baseline is an
+optional extra, not default behaviour; golangci-lint's own baseline/`new-from-*`
+mechanisms apply there. See [exit-codes.md](exit-codes.md).
+
 ## CLI
 
 - `--write-baseline <file>`: scan, write the baseline, exit `0` (exit `2` if it cannot be written).
@@ -37,8 +44,8 @@ line numbers play no part.
 
 ## Effect on output and exit code
 
-- Baselined findings do not count toward exit `1` or `--max-warnings`
-  ([exit-codes.md](exit-codes.md)). New findings count normally.
+- Baselined findings do not count toward the failing exit or `--max-warnings`
+  (JS/TS; [exit-codes.md](exit-codes.md)). New findings count normally.
 - `text` output omits baselined findings; the stderr summary reports how many
   were suppressed. `json` includes them with `"baselined": true`; SARIF marks
   them `baselineState: "unchanged"` and new ones `"new"` ([sarif.md](sarif.md)).

@@ -2,6 +2,11 @@
 
 `--format sarif` emits SARIF 2.1.0 on stdout. Status: planned.
 
+The SARIF shape is shared across languages. In the JS/TS tools it is the
+ESLint `-f sarif` equivalent; in the Go tools it is an optional extra, not
+default behaviour. Exit codes and flags are per ecosystem
+([exit-codes.md](exit-codes.md)).
+
 ## Document
 
 - `$schema`: `https://json.schemastore.org/sarif-2.1.0.json`, `version`: `"2.1.0"`.
@@ -51,13 +56,12 @@ language-independent, and `tool.driver.name` already namespaces it.
 
 ## Levels
 
-- A finding with a skip category takes its level from
-  `skipCategories.<category>.severity`: `error` -> `error`, `warning` ->
-  `warning`, `info` -> `note`.
-- A finding that is rewritable (no skip) has level `warning`. All current skip
-  categories are also `warning`.
-- `--quiet` filters SARIF results exactly as it filters `text`, and never
-  alters the exit code ([output-format.md](output-format.md#flags)).
+- `level` is the finding's **configured** severity: `error` -> `error`,
+  `warn` -> `warning`, info -> `note`. Severity is configuration, not data;
+  the `rules.yaml` severities (all `warning`) are the `recommended` defaults,
+  so an unconfigured run reports `warning`.
+- `--quiet` (JS/TS) filters SARIF results exactly as it filters `text`, and
+  never alters the exit code ([output-format.md](output-format.md#flags)).
 
 ## Skip categories
 

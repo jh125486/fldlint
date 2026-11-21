@@ -3,6 +3,9 @@
 Status: planned; the loaders are part of the M0 harness work and each suite
 has its own negative tests. Nothing here is a released guarantee yet.
 
+This concerns the shared spec data only; it says nothing about tool exit codes
+or flags, which are per ecosystem ([exit-codes.md](exit-codes.md)).
+
 The JS and Go spec loaders must accept and reject **the same inputs** for
 `spec/rules.yaml` and every fixture `case.yaml`. A malformed spec must fail
 the same way regardless of which language's tests load it.

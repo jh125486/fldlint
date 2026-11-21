@@ -1,5 +1,16 @@
 # Contributing
 
+## Principles
+
+- For each language, use that ecosystem's standard tooling, flags and file
+  formats. Do not port another language's conventions
+  ([ADR 008](docs/adr/008-idiomatic-per-ecosystem.md)).
+- When in doubt, copy what ESLint does (JS/TS), what `go vet` and
+  `golang.org/x/tools/go/analysis` do (Go), or what the Maven/Gradle rewrite
+  plugin does (Java).
+- Only the shared contract (rule ids, messages, positions, fingerprint,
+  baseline and SARIF shapes, fixtures) is identical across languages.
+
 ## Commits and PRs
 
 - Sign off every commit (Developer Certificate of Origin): `git commit -s`.
