@@ -1,4 +1,4 @@
-id: static-key
+id: string-static-key
 rule: string-variation
 tags: []
 description: A static string flag is rewritten to getStringValue (JS) and StringValue (Go).

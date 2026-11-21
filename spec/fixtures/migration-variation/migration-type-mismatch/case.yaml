@@ -1,4 +1,4 @@
-id: type-mismatch
+id: migration-type-mismatch
 rule: migration-variation
 tags: []
 description: A migration flag returns a stage and operation tracker rather than a plain value, so MigrationVariation(Ctx) is skipped as type-mismatch.

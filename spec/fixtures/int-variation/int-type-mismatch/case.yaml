@@ -1,4 +1,4 @@
-id: type-mismatch
+id: int-type-mismatch
 rule: int-variation
 tags: []
 description: Go IntVariation returns int while OpenFeature IntValue returns int64, so the call is skipped as type-mismatch.
