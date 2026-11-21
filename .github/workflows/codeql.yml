@@ -12,8 +12,10 @@ permissions:
 
 jobs:
   analyze:
-    # CodeQL needs code scanning, which is only free on public repos
-    if: github.event.repository.private == false
+    # Code scanning needs GitHub Advanced Security (free on public repos).
+    # Set the repository variable GHAS_ENABLED=true when the repo goes public.
+    # (github.event.repository is absent from schedule events, so it is not used.)
+    if: vars.GHAS_ENABLED == 'true'
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -28,15 +30,16 @@ jobs:
             build-mode: manual
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
-        with:
-          languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+      # setup-go must precede init so the traced build uses the CodeQL go wrapper
       - if: matrix.language == 'go'
         uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
+      - uses: github/codeql-action/init@6f2ac81f5cd81fe351a197ba0b00d91d03cd2aee # v4.39.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
       - if: matrix.language == 'go'
         working-directory: go
         run: go build ./...
