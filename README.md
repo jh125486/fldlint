@@ -28,6 +28,12 @@ Everything else is reported, not rewritten: dynamic keys, detail calls, bulk
 evaluation, unbound clients, type mismatches and unproven context conversion.
 These are the skip categories in `spec/rules.yaml`.
 
+Context conversion is the strictest part: the LaunchDarkly context is rewritten
+only when it is a simple single-kind literal (JS `{ key, kind?: "user" }`, Go
+`ldcontext.New(...)`), in both languages ([ADR 006](docs/adr/006-context-conversion-skipped-unless-provable.md),
+[placeholders](spec/contracts/placeholders.md)). Go rewrites must compile; TS
+output may keep an unused client.
+
 ## Layout
 
 ```
@@ -41,6 +47,21 @@ docs/adr/   architecture decision records
 Each language has its own detection engine; they share data, not code
 ([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)). Output and
 behavior contracts live in [spec/contracts](spec/contracts/).
+
+## Status and requirements
+
+Only the M0 scaffold exists: the spec (rules, schemas, fixtures, contracts),
+generated rule tables, a conformance harness that loads and validates every
+case and reports it as pending, and CI. No detection engine, rewrite, ESLint
+rule, codemod or CLI is implemented; the contracts under `spec/contracts/` are
+plans.
+
+- Node `>=22.12` (CI tests Node 22 and 24; Node 20 is not supported).
+- Go: the version in `go/go.mod`.
+- CodeQL and dependency review run in CI only once the repository is public.
+
+Run `make help` for targets; `make test` runs the JS and Go tests and
+`make spec-check` validates the spec and checks generated code for drift.
 
 ## Milestones
 
