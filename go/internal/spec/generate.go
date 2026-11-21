@@ -27,7 +27,7 @@ func Generate(rf *RulesFile) ([]byte, error) {
 	for i, r := range rf.Rules {
 		fmt.Fprintf(&b, "\t{\n\t\tID: %q, ValueType: %q, Risk: %q,\n", r.ID, r.ValueType, r.Risk)
 		fmt.Fprintf(&b, "\t\tKeyArg: %d, DefaultArg: %d, ContextArg: %d,\n", r.KeyArg, r.DefaultArg, r.ContextArg)
-		fmt.Fprintf(&b, "\t\tSkip: %q,\n", r.Skip)
+		fmt.Fprintf(&b, "\t\tSkip: %q, Message: %q,\n", r.Skip, r.Message)
 		if g := r.Go; g != nil {
 			b.WriteString("\t\tGo: &GoBinding{\n")
 			fmt.Fprintf(&b, "\t\t\tMethods: %s,\n", strSlice(g.Methods))

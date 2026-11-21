@@ -35,6 +35,9 @@ func TestGenerate(t *testing.T) {
 			if !strings.HasPrefix(string(a), spec.Header+"\n") {
 				t.Fatal("missing generated header")
 			}
+			if !strings.Contains(string(a), "Message: ") {
+				t.Fatal("generated rules do not carry Message")
+			}
 			if _, err := parser.ParseFile(token.NewFileSet(), "rules_gen.go", a, parser.AllErrors); err != nil {
 				t.Fatalf("generated source does not parse: %v", err)
 			}

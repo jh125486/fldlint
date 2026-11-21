@@ -1,0 +1,6 @@
+id: x
+rule: no-such-rule
+tags: []
+description: d
+expect:
+  go: {diagnostics: [], output: false}

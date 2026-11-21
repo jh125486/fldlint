@@ -1,0 +1,6 @@
+id: x
+rule: bool-variation
+tags: []
+description: d
+expect:
+  go: {diagnostics: [{line: 3.5, col: 1, ruleId: bool-variation}], output: false}

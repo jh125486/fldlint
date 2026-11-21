@@ -1,9 +1,7 @@
 package spec
 
 import (
-	"bytes"
 	"fmt"
-	"io"
 	"os"
 	"slices"
 
@@ -15,42 +13,145 @@ var Languages = []string{"js", "go", "java"}
 
 // Diagnostic is one expected report. Line and Col are 1-based.
 type Diagnostic struct {
-	Line   int    `yaml:"line"`
-	Col    int    `yaml:"col"`
-	RuleID string `yaml:"ruleId"`
-	Skip   string `yaml:"skip"`
+	Line   int
+	Col    int
+	RuleID string
+	Skip   string
 }
 
 // LangExpect is the expectation for one language.
 type LangExpect struct {
-	Diagnostics []Diagnostic `yaml:"diagnostics"`
-	Output      bool         `yaml:"output"`
+	Diagnostics []Diagnostic
+	Output      bool
 }
 
 // Case is a parsed fixture case.yaml.
 type Case struct {
-	ID          string                `yaml:"id"`
-	Rule        string                `yaml:"rule"`
-	Tags        []string              `yaml:"tags"`
-	Description string                `yaml:"description"`
-	Expect      map[string]LangExpect `yaml:"expect"`
+	ID          string
+	Rule        string
+	Tags        []string
+	Description string
+	Expect      map[string]LangExpect
 }
 
-// ParseCase parses case.yaml content strictly (unknown fields are errors).
+// ParseCase strictly parses case.yaml content. It accepts and rejects the same
+// inputs as spec/schema/fixture.schema.json; cross-references into rules.yaml
+// are checked by Validate.
 func ParseCase(data []byte) (*Case, error) {
-	dec := yaml.NewDecoder(bytes.NewReader(data))
-	dec.KnownFields(true)
-	var c Case
-	if err := dec.Decode(&c); err != nil {
-		if err == io.EOF {
-			return nil, fmt.Errorf("parse case: empty document")
-		}
+	root, err := decodeDoc(data)
+	if err != nil {
 		return nil, fmt.Errorf("parse case: %w", err)
 	}
-	return &c, nil
+	c, err := buildCase(root)
+	if err != nil {
+		return nil, fmt.Errorf("parse case: %w", err)
+	}
+	return c, nil
 }
 
-// LoadCase reads and parses a case.yaml file (without semantic validation).
+func buildCase(root *yaml.Node) (*Case, error) {
+	mp, err := newMapping(root, "case", []string{"id", "rule", "tags", "description", "expect"})
+	if err != nil {
+		return nil, err
+	}
+	if err := mp.require("id", "rule", "tags", "description", "expect"); err != nil {
+		return nil, err
+	}
+	c := &Case{Expect: map[string]LangExpect{}}
+	if c.ID, err = asString(mp.m["id"], mp.child("id")); err != nil {
+		return nil, err
+	}
+	if !caseIDRe.MatchString(c.ID) {
+		return nil, failAt(mp.m["id"], mp.child("id"), "%q does not match the case id pattern", c.ID)
+	}
+	if c.Rule, err = asString(mp.m["rule"], mp.child("rule")); err != nil {
+		return nil, err
+	}
+	if !ruleIDRe.MatchString(c.Rule) {
+		return nil, failAt(mp.m["rule"], mp.child("rule"), "%q does not match the rule id pattern", c.Rule)
+	}
+	tagOK := func(s string) error {
+		if !caseIDRe.MatchString(s) {
+			return fmt.Errorf("%q does not match the tag pattern", s)
+		}
+		return nil
+	}
+	if c.Tags, err = asStringSeq(mp.m["tags"], mp.child("tags"), 0, tagOK); err != nil {
+		return nil, err
+	}
+	if c.Description, err = asString(mp.m["description"], mp.child("description")); err != nil {
+		return nil, err
+	}
+	if c.Description == "" {
+		return nil, failAt(mp.m["description"], mp.child("description"), "must not be empty")
+	}
+	em, err := newMapping(mp.m["expect"], mp.child("expect"), Languages)
+	if err != nil {
+		return nil, err
+	}
+	if len(em.keys) == 0 {
+		return nil, failAt(em.node, em.path, "needs at least 1 language")
+	}
+	for _, lang := range em.keys {
+		le, err := parseLangExpect(em.m[lang], em.child(lang))
+		if err != nil {
+			return nil, err
+		}
+		c.Expect[lang] = le
+	}
+	return c, nil
+}
+
+func parseLangExpect(n *yaml.Node, path string) (LangExpect, error) {
+	var le LangExpect
+	mp, err := newMapping(n, path, []string{"diagnostics", "output"})
+	if err != nil {
+		return le, err
+	}
+	if err := mp.require("diagnostics", "output"); err != nil {
+		return le, err
+	}
+	if le.Output, err = asBool(mp.m["output"], mp.child("output")); err != nil {
+		return le, err
+	}
+	items, err := asSeq(mp.m["diagnostics"], mp.child("diagnostics"))
+	if err != nil {
+		return le, err
+	}
+	le.Diagnostics = []Diagnostic{}
+	for i, it := range items {
+		dp := fmt.Sprintf("%s[%d]", mp.child("diagnostics"), i)
+		dm, err := newMapping(it, dp, []string{"line", "col", "ruleId", "skip"})
+		if err != nil {
+			return le, err
+		}
+		if err := dm.require("line", "col", "ruleId"); err != nil {
+			return le, err
+		}
+		var d Diagnostic
+		if d.Line, err = asInt(dm.m["line"], dm.child("line"), 1); err != nil {
+			return le, err
+		}
+		if d.Col, err = asInt(dm.m["col"], dm.child("col"), 1); err != nil {
+			return le, err
+		}
+		if d.RuleID, err = asString(dm.m["ruleId"], dm.child("ruleId")); err != nil {
+			return le, err
+		}
+		if !ruleIDRe.MatchString(d.RuleID) {
+			return le, failAt(dm.m["ruleId"], dm.child("ruleId"), "%q does not match the rule id pattern", d.RuleID)
+		}
+		if v, ok := dm.m["skip"]; ok {
+			if d.Skip, err = asEnum(v, dm.child("skip"), SkipNames); err != nil {
+				return le, err
+			}
+		}
+		le.Diagnostics = append(le.Diagnostics, d)
+	}
+	return le, nil
+}
+
+// LoadCase reads and strictly parses a case.yaml file.
 func LoadCase(path string) (*Case, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -59,44 +160,20 @@ func LoadCase(path string) (*Case, error) {
 	return ParseCase(data)
 }
 
-// Validate checks required fields, skip categories, rule references and tags
-// against rf.
+// Validate checks the cross-references into rf: the case rule, every
+// diagnostic ruleId and every skip category must exist.
 func (c *Case) Validate(rf *RulesFile) error {
-	if c.ID == "" {
-		return fmt.Errorf("case: missing id")
-	}
-	if c.Rule == "" {
-		return fmt.Errorf("case %q: missing rule", c.ID)
-	}
 	if !slices.ContainsFunc(rf.Rules, func(r Rule) bool { return r.ID == c.Rule }) {
 		return fmt.Errorf("case %q: unknown rule %q", c.ID, c.Rule)
 	}
-	if c.Description == "" {
-		return fmt.Errorf("case %q: missing description", c.ID)
-	}
-	seen := map[string]bool{}
-	for _, t := range c.Tags {
-		if t == "" {
-			return fmt.Errorf("case %q: empty tag", c.ID)
-		}
-		if seen[t] {
-			return fmt.Errorf("case %q: duplicate tag %q", c.ID, t)
-		}
-		seen[t] = true
-	}
-	if len(c.Expect) == 0 {
-		return fmt.Errorf("case %q: expect must name at least one language", c.ID)
-	}
-	for lang, e := range c.Expect {
-		if !slices.Contains(Languages, lang) {
-			return fmt.Errorf("case %q: unknown language %q", c.ID, lang)
+	for _, lang := range Languages {
+		e, ok := c.Expect[lang]
+		if !ok {
+			continue
 		}
 		for i, d := range e.Diagnostics {
-			if d.Line < 1 || d.Col < 1 {
-				return fmt.Errorf("case %q: %s diagnostic %d: line/col must be >= 1", c.ID, lang, i)
-			}
-			if d.RuleID == "" {
-				return fmt.Errorf("case %q: %s diagnostic %d: missing ruleId", c.ID, lang, i)
+			if !slices.ContainsFunc(rf.Rules, func(r Rule) bool { return r.ID == d.RuleID }) {
+				return fmt.Errorf("case %q: %s diagnostic %d: unknown ruleId %q", c.ID, lang, i, d.RuleID)
 			}
 			if d.Skip != "" {
 				if _, ok := rf.SkipCategories[d.Skip]; !ok {

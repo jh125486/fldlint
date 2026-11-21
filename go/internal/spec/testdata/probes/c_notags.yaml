@@ -1,0 +1,5 @@
+id: x
+rule: bool-variation
+description: d
+expect:
+  go: {diagnostics: [], output: false}

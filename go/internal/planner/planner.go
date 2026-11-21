@@ -14,8 +14,10 @@ import (
 type Kind string
 
 const (
+	// KindRewrite means the call site has a safe rewrite.
 	KindRewrite Kind = "rewrite"
-	KindSkip    Kind = "skip"
+	// KindSkip means the call site is reported but not rewritten.
+	KindSkip Kind = "skip"
 )
 
 // CategoryUnboundClient is the skip category used by the M0 stub.

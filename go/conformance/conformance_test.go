@@ -111,7 +111,7 @@ func TestCheckCase(t *testing.T) {
 		}
 		return filepath.Join(dir, "case.yaml")
 	}
-	const base = "id: x\nrule: bool-variation\ndescription: d\nexpect:\n  go: {diagnostics: [{line: 1, col: 1, ruleId: bool-variation}], output: %v}\n"
+	const base = "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  go: {diagnostics: [{line: 1, col: 1, ruleId: bool-variation}], output: %v}\n"
 	tests := []struct {
 		name    string
 		yaml    string
@@ -120,6 +120,9 @@ func TestCheckCase(t *testing.T) {
 	}{
 		{name: "ok no output", yaml: fmt.Sprintf(base, false), files: []string{"input.go"}},
 		{name: "ok with output", yaml: fmt.Sprintf(base, true), files: []string{"input.go", "output.go.golden"}},
+		{name: "unknown rule", yaml: strings.Replace(fmt.Sprintf(base, false), "rule: bool-variation", "rule: nope", 1), files: []string{"input.go"}, wantErr: true},
+		{name: "unknown diagnostic ruleId", yaml: strings.Replace(fmt.Sprintf(base, false), "ruleId: bool-variation", "ruleId: nope", 1), files: []string{"input.go"}, wantErr: true},
+		{name: "no go expectation needs no go files", yaml: "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  js: {diagnostics: [], output: false}\n"},
 		{name: "malformed yaml", yaml: "id: [", wantErr: true},
 		{name: "invalid case", yaml: "id: x\n", wantErr: true},
 		{name: "missing input", yaml: fmt.Sprintf(base, false), wantErr: true},
