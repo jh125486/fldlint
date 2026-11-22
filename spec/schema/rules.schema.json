@@ -115,13 +115,13 @@
       "description": "Only {{client}} {{key}} {{default}} {{context}} {{goctx}} {{evalctx}} placeholders; any other brace is rejected.",
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?:[^{]|\\{\\{(?:client|key|default|context|goctx|evalctx)\\}\\})*$"
+      "pattern": "^(?:[^{}]|\\{\\{(?:client|key|default|context|goctx|evalctx)\\}\\})*$"
     },
     "templateJava": {
       "description": "Only #{key} #{default} #{context} #{any(<fully.qualified.Type>)} placeholders.",
       "type": "string",
       "minLength": 1,
-      "pattern": "^(?:[^#{]|#\\{(?:key|default|context|any\\([A-Za-z0-9_.]+\\))\\})*$"
+      "pattern": "^(?:[^#{}]|#\\{(?:key|default|context|any\\([A-Za-z0-9_.]+\\))\\})*$"
     },
     "rule": {
       "type": "object",

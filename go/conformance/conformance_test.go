@@ -182,6 +182,8 @@ func TestCheckCase(t *testing.T) {
 		return filepath.Join(dir, "case.yaml")
 	}
 	const base = "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  go: {diagnostics: [{line: 1, col: 1, ruleId: bool-variation}], output: %v}\n"
+	// output false on a rewriting rule needs a call-site skip on every diagnostic.
+	baseNoOutput := strings.Replace(fmt.Sprintf(base, false), "ruleId: bool-variation}", "ruleId: bool-variation, skip: dynamic-key}", 1)
 	const jsOnly = "id: x\nrule: bool-variation\ntags: []\ndescription: d\nexpect:\n  js: {diagnostics: [], output: false}\n"
 	tests := []struct {
 		name    string
@@ -190,20 +192,20 @@ func TestCheckCase(t *testing.T) {
 		files   []string
 		wantErr string
 	}{
-		{name: "ok no output", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go"}},
+		{name: "ok no output", yaml: baseNoOutput, files: []string{"go/input.go"}},
 		{name: "ok with output", yaml: fmt.Sprintf(base, true), files: []string{"go/input.go", "go/output.go.golden"}},
-		{name: "unknown rule", yaml: strings.Replace(fmt.Sprintf(base, false), "rule: bool-variation", "rule: nope", 1), files: []string{"go/input.go"}, wantErr: "unknown rule"},
-		{name: "unknown diagnostic ruleId", yaml: strings.Replace(fmt.Sprintf(base, false), "ruleId: bool-variation", "ruleId: nope", 1), files: []string{"go/input.go"}, wantErr: "unknown ruleId"},
-		{name: "rule differs from directory", dir: "bool-variation-detail", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go"}, wantErr: `does not match its directory name "bool-variation-detail"`},
+		{name: "unknown rule", yaml: strings.Replace(baseNoOutput, "rule: bool-variation", "rule: nope", 1), files: []string{"go/input.go"}, wantErr: "unknown rule"},
+		{name: "unknown diagnostic ruleId", yaml: strings.Replace(baseNoOutput, "ruleId: bool-variation", "ruleId: nope", 1), files: []string{"go/input.go"}, wantErr: "unknown ruleId"},
+		{name: "rule differs from directory", dir: "bool-variation-detail", yaml: baseNoOutput, files: []string{"go/input.go"}, wantErr: `does not match its directory name "bool-variation-detail"`},
 		{name: "stray go golden without expect.go", yaml: jsOnly, files: []string{"js/input.ts", "go/output.go.golden"}, wantErr: "go/output.go.golden exists but case.yaml has no expect.go"},
-		{name: "stray js output without expect.js", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go", "js/output.ts"}, wantErr: "js/output.ts exists but case.yaml has no expect.js"},
-		{name: "stray java output without expect.java", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go", "java/After.java"}, wantErr: "java/After.java exists but case.yaml has no expect.java"},
+		{name: "stray js output without expect.js", yaml: baseNoOutput, files: []string{"go/input.go", "js/output.ts"}, wantErr: "js/output.ts exists but case.yaml has no expect.js"},
+		{name: "stray java output without expect.java", yaml: baseNoOutput, files: []string{"go/input.go", "java/After.java"}, wantErr: "java/After.java exists but case.yaml has no expect.java"},
 		{name: "js expectation needs js input", yaml: jsOnly, wantErr: "js/input.ts, which does not exist"},
 		{name: "malformed yaml", yaml: "id: [", wantErr: "parse case"},
 		{name: "invalid case", yaml: "id: x\n", wantErr: "missing required key"},
-		{name: "missing input", yaml: fmt.Sprintf(base, false), wantErr: "go/input.go, which does not exist"},
+		{name: "missing input", yaml: baseNoOutput, wantErr: "go/input.go, which does not exist"},
 		{name: "missing golden", yaml: fmt.Sprintf(base, true), files: []string{"go/input.go"}, wantErr: "go/output.go.golden does not exist"},
-		{name: "unexpected golden", yaml: fmt.Sprintf(base, false), files: []string{"go/input.go", "go/output.go.golden"}, wantErr: "go/output.go.golden exists"},
+		{name: "unexpected golden", yaml: baseNoOutput, files: []string{"go/input.go", "go/output.go.golden"}, wantErr: "go/output.go.golden exists"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

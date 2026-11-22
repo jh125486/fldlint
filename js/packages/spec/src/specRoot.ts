@@ -38,9 +38,22 @@ export function resolveSpecRoot(explicit?: string, env: Record<string, string | 
     assertSpecRoot(root, "FLDLINT_SPEC_ROOT");
     return root;
   }
-  const repoSpec = resolve(here, "../../../../spec");
-  if (existsSync(resolve(repoSpec, "rules.yaml"))) return repoSpec;
+  const repoSpec = findRepoSpec(here);
+  if (repoSpec !== undefined) return repoSpec;
+  console.error(`fldlint: warning: no spec/rules.yaml found above ${here}; using the bundled two-case stub spec`);
   return STUB_SPEC_ROOT;
+}
+
+/**
+ * Walk up from `start` to the nearest ancestor holding spec/rules.yaml, so the
+ * result does not depend on whether the code runs from src/ or dist/ (or dist/bin/).
+ */
+export function findRepoSpec(start: string): string | undefined {
+  for (let dir = start; ; dir = dirname(dir)) {
+    const candidate = join(dir, "spec");
+    if (existsSync(join(candidate, "rules.yaml"))) return candidate;
+    if (dirname(dir) === dir) return undefined;
+  }
 }
 
 /**
