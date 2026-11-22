@@ -10,6 +10,12 @@ Requires ESLint 9 (flat config) and Node 22.12 or newer. ESLint 10 is not yet su
 
 ## Install
 
+> The package is `private` until the first release (#20), so it is not on the npm
+> registry yet. Until then, use it from a checkout of this repository
+> (`npm install --save-dev /path/to/fldlint/js/packages/eslint-plugin` after
+> `npm ci && npm run build` in `js/`). The command below is the install line
+> that will apply once it is published.
+
 ```sh
 npm install --save-dev eslint eslint-plugin-fldlint
 # for TypeScript sources
