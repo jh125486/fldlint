@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fldlint.dev/schema/fixture.schema.json",
   "title": "fldlint fixture case.yaml",
-  "description": "A missing expect entry means the language is not applicable. skip values are the six skipCategories names (enumerated; JSON Schema cannot cross-reference rules.yaml).",
+  "description": "A missing expect entry means the language is not applicable. skip values are the seven skipCategories names (enumerated; JSON Schema cannot cross-reference rules.yaml).",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "rule", "tags", "description", "expect"],
@@ -43,7 +43,7 @@
               "line": { "type": "integer", "minimum": 1 },
               "col": { "type": "integer", "minimum": 1 },
               "ruleId": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
-              "skip": { "enum": ["detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven"] }
+              "skip": { "enum": ["detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven", "default-type-unproven"] }
             }
           }
         },

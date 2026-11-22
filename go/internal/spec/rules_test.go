@@ -16,6 +16,7 @@ skipCategories:
   unbound-client: {severity: warning, message: u}
   type-mismatch: {severity: warning, message: t}
   context-unproven: {severity: warning, message: c}
+  default-type-unproven: {severity: warning, message: p}
 rules:
   - id: a
     valueType: boolean

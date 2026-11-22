@@ -50,7 +50,7 @@ export function findDuplicateMethods(rf: RulesFile): string[] {
 }
 
 /** Call-site skip categories allowed on rewriting rules (M0.2a). */
-export const CALL_SITE_SKIPS: readonly string[] = ["dynamic-key", "unbound-client", "context-unproven"];
+export const CALL_SITE_SKIPS: readonly string[] = ["dynamic-key", "unbound-client", "context-unproven", "default-type-unproven"];
 
 interface Diag {
   ruleId: string;

@@ -1,0 +1,7 @@
+id: default-type-unproven
+rule: bool-variation
+tags: [default-type-unproven]
+description: A default value whose type cannot be proven to match the rule's value type (a variable of unknown type) is not rewritten and is reported as default-type-unproven.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation, skip: default-type-unproven}], output: false}
+  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation, skip: default-type-unproven}], output: false}

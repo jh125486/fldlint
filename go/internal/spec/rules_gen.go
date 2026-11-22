@@ -3,12 +3,13 @@
 package spec
 
 var genSkipCategories = map[string]SkipCategory{
-	"bulk":             {Severity: "warning", Message: "Bulk evaluation; migrate manually"},
-	"context-unproven": {Severity: "warning", Message: "Cannot prove LD context -> EvaluationContext conversion"},
-	"detail":           {Severity: "warning", Message: "Detail call; reason/variation metadata has no 1:1 rewrite"},
-	"dynamic-key":      {Severity: "warning", Message: "Flag key is not a static string"},
-	"type-mismatch":    {Severity: "warning", Message: "Return/default type differs between SDKs"},
-	"unbound-client":   {Severity: "warning", Message: "OpenFeature client binding not proven in scope"},
+	"bulk":                  {Severity: "warning", Message: "Bulk evaluation; migrate manually"},
+	"context-unproven":      {Severity: "warning", Message: "Cannot prove LD context -> EvaluationContext conversion"},
+	"default-type-unproven": {Severity: "warning", Message: "Default value type not proven"},
+	"detail":                {Severity: "warning", Message: "Detail call; reason/variation metadata has no 1:1 rewrite"},
+	"dynamic-key":           {Severity: "warning", Message: "Flag key is not a static string"},
+	"type-mismatch":         {Severity: "warning", Message: "Return/default type differs between SDKs"},
+	"unbound-client":        {Severity: "warning", Message: "OpenFeature client binding not proven in scope"},
 }
 
 var genRules = []Rule{

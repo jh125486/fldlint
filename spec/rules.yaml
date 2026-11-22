@@ -28,6 +28,7 @@ skipCategories:
   unbound-client:   {severity: warning, message: "OpenFeature client binding not proven in scope"}
   type-mismatch:    {severity: warning, message: "Return/default type differs between SDKs"}
   context-unproven: {severity: warning, message: "Cannot prove LD context -> EvaluationContext conversion"}
+  default-type-unproven: {severity: warning, message: "Default value type not proven"}
 rules:
   # ---- rewritable rules ----
   - id: bool-variation
