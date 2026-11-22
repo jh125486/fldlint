@@ -68,4 +68,24 @@ describe("runCodemod", () => {
     const out = runCodemod(src, "b.ts").output;
     expect(out?.startsWith("﻿")).toBe(true);
   });
+  describe("deeply nested rewrites", () => {
+    const head = `import { init } from "@launchdarkly/node-server-sdk";\nimport { OpenFeature } from "@openfeature/server-sdk";\nconst client = OpenFeature.getClient();\nconst ld = init("k");\nconst u = "u";\n`;
+    const nested = (depth: number): string => {
+      let expr = "u";
+      for (let i = 0; i < depth; i++) expr = `ld.boolVariation("f${i}", { key: ${expr} }, false) ? "x" : "y"`;
+      return `${head}export const v = ${expr};\n`;
+    };
+    it("rewrites 12 levels completely (more than ten passes)", () => {
+      const out = runCodemod(nested(12), "deep.ts");
+      expect(out.reports).toEqual([]);
+      expect(out.output).not.toBeNull();
+      expect(out.output).not.toContain("boolVariation");
+    });
+    it("leaves the file untouched and reports when the pass cap is hit", () => {
+      const out = runCodemod(nested(12), "deep.ts", 3);
+      expect(out.output).toBeNull();
+      expect(out.reports).toHaveLength(1);
+      expect(out.reports[0]).toMatch(/^deep\.ts {2}max-passes {2}.*left unchanged/);
+    });
+  });
 });

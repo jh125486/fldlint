@@ -47,19 +47,23 @@ const shims = {
   },
 };
 
-const result = await build({
-  entryPoints: [join(root, "src", "transform.ts")],
-  absWorkingDir: root,
-  bundle: true,
-  write: false,
-  format: "esm",
-  platform: "node",
-  target: "es2022",
-  legalComments: "none",
-  logLevel: "warning",
-  plugins: [shims],
-});
-const text = result.outputFiles[0].text;
+async function bundle() {
+  const result = await build({
+    entryPoints: [join(root, "src", "transform.ts")],
+    absWorkingDir: root,
+    bundle: true,
+    write: false,
+    format: "esm",
+    platform: "node",
+    target: "es2022",
+    legalComments: "none",
+    logLevel: "warning",
+    plugins: [shims],
+  });
+  return result.outputFiles[0].text;
+}
+
+const text = await bundle();
 const sha = createHash("sha256").update(text).digest("hex");
 
 if (text.includes(root)) {
@@ -68,17 +72,25 @@ if (text.includes(root)) {
 }
 
 if (process.argv.includes("--check")) {
-  let onDisk = "";
+  // Never writes dist/. Two independent builds must be byte-identical
+  // (determinism), and an existing dist/transform.js must equal them (it is not
+  // stale relative to the sources, lockfile or this script).
+  const again = await bundle();
+  if (again !== text) {
+    console.error("build:check: two builds of the same inputs differ (non-deterministic)");
+    process.exit(1);
+  }
+  let onDisk = null;
   try {
     onDisk = readFileSync(outfile, "utf8");
   } catch {
-    // fall through: reported as drift
+    // no dist yet: nothing to compare against
   }
-  if (onDisk !== text) {
-    console.error("build:check: dist/transform.js differs from a fresh build");
+  if (onDisk !== null && onDisk !== text) {
+    console.error("build:check: dist/transform.js is stale: it differs from a fresh build");
     process.exit(1);
   }
-  console.log(`build:check: ok sha256=${sha}`);
+  console.log(`build:check: ok sha256=${sha}${onDisk === null ? " (no dist/ to compare)" : ""}`);
 } else {
   mkdirSync(dirname(outfile), { recursive: true });
   writeFileSync(outfile, text);

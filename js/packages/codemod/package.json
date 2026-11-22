@@ -7,7 +7,7 @@
   "scripts": {
     "prebuild": "npm run build -w @fldlint/spec -w @fldlint/core --silent",
     "build": "node scripts/build.mjs",
-    "build:check": "npm run build --silent && node scripts/build.mjs --check",
+    "build:check": "npm run build -w @fldlint/spec -w @fldlint/core --silent && node scripts/build.mjs --check",
     "pretypecheck": "npm run build -w @fldlint/spec -w @fldlint/core --silent",
     "typecheck": "tsc -p tsconfig.json",
     "pretest": "npm run build --silent",

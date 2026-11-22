@@ -2,8 +2,8 @@ import { skipCategories } from "@fldlint/spec";
 import { analyze, applyEdits, nonOverlapping } from "@fldlint/core";
 import type { Edit } from "@fldlint/spec";
 
-/** Same ceiling ESLint uses for `--fix` passes. */
-const MAX_PASSES = 10;
+/** Safety cap on passes; nesting depth N needs N passes, so this is far beyond real code. */
+const MAX_PASSES = 100;
 const BOM = "﻿";
 
 export interface RunResult {
@@ -28,13 +28,15 @@ function rewritePass(source: string, filePath: string) {
  * The whole codemod, as a pure function: every rewrite and every skip decision
  * comes from `@fldlint/core`; nothing is re-implemented here. Nested rewrites
  * need more than one pass, so it runs to a fixed point (like `eslint --fix`).
- * A file that does not parse is left untouched and reported.
+ * A file that does not parse, or that has not settled after the pass cap, is
+ * left untouched and reported.
  */
-export function runCodemod(source: string, filePath: string): RunResult {
+export function runCodemod(source: string, filePath: string, maxPasses = MAX_PASSES): RunResult {
   let current = source;
   const reports: string[] = [];
   try {
-    for (let pass = 0; pass < MAX_PASSES; pass++) {
+    let settled = false;
+    for (let pass = 0; pass < maxPasses; pass++) {
       const { findings, next } = rewritePass(current, filePath);
       if (pass === 0) {
         // Positions refer to the original file, so only the first pass reports.
@@ -44,8 +46,18 @@ export function runCodemod(source: string, filePath: string): RunResult {
           reports.push(`${filePath}:${site.line}:${site.col}  ${result.ruleId}  ${message} [skip: ${result.category}]`);
         }
       }
-      if (next === current) break;
+      if (next === current) {
+        settled = true;
+        break;
+      }
       current = next;
+    }
+    if (!settled) {
+      // Never hand back a partial rewrite: keep the original text.
+      return {
+        output: null,
+        reports: [`${filePath}  max-passes  rewrites still pending after ${maxPasses} passes, left unchanged`],
+      };
     }
   } catch (err) {
     const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);

@@ -27,8 +27,8 @@ Once published: `npx codemod @fldlint/launchdarkly-to-openfeature`.
   binding is visible at the call. Anything unproven is left untouched. A file
   is never partly rewritten at a skipped site; skip categories and the step
   order (ADR 010) come from core's `plan()`.
-- Nested rewrites are applied by repeating the pass until nothing changes (at most
-  10 passes, like `eslint --fix`), so a second run changes nothing (idempotent).
+- Nested rewrites are applied by repeating the pass until nothing changes (safety cap
+  100 passes; if hit, the file is left unchanged and reported), so a second run changes nothing (idempotent).
 - A file that fails to parse is left untouched and reported.
 
 ## Skip reporting
@@ -63,8 +63,9 @@ Labels: VERIFIED = observed by running `codemod@1.18.7`; UNVERIFIED = not checke
   `node:inspector` stubbed, CJS `require("fs")` style calls routed to `node:fs`.
 - The bundle only runs inside Codemod's runtime and vitest, not as plain Node ESM
   (`__filename` is undefined there).
-- Reproducibility: `npm run build:check -w @fldlint/codemod` rebuilds and fails
-  if `dist/transform.js` differs from a fresh build or contains an absolute path.
+- Reproducibility: `npm run build:check -w @fldlint/codemod` builds twice without
+  writing `dist/` and fails if the builds differ, if an existing
+  `dist/transform.js` is stale, or if the bundle contains an absolute path.
   Proposed CI step: `cd js && npm ci && npm run build:check -w @fldlint/codemod`.
   Wiring it into `.github/workflows` is left to the orchestrator.
 - Tests: `npm test -w @fldlint/codemod` runs every `spec/fixtures/**/js` fixture
