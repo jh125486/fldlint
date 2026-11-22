@@ -1,0 +1,6 @@
+id: impure-receiver
+rule: bool-variation
+tags: [impure-receiver]
+description: A receiver that is a call expression is not pure, so removing it could drop side effects; the call is skipped as receiver-unproven.
+expect:
+  go: {diagnostics: [{line: 18, col: 11, ruleId: bool-variation, skip: receiver-unproven}], output: false}
