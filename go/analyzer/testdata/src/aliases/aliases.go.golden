@@ -1,7 +1,6 @@
 package aliases
 
 import (
-	"context"
 	stdctx "context"
 
 	"github.com/launchdarkly/go-server-sdk/v7"
@@ -18,6 +17,6 @@ func Enabled(ctx stdctx.Context, userKey string) bool {
 }
 
 func Other(userKey string) bool {
-	on, _ := client.BooleanValue(context.TODO(), "aliased-two", false, of.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "aliased-two" to OpenFeature`
+	on, _ := client.BooleanValue(stdctx.TODO(), "aliased-two", false, of.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "aliased-two" to OpenFeature`
 	return on
 }

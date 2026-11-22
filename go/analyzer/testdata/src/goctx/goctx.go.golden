@@ -55,6 +55,11 @@ func Variant(r *http.Request) bool {
 	return on
 }
 
+func PointerContext(ctx *context.Context, userKey string) bool {
+	on, _ := client.BooleanValue(context.TODO(), "pointer", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "pointer" to OpenFeature`
+	return on
+}
+
 func RawKey(userKey string) bool {
 	on, _ := client.BooleanValue(context.TODO(), `raw-key`, false, openfeature.NewEvaluationContext(userKey, nil)) // want "Migrate boolean flag .raw-key. to OpenFeature"
 	return on

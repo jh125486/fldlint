@@ -17,6 +17,13 @@ func apply(t *testing.T, src string, edits []fix.Edit, fset *token.FileSet, f *a
 	out := []byte(src)
 	sorted := slices.Clone(edits)
 	slices.SortFunc(sorted, func(a, b fix.Edit) int { return int(b.Pos) - int(a.Pos) })
+	// Drivers reject overlapping edits: sorted descending, each edit must end
+	// at or before the start of the one applied just before it.
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i].End > sorted[i-1].Pos {
+			t.Fatalf("overlapping edits: [%d,%d) and [%d,%d)", sorted[i].Pos, sorted[i].End, sorted[i-1].Pos, sorted[i-1].End)
+		}
+	}
 	for _, e := range sorted {
 		out = slices.Concat(out[:tf.Offset(e.Pos)], e.NewText, out[tf.Offset(e.End):])
 	}
@@ -94,10 +101,44 @@ func TestImportEdits(t *testing.T) {
 			want:   "package p\n\nimport (\n\t\"fmt\"\n)\n",
 		},
 		{
-			name:   "never empties the decl",
-			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n)\n",
+			name:   "a parenthesized decl whose only spec is removed is deleted",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n)\n\nvar x = 1\n",
 			remove: []string{ldctx},
-			want:   "package p\n\nimport (\n\t\"" + ldctx + "\"\n)\n",
+			want:   "package p\n\n\nvar x = 1\n",
+		},
+		{
+			name:   "a lone import that is removed is deleted",
+			src:    "package p\n\nimport \"" + ldctx + "\"\n\nvar x = 1\n",
+			remove: []string{ldctx},
+			want:   "package p\n\n\nvar x = 1\n",
+		},
+		{
+			name:   "a lone import that is removed while another is added is replaced",
+			src:    "package p\n\nimport \"" + ldctx + "\"\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n)\n",
+		},
+		{
+			name:   "a lone removed import is not copied into the new group",
+			src:    "package p\n\nimport ld \"" + ldctx + "\"\nimport \"x.com/a\"\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n)\nimport \"x.com/a\"\n",
+		},
+		{
+			name:   "removed spec alone in a group followed by another group while a third-party import is added",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n\n\tld \"github.com/launchdarkly/go-server-sdk/v7\"\n)\n",
+			add:    []string{"github.com/open-feature/go-sdk/openfeature"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\tld \"github.com/launchdarkly/go-server-sdk/v7\"\n\t\"github.com/open-feature/go-sdk/openfeature\"\n)\n",
+		},
+		{
+			name:   "removed spec alone in the first group, std added into the second",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n\n\t\"fmt\"\n)\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
 		},
 		{
 			name:   "add and remove together, insertion before the removed spec",
@@ -107,11 +148,11 @@ func TestImportEdits(t *testing.T) {
 			want:   "package p\n\nimport (\n\t\"context\"\n\n\t\"x.com/a\"\n)\n",
 		},
 		{
-			name:   "mixed group is not a std group, so a new one is made",
+			name:   "a group that is std-only once the removed spec is gone takes the addition",
 			src:    "package p\n\nimport (\n\t\"fmt\"\n\t\"" + ldctx + "\"\n)\n",
 			add:    []string{"context"},
 			remove: []string{ldctx},
-			want:   "package p\n\nimport (\n\t\"context\"\n\n\t\"fmt\"\n)\n",
+			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
 		},
 		{
 			name: "no changes",

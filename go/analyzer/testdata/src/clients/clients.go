@@ -16,8 +16,22 @@ func InterfaceReceiver(ld interfaces.LDClientInterface, userKey string) bool {
 	return on
 }
 
-func EvaluationInterface(ld interfaces.LDClientEvaluation, userKey string) bool {
+func EvaluationInterface(ld interfaces.LDClientEvaluations, userKey string) bool {
 	on, _ := ld.BoolVariation("eval-iface", ldcontext.New(userKey), false) // want `Migrate boolean flag "eval-iface" to OpenFeature`
+	return on
+}
+
+func Generic[C interfaces.LDClientInterface](ld C, userKey string) bool {
+	on, _ := ld.BoolVariation("generic", ldcontext.New(userKey), false) // want `Migrate boolean flag "generic" to OpenFeature`
+	return on
+}
+
+type withInterface struct {
+	interfaces.LDClientInterface
+}
+
+func EmbeddedInterface(w withInterface, userKey string) bool {
+	on, _ := w.BoolVariation("embedded-iface", ldcontext.New(userKey), false) // want `Migrate boolean flag "embedded-iface" to OpenFeature`
 	return on
 }
 
@@ -42,7 +56,7 @@ func Embedded(e embedded, userKey string) bool {
 func Factory() *ldclient.LDClient { c, _ := ldclient.MakeClient("k", 0); return c }
 
 func ThroughFactory(userKey string) bool {
-	on, _ := Factory().BoolVariation("factory", ldcontext.New(userKey), false) // want `Migrate boolean flag "factory" to OpenFeature`
+	on, _ := Factory().BoolVariation("factory", ldcontext.New(userKey), false) // want `LaunchDarkly client expression cannot be removed safely \[skip: receiver-unproven\]`
 	return on
 }
 

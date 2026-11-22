@@ -19,6 +19,28 @@ func call(t *testing.T) *ast.CallExpr {
 	return e.(*ast.CallExpr)
 }
 
+func parse(t *testing.T, src string) (*token.FileSet, *ast.File) {
+	t.Helper()
+	fset := token.NewFileSet()
+	file, err := parser.ParseFile(fset, "p.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return fset, file
+}
+
+// idents returns every identifier named name, in source order.
+func idents(file ast.Node, name string) []*ast.Ident {
+	var out []*ast.Ident
+	ast.Inspect(file, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == name {
+			out = append(out, id)
+		}
+		return true
+	})
+	return out
+}
+
 func good() planner.Facts {
 	return planner.Facts{
 		KeyStatic: true, Key: `"k"`,
@@ -26,7 +48,8 @@ func good() planner.Facts {
 		ContextProven: true, EvalCtx: `openfeature.NewEvaluationContext("u", nil)`,
 		GoCtx:       "context.TODO()",
 		ClientBound: true, Client: "client",
-		AddImports: []string{"context"},
+		ReceiverPure: true,
+		AddImports:   []string{"context"},
 	}
 }
 
@@ -91,15 +114,38 @@ func TestPlan(t *testing.T) {
 			wantKind: planner.KindSkip, wantCategory: "context-unproven", wantRule: "bool-variation",
 		},
 		{
-			name: "unbound client wins over default type", method: "BoolVariation",
+			name: "default type wins over unbound client", method: "BoolVariation",
 			facts:    planner.Facts{KeyStatic: true, Key: `"k"`, ContextProven: true},
+			wantKind: planner.KindSkip, wantCategory: "default-type-unproven", wantRule: "bool-variation",
+		},
+		{
+			name: "unbound client wins over receiver", method: "BoolVariation",
+			facts:    with(func(f *planner.Facts) { f.ClientBound = false; f.ReceiverPure = false }),
 			wantKind: planner.KindSkip, wantCategory: "unbound-client", wantRule: "bool-variation",
 		},
 		{
-			name: "an empty value still expands", method: "BoolVariation",
+			name: "impure receiver", method: "BoolVariation", facts: with(func(f *planner.Facts) { f.ReceiverPure = false }),
+			wantKind: planner.KindSkip, wantCategory: "receiver-unproven", wantRule: "bool-variation",
+		},
+		{
+			name: "an empty evaluation context is an error, not a hole", method: "BoolVariation",
 			facts:    with(func(f *planner.Facts) { f.EvalCtx = "" }),
-			wantKind: planner.KindRewrite, wantRule: "bool-variation",
-			wantText: `client.BooleanValue(context.TODO(), "k", false, )`,
+			wantKind: planner.KindSkip, wantCategory: "context-unproven", wantRule: "bool-variation",
+		},
+		{
+			name: "an empty go context is an error", method: "BoolVariation",
+			facts:    with(func(f *planner.Facts) { f.GoCtx = "" }),
+			wantKind: planner.KindSkip, wantCategory: "context-unproven", wantRule: "bool-variation",
+		},
+		{
+			name: "an empty default is an error", method: "BoolVariation",
+			facts:    with(func(f *planner.Facts) { f.Default = "" }),
+			wantKind: planner.KindSkip, wantCategory: "default-type-unproven", wantRule: "bool-variation",
+		},
+		{
+			name: "an empty client is an error", method: "BoolVariation",
+			facts:    with(func(f *planner.Facts) { f.Client = "" }),
+			wantKind: planner.KindSkip, wantCategory: "unbound-client", wantRule: "bool-variation",
 		},
 	}
 	for _, tt := range tests {
@@ -128,7 +174,7 @@ func TestPlan(t *testing.T) {
 
 func TestPlanFile(t *testing.T) {
 	t.Parallel()
-	const src = `package p
+	const importSrc = `package p
 
 import (
 	"fmt"
@@ -141,53 +187,140 @@ func f() {
 	fmt.Println(ldcontext.New("a"), ldcontext.New("b"), openfeature.NewClient("x"))
 }
 `
-	tests := []struct {
-		name       string
-		consumed   int // how many of the two ldcontext uses the rewrites consume
-		rewrite    bool
-		wantImport bool
-	}{
-		{name: "all uses consumed removes the import", consumed: 2, rewrite: true, wantImport: true},
-		{name: "a remaining use keeps the import", consumed: 1, rewrite: true},
-		{name: "skipped sites consume nothing", consumed: 2, rewrite: false},
+	const localSrc = `package p
+
+func f() {
+	ld := mk()
+	ld.A()
+	ld.B()
+	ld.Close()
+}
+
+func g() {
+	ld := mk()
+	ld.A()
+	ld.B()
+}
+
+func h() {
+	ld := mk()
+	ld.A()
+}
+`
+	type want struct {
+		kind     planner.Kind
+		category string
+		imports  bool
 	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			fset := token.NewFileSet()
-			file, err := parser.ParseFile(fset, "p.go", src, parser.ParseComments)
-			if err != nil {
-				t.Fatal(err)
-			}
-			var uses []*ast.Ident
-			ast.Inspect(file, func(n ast.Node) bool {
-				if id, ok := n.(*ast.Ident); ok && id.Name == "ldcontext" {
-					uses = append(uses, id)
-				}
-				return true
-			})
+	rewrite := want{kind: planner.KindRewrite}
+	rewriteImport := want{kind: planner.KindRewrite, imports: true}
+	skipped := func(cat string) want { return want{kind: planner.KindSkip, category: cat} }
+
+	// importCase builds one rewrite site per entry of consumed, each consuming
+	// the ldcontext uses it lists; a nil entry is a dynamic-key skip.
+	importCase := func(consumed ...[]int) func(*testing.T) (planner.FileInfo, []planner.CallSite) {
+		return func(t *testing.T) (planner.FileInfo, []planner.CallSite) {
+			fset, file := parse(t, importSrc)
+			uses := idents(file, "ldcontext")
 			var ldspec *ast.ImportSpec
 			for _, s := range file.Imports {
 				if strings.HasSuffix(s.Path.Value, `ldcontext"`) {
 					ldspec = s
 				}
 			}
-			facts := good()
-			facts.AddImports = nil
-			facts.Consumed = uses[:tt.consumed]
-			if !tt.rewrite {
-				facts.KeyStatic = false
+			var sites []planner.CallSite
+			for _, c := range consumed {
+				facts := good()
+				facts.AddImports = nil
+				for _, i := range c {
+					facts.Consumed = append(facts.Consumed, uses[i])
+				}
+				if c == nil {
+					facts.KeyStatic = false
+				}
+				sites = append(sites, planner.CallSite{Call: call(t), Method: "BoolVariation", Facts: facts})
 			}
-			e, _ := parser.ParseExpr(`ld.BoolVariation("k", ldcontext.New("u"), false)`)
-			fi := planner.FileInfo{Fset: fset, File: file, Src: []byte(src), Removable: map[*ast.ImportSpec][]*ast.Ident{ldspec: uses}}
-			// The call positions are not in this file; PlanFile only needs
-			// them for the call edit, which this test does not inspect.
-			res := planner.PlanFile(fi, []planner.CallSite{{Call: e.(*ast.CallExpr), Method: "BoolVariation", Facts: facts}})
-			if len(res) != 1 {
-				t.Fatalf("got %d results", len(res))
+			return planner.FileInfo{Fset: fset, File: file, Src: []byte(importSrc), Removable: map[*ast.ImportSpec][]*ast.Ident{ldspec: uses}}, sites
+		}
+	}
+	// localCase builds sites on the local `ld` of function fn. Each entry of
+	// roots names which use of ld (0-based, after the declaration) is that
+	// site's receiver root; a true entry of dynamic makes the site a
+	// dynamic-key skip. The local's uses are all its references.
+	localCase := func(fn string, roots []int, dynamic ...bool) func(*testing.T) (planner.FileInfo, []planner.CallSite) {
+		return func(t *testing.T) (planner.FileInfo, []planner.CallSite) {
+			fset, file := parse(t, localSrc)
+			var uses []*ast.Ident
+			for _, d := range file.Decls {
+				if fd := d.(*ast.FuncDecl); fd.Name.Name == fn {
+					uses = idents(fd, "ld")[1:]
+				}
 			}
-			if got := len(res[0].Imports) > 0; got != tt.wantImport {
-				t.Fatalf("import edits present = %v, want %v (%+v)", got, tt.wantImport, res[0])
+			local := &planner.Local{Uses: uses}
+			var sites []planner.CallSite
+			for i, r := range roots {
+				facts := good()
+				facts.AddImports = nil
+				facts.ReceiverRoot, facts.Receiver = uses[r], local
+				if i < len(dynamic) && dynamic[i] {
+					facts.KeyStatic = false
+				}
+				sites = append(sites, planner.CallSite{Call: call(t), Method: "BoolVariation", Facts: facts})
+			}
+			return planner.FileInfo{Fset: fset, File: file, Src: []byte(localSrc)}, sites
+		}
+	}
+	tests := []struct {
+		name  string
+		setup func(*testing.T) (planner.FileInfo, []planner.CallSite)
+		want  []want
+	}{
+		{name: "a fix that consumes every use removes the import", setup: importCase([]int{0, 1}), want: []want{rewriteImport}},
+		{name: "a remaining use keeps the import", setup: importCase([]int{0}), want: []want{rewrite}},
+		{name: "fixes that share the import each leave it to the driver", setup: importCase([]int{0}, []int{1}), want: []want{rewrite, rewrite}},
+		{name: "skipped sites consume nothing", setup: importCase(nil), want: []want{skipped("dynamic-key")}},
+		{
+			name:  "a local whose only use is the rewritten call is stranded",
+			setup: localCase("h", []int{0}),
+			want:  []want{skipped("receiver-unproven")},
+		},
+		{
+			name:  "every rewritable call on a stranded local is skipped, never a subset",
+			setup: localCase("g", []int{0, 1}),
+			want:  []want{skipped("receiver-unproven"), skipped("receiver-unproven")},
+		},
+		{
+			name:  "another use of the local keeps the calls rewritable",
+			setup: localCase("f", []int{0, 1}),
+			want:  []want{rewrite, rewrite},
+		},
+		{
+			// local-client-survivor-skip: the dynamic-key call keeps the local
+			// used, so the first call is rewritten and the second is skipped
+			// for its own reason.
+			name:  "a skipped call is a surviving use",
+			setup: localCase("g", []int{0, 1}, false, true),
+			want:  []want{rewrite, skipped("dynamic-key")},
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fi, sites := tt.setup(t)
+			res := planner.PlanFile(fi, sites)
+			if len(res) != len(tt.want) {
+				t.Fatalf("got %d results, want %d", len(res), len(tt.want))
+			}
+			for i, w := range tt.want {
+				if res[i].Kind != w.kind || res[i].Category != w.category {
+					t.Errorf("site %d: got kind=%s category=%q, want kind=%s category=%q", i, res[i].Kind, res[i].Category, w.kind, w.category)
+				}
+				if got := len(res[i].Imports) > 0; got != w.imports {
+					t.Errorf("site %d: import edits present = %v, want %v (%+v)", i, got, w.imports, res[i])
+				}
+				if w.kind == planner.KindSkip && (res[i].Edit != nil || res[i].Message == "") {
+					t.Errorf("site %d: a skip has a message and no edit: %+v", i, res[i])
+				}
 			}
 		})
 	}

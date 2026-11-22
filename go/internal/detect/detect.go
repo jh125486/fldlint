@@ -28,11 +28,13 @@ const (
 )
 
 // sdkReceivers are the named types whose methods are LaunchDarkly evaluation
-// calls: the concrete client and the two client interfaces.
+// calls: the concrete client and the client interfaces. A method promoted
+// through LDClientInterface is declared on LDClientEvaluations (which it
+// embeds), so that is the receiver type go/types reports for such calls.
 var sdkReceivers = map[[2]string]bool{
-	{PkgSDK, "LDClient"}:                     true,
-	{PkgSDKInterfaces, "LDClientEvaluation"}: true,
-	{PkgSDKInterfaces, "LDClientInterface"}:  true,
+	{PkgSDK, "LDClient"}:                      true,
+	{PkgSDKInterfaces, "LDClientEvaluations"}: true,
+	{PkgSDKInterfaces, "LDClientInterface"}:   true,
 }
 
 // namedOf returns the package path and name of t after removing one pointer
@@ -81,6 +83,8 @@ type Env struct {
 	Fset *token.FileSet
 	Pkg  *types.Package
 	Info *types.Info
+
+	files map[*ast.File]*fileFacts
 }
 
 func (e *Env) text(f File, n ast.Node) string {
@@ -124,10 +128,16 @@ func (e *Env) Site(f File, call *ast.CallExpr, method string) planner.CallSite {
 		fa.DefaultProven = defaultTypeOK(e.Info.TypeOf(d), rule.ValueType)
 	}
 	fa.Client, fa.ClientBound = e.client(call)
+	e.receiver(f, call, fa)
 
 	ofName, addOF, ofOK := e.openFeatureName(f, call.Pos())
-	if x := arg(rule.ContextArg); x != nil && ofOK {
+	if x := arg(rule.ContextArg); x != nil {
 		e.context(f, x, ofName, fa)
+	}
+	if !ofOK {
+		// The openfeature name is shadowed or taken: the client binding is
+		// not usable, whatever the context proof says.
+		fa.ClientBound = false
 	}
 	if addOF {
 		fa.AddImports = append(fa.AddImports, PkgOpenFeature)
@@ -227,12 +237,23 @@ func (e *Env) goctx(f File, call *ast.CallExpr, method string, rule spec.Rule) (
 		return name, false, true
 	}
 	scope := e.Pkg.Scope().Innermost(call.Pos())
+	// Reuse any usable import of the standard library package, including an
+	// aliased one (`stdctx "context"`), rather than adding a second import.
+	for _, spc := range f.AST.Imports {
+		if p, _ := strconv.Unquote(spc.Path.Value); p != "context" {
+			continue
+		}
+		pn := e.Info.PkgNameOf(spc)
+		if pn == nil {
+			continue
+		}
+		if _, obj := scope.LookupParent(pn.Name(), call.Pos()); obj == types.Object(pn) {
+			return pn.Name() + ".TODO()", false, true
+		}
+	}
 	_, obj := scope.LookupParent("context", call.Pos())
-	switch o := obj.(type) {
-	case nil:
+	if obj == nil {
 		return "context.TODO()", true, true
-	case *types.PkgName:
-		return "context.TODO()", false, o.Imported().Path() == "context"
 	}
 	return "", false, false
 }
@@ -259,7 +280,7 @@ func (e *Env) ctxParam(f File, call *ast.CallExpr) string {
 	var found []*ast.Ident
 	total := 0
 	for _, fld := range ftype.Params.List {
-		if p, n, ok := namedOf(e.Info.TypeOf(fld.Type)); !ok || p != "context" || n != "Context" {
+		if !isGoContext(e.Info.TypeOf(fld.Type)) {
 			continue
 		}
 		if len(fld.Names) == 0 {
@@ -278,6 +299,13 @@ func (e *Env) ctxParam(f File, call *ast.CallExpr) string {
 		return ""
 	}
 	return found[0].Name
+}
+
+// isGoContext reports whether t is exactly context.Context (aliases resolved,
+// no pointer level removed: *context.Context is not a context.Context).
+func isGoContext(t types.Type) bool {
+	n, ok := types.Unalias(t).(*types.Named)
+	return ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == "context" && n.Obj().Name() == "Context"
 }
 
 // isOpenFeatureClient reports whether t is *openfeature.Client or an interface
@@ -388,4 +416,162 @@ func (e *Env) Removable(f File) map[*ast.ImportSpec][]*ast.Ident {
 		slices.SortFunc(ids, func(a, b *ast.Ident) int { return int(a.Pos()) - int(b.Pos()) })
 	}
 	return out
+}
+
+// fileFacts holds the per-file data the receiver analysis needs.
+type fileFacts struct {
+	// locals maps each function-local variable (not a parameter, result,
+	// field or package-level variable) to its non-write uses.
+	locals map[*types.Var]*planner.Local
+	// implicit holds the per-clause variables of type switches, which the
+	// compiler counts as used together; they are never treated as removable.
+	implicit map[*types.Var]bool
+}
+
+// facts computes (once per file) the local-variable use sets.
+func (e *Env) facts(f File) *fileFacts {
+	if ff, ok := e.files[f.AST]; ok {
+		return ff
+	}
+	ff := &fileFacts{locals: map[*types.Var]*planner.Local{}, implicit: map[*types.Var]bool{}}
+	if e.files == nil {
+		e.files = map[*ast.File]*fileFacts{}
+	}
+	e.files[f.AST] = ff
+
+	for _, obj := range e.Info.Implicits {
+		if v, ok := obj.(*types.Var); ok {
+			ff.implicit[v] = true
+		}
+	}
+	// Idents that are only written: a bare identifier on the left of =, :=,
+	// op=, ++ or --, or a range key/value assigned with =.
+	writes := map[*ast.Ident]bool{}
+	mark := func(x ast.Expr) {
+		if id, ok := ast.Unparen(x).(*ast.Ident); ok {
+			writes[id] = true
+		}
+	}
+	params := map[*types.Var]bool{}
+	addFields := func(fl *ast.FieldList) {
+		if fl == nil {
+			return
+		}
+		for _, fld := range fl.List {
+			for _, n := range fld.Names {
+				if v, ok := e.Info.Defs[n].(*types.Var); ok {
+					params[v] = true
+				}
+			}
+		}
+	}
+	ast.Inspect(f.AST, func(n ast.Node) bool {
+		switch n := n.(type) {
+		case *ast.AssignStmt:
+			for _, l := range n.Lhs {
+				mark(l)
+			}
+		case *ast.IncDecStmt:
+			mark(n.X)
+		case *ast.RangeStmt:
+			if n.Tok == token.ASSIGN {
+				if n.Key != nil {
+					mark(n.Key)
+				}
+				if n.Value != nil {
+					mark(n.Value)
+				}
+			}
+		case *ast.FuncDecl:
+			addFields(n.Recv)
+			addFields(n.Type.Params)
+			addFields(n.Type.Results)
+		case *ast.FuncLit:
+			addFields(n.Type.Params)
+			addFields(n.Type.Results)
+		}
+		return true
+	})
+	ast.Inspect(f.AST, func(n ast.Node) bool {
+		id, ok := n.(*ast.Ident)
+		if !ok {
+			return true
+		}
+		v, ok := e.Info.Uses[id].(*types.Var)
+		if !ok || v.IsField() || params[v] || v.Parent() == nil || v.Parent() == e.Pkg.Scope() {
+			return true
+		}
+		l := ff.locals[v]
+		if l == nil {
+			l = &planner.Local{}
+			ff.locals[v] = l
+		}
+		if !writes[id] {
+			l.Uses = append(l.Uses, id)
+		}
+		return true
+	})
+	return ff
+}
+
+// receiver records whether the call's receiver expression is pure (an
+// identifier or a selector chain of identifiers and fields) and which
+// function-local variable, if any, it is rooted in.
+func (e *Env) receiver(f File, call *ast.CallExpr, fa *planner.Facts) {
+	sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+	root := e.pureRoot(sel.X)
+	if root == nil {
+		return
+	}
+	ff := e.facts(f)
+	if v, ok := e.Info.Uses[root].(*types.Var); ok && ff.implicit[v] {
+		return
+	}
+	fa.ReceiverPure = true
+	fa.ReceiverRoot = root
+	if v, ok := e.Info.Uses[root].(*types.Var); ok {
+		fa.Receiver = ff.locals[v] // nil for package-level variables and parameters
+	}
+}
+
+// pureRoot returns the leftmost identifier of x when x is an identifier or a
+// selector chain of identifiers and struct fields (or a package-qualified
+// variable), and nil otherwise (call, index, type assertion, explicit
+// dereference, method value, ...).
+func (e *Env) pureRoot(x ast.Expr) *ast.Ident {
+	for {
+		switch n := ast.Unparen(x).(type) {
+		case *ast.Ident:
+			switch e.Info.Uses[n].(type) {
+			case *types.Var, *types.PkgName:
+				return n
+			}
+			return nil
+		case *ast.SelectorExpr:
+			if s, ok := e.Info.Selections[n]; ok {
+				if s.Kind() != types.FieldVal {
+					return nil
+				}
+				x = n.X
+				continue
+			}
+			// No selection: a package-qualified identifier (pkg.Client).
+			pkg, ok := ast.Unparen(n.X).(*ast.Ident)
+			if !ok {
+				return nil
+			}
+			if _, isPkg := e.Info.Uses[pkg].(*types.PkgName); !isPkg {
+				return nil
+			}
+			if _, isVar := e.Info.Uses[n.Sel].(*types.Var); !isVar {
+				return nil
+			}
+			return pkg
+		default:
+			return nil
+		}
+	}
 }

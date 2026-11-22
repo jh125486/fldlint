@@ -203,18 +203,40 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 	if !want.Output {
 		return
 	}
+
+	// Each fix must compile ALONE (editors apply one at a time, and the
+	// suggested fix must not depend on its siblings).
+	for _, f := range got {
+		if !f.hasFix {
+			continue
+		}
+		alone, err := format.Source(applyEdits(t, src, offset, f.edits))
+		if err != nil {
+			t.Fatalf("%d:%d: fix alone does not parse: %v", f.line, f.col, err)
+		}
+		if pkg := newWorkspace(t, "input.go", alone).load(t); len(pkg.Errors) > 0 {
+			t.Fatalf("%d:%d: fix applied alone does not compile: %v\n%s", f.line, f.col, pkg.Errors, alone)
+		}
+	}
+
+	// The union of all fixes, then what a batch driver does (remove the
+	// imports the union left unused), must match the golden and compile.
 	var edits []analysis.TextEdit
 	for _, f := range got {
 		edits = append(edits, f.edits...)
 	}
 	fixed := applyEdits(t, src, offset, edits)
+	if _, err := format.Source(fixed); err != nil {
+		t.Fatalf("union of fixes does not parse: %v\n%s", err, fixed)
+	}
+	cleaned := removeUnusedImports(t, fixed)
 	wantSrc, err := os.ReadFile(filepath.Join(caseDir, "go", "output.go.golden"))
 	if err != nil {
 		t.Fatal(err)
 	}
-	gotFmt, err := format.Source(fixed)
+	gotFmt, err := format.Source(cleaned)
 	if err != nil {
-		t.Fatalf("fixed source does not parse: %v\n%s", err, fixed)
+		t.Fatalf("fixed source does not parse: %v\n%s", err, cleaned)
 	}
 	wantFmt, err := format.Source(wantSrc)
 	if err != nil {
@@ -227,4 +249,38 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 	if pkg := newWorkspace(t, "input.go", gotFmt).load(t); len(pkg.Errors) > 0 {
 		t.Fatalf("fixed output does not compile: %v\n%s", pkg.Errors, gotFmt)
 	}
+}
+
+// removeUnusedImports emulates the cleanup batch drivers run after applying
+// fixes (driverutil.FormatSourceRemoveImports): every import the compiler
+// reports as unused is deleted.
+func removeUnusedImports(t *testing.T, src []byte) []byte {
+	t.Helper()
+	pkg := newWorkspace(t, "input.go", src).load(t)
+	drop := map[int]bool{}
+	for _, e := range pkg.Errors {
+		if !strings.Contains(e.Msg, "imported and not used") && !strings.Contains(e.Msg, "imported as") {
+			continue
+		}
+		// e.Pos is "file:line:col".
+		parts := strings.Split(e.Pos, ":")
+		if len(parts) < 3 {
+			t.Fatalf("unexpected error position %q", e.Pos)
+		}
+		var line int
+		if _, err := fmt.Sscanf(parts[len(parts)-2], "%d", &line); err != nil {
+			t.Fatalf("unexpected error position %q: %v", e.Pos, err)
+		}
+		drop[line] = true
+	}
+	if len(drop) == 0 {
+		return src
+	}
+	var out [][]byte
+	for i, l := range bytes.Split(src, []byte("\n")) {
+		if !drop[i+1] {
+			out = append(out, l)
+		}
+	}
+	return bytes.Join(out, []byte("\n"))
 }

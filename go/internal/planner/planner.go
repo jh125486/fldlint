@@ -2,8 +2,11 @@
 // rewritten or reported only. All front ends (analyzer, fixer) call Plan;
 // none re-implement detection.
 //
-// Step order (identical across languages): identity (the caller), rule-level
-// skip, dynamic-key, context-unproven, unbound-client, default-type-unproven.
+// Step order (identical across languages, ADR 010): identity (the caller),
+// rule-level skip, dynamic-key, context-unproven, default-type-unproven,
+// unbound-client, receiver-unproven, else rewrite. A rewrite that would leave
+// a function-local client variable with no remaining use is skipped as
+// receiver-unproven for every call on that variable (see PlanFile).
 package planner
 
 import (
@@ -32,6 +35,7 @@ const (
 	CategoryContextUnproven     = "context-unproven"
 	CategoryUnboundClient       = "unbound-client"
 	CategoryDefaultTypeUnproven = "default-type-unproven"
+	CategoryReceiverUnproven    = "receiver-unproven"
 )
 
 // Edit is a single text replacement of [Pos, End).
@@ -70,6 +74,22 @@ type Facts struct {
 	Client        string
 	AddImports    []string
 	Consumed      []*ast.Ident
+	// ReceiverPure is true when the receiver expression is an identifier or a
+	// selector chain of identifiers and fields, so dropping it loses no side
+	// effects. ReceiverRoot is its leftmost identifier.
+	ReceiverPure bool
+	ReceiverRoot *ast.Ident
+	// Receiver is set when the root is a function-local variable that the
+	// rewrite could leave without a use; nil for package-level variables,
+	// parameters, named results and package names, which never strand.
+	Receiver *Local
+}
+
+// Local describes a function-local variable: Uses are its references that are
+// not plain assignment targets (=, :=, op=, ++), i.e. the ones that keep the
+// variable "used" in the compiler's sense.
+type Local struct {
+	Uses []*ast.Ident
 }
 
 // CallSite is a detected SDK call.
@@ -85,6 +105,16 @@ func skip(rule spec.Rule, category string) Result {
 		r.Message = c.Message
 	}
 	return r
+}
+
+// requiredPlaceholders maps each placeholder to the skip category reported
+// when a template needs it but no value was proven.
+var requiredPlaceholders = []struct{ name, category string }{
+	{"key", CategoryDynamicKey},
+	{"evalctx", CategoryContextUnproven},
+	{"goctx", CategoryContextUnproven},
+	{"default", CategoryDefaultTypeUnproven},
+	{"client", CategoryUnboundClient},
 }
 
 // Plan returns the plan for a call site.
@@ -106,15 +136,26 @@ func Plan(site CallSite) Result {
 		return skip(rule, CategoryDynamicKey)
 	case slices.Contains(rule.Go.Requires, CategoryContextUnproven) && !f.ContextProven:
 		return skip(rule, CategoryContextUnproven)
-	case !f.ClientBound:
-		return skip(rule, CategoryUnboundClient)
 	case !f.DefaultProven:
 		return skip(rule, CategoryDefaultTypeUnproven)
+	case !f.ClientBound:
+		return skip(rule, CategoryUnboundClient)
+	case !f.ReceiverPure:
+		return skip(rule, CategoryReceiverUnproven)
 	}
-	text, err := fix.Expand(rule.Go.Template, map[string]string{
+	vals := map[string]string{
 		"client": f.Client, "key": f.Key, "default": f.Default,
 		"goctx": f.GoCtx, "evalctx": f.EvalCtx,
-	})
+	}
+	// An empty value for a placeholder the template uses is a planner
+	// invariant violation (the earlier steps prove each one): never emit
+	// code with a hole in it.
+	for _, p := range requiredPlaceholders {
+		if vals[p.name] == "" && strings.Contains(rule.Go.Template, "{{"+p.name+"}}") {
+			return skip(rule, p.category)
+		}
+	}
+	text, err := fix.Expand(rule.Go.Template, vals)
 	if err != nil {
 		return skip(rule, CategoryContextUnproven)
 	}
@@ -139,32 +180,75 @@ type FileInfo struct {
 }
 
 // PlanFile plans every site of one file and attaches the import edits to the
-// rewrites. A removal candidate is dropped from every rewrite's edits when all
-// of its uses disappear, assuming all of the file's rewrites are applied
-// together ("remove an import only if the file no longer references it").
+// rewrites.
+//
+// Stranding: when every rewritable call on a function-local variable would
+// leave it with no remaining use (Go rejects an unused local), all of those
+// calls are skipped as receiver-unproven, never a subset.
+//
+// Imports: each fix must be sound when applied alone, so a removal candidate
+// (for example ldcontext) is attached to a fix only when that fix alone
+// consumes every remaining use of it in the file. Batch drivers clean up the
+// imports that become unused once several fixes are applied together.
 func PlanFile(fi FileInfo, sites []CallSite) []Result {
 	results := make([]Result, len(sites))
-	gone := map[*ast.Ident]bool{}
 	for i, s := range sites {
 		results[i] = Plan(s)
-		if results[i].Kind == KindRewrite {
-			for _, id := range results[i].Consumed {
-				gone[id] = true
-			}
-		}
 	}
-	var remove []*ast.ImportSpec
-	for sp, uses := range fi.Removable {
-		if len(uses) > 0 && slices.IndexFunc(uses, func(id *ast.Ident) bool { return !gone[id] }) < 0 {
-			remove = append(remove, sp)
-		}
+	strand(sites, results)
+
+	order := make([]*ast.ImportSpec, 0, len(fi.Removable))
+	for sp := range fi.Removable {
+		order = append(order, sp)
 	}
-	slices.SortFunc(remove, func(a, b *ast.ImportSpec) int { return int(a.Pos()) - int(b.Pos()) })
+	slices.SortFunc(order, func(a, b *ast.ImportSpec) int { return int(a.Pos()) - int(b.Pos()) })
 	for i := range results {
 		if results[i].Kind != KindRewrite {
 			continue
 		}
+		consumed := map[*ast.Ident]bool{}
+		for _, id := range results[i].Consumed {
+			consumed[id] = true
+		}
+		var remove []*ast.ImportSpec
+		for _, sp := range order {
+			uses := fi.Removable[sp]
+			if len(uses) > 0 && slices.IndexFunc(uses, func(id *ast.Ident) bool { return !consumed[id] }) < 0 {
+				remove = append(remove, sp)
+			}
+		}
 		results[i].Imports = fix.ImportEdits(fi.Fset, fi.File, fi.Src, fix.ImportChange{Add: results[i].AddImports, Remove: remove})
 	}
 	return results
+}
+
+// strand turns into receiver-unproven skips every rewrite whose receiver root
+// is a local variable with no surviving use. A surviving use is any recorded
+// use that is not the receiver root of a call still planned as a rewrite.
+func strand(sites []CallSite, results []Result) {
+	groups := map[*Local][]int{}
+	var order []*Local
+	for i, s := range sites {
+		if results[i].Kind != KindRewrite || s.Facts.Receiver == nil {
+			continue
+		}
+		l := s.Facts.Receiver
+		if _, ok := groups[l]; !ok {
+			order = append(order, l)
+		}
+		groups[l] = append(groups[l], i)
+	}
+	for _, l := range order {
+		roots := map[*ast.Ident]bool{}
+		for _, i := range groups[l] {
+			roots[sites[i].Facts.ReceiverRoot] = true
+		}
+		if slices.IndexFunc(l.Uses, func(id *ast.Ident) bool { return !roots[id] }) >= 0 {
+			continue
+		}
+		for _, i := range groups[l] {
+			rule, _ := spec.LookupGoMethod(sites[i].Method)
+			results[i] = skip(rule, CategoryReceiverUnproven)
+		}
+	}
 }

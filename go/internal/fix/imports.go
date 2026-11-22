@@ -47,21 +47,42 @@ func ImportEdits(fset *token.FileSet, file *ast.File, src []byte, ch ImportChang
 			decls = append(decls, gd)
 		}
 	}
+	w.removed = map[*ast.ImportSpec]bool{}
+	for _, spec := range ch.Remove {
+		w.removed[spec] = true
+	}
+	replaced := (*ast.GenDecl)(nil) // decl rewritten whole by the additions
 	if len(adds) > 0 {
 		target := pickTarget(decls)
 		switch {
 		case target == nil:
 			w.addEdit(Edit{Pos: file.Name.End(), End: file.Name.End(), NewText: []byte("\n\nimport " + block(adds, nil))})
-		case !target.Lparen.IsValid():
-			w.addEdit(rewriteLone(w, target, adds))
+		case !target.Lparen.IsValid() || w.remaining(target) == 0:
+			w.addEdit(rewriteDecl(w, target, adds))
+			replaced = target
 		default:
 			w.insertInto(target, adds)
 		}
 	}
-	for _, spec := range ch.Remove {
-		for _, d := range decls {
-			if d.Lparen.IsValid() && d.Pos() <= spec.Pos() && spec.End() <= d.End() {
-				w.remove(d, spec)
+	for _, d := range decls {
+		if d == replaced {
+			continue
+		}
+		n := 0
+		for _, sp := range d.Specs {
+			if w.removed[sp.(*ast.ImportSpec)] {
+				n++
+			}
+		}
+		switch {
+		case n == 0:
+		case n == len(d.Specs):
+			w.deleteDecl(d)
+		default:
+			for _, sp := range d.Specs {
+				if w.removed[sp.(*ast.ImportSpec)] {
+					w.remove(d, sp.(*ast.ImportSpec))
+				}
 			}
 		}
 	}
@@ -142,21 +163,42 @@ func pathOf(line string) string {
 	return p
 }
 
-// rewriteLone turns a single-line `import "x"` into a group containing the
-// additions.
-func rewriteLone(w *editor, d *ast.GenDecl, adds []string) Edit {
+// rewriteDecl replaces a single-line `import "x"` (or a decl whose specs are
+// all being removed) by one group holding the additions and the specs that
+// stay.
+func rewriteDecl(w *editor, d *ast.GenDecl, adds []string) Edit {
 	var existing []string
 	for _, s := range d.Specs {
+		if w.removed[s.(*ast.ImportSpec)] {
+			continue
+		}
 		existing = append(existing, string(w.src[w.off(s.Pos()):w.off(s.End())]))
 	}
 	return Edit{Pos: d.Pos(), End: d.End(), NewText: []byte("import " + block(adds, existing))}
 }
 
 type editor struct {
-	fset  *token.FileSet
-	tf    *token.File
-	src   []byte
-	edits []Edit
+	fset    *token.FileSet
+	tf      *token.File
+	src     []byte
+	edits   []Edit
+	removed map[*ast.ImportSpec]bool
+}
+
+// remaining counts the specs of d that are not being removed.
+func (w *editor) remaining(d *ast.GenDecl) int {
+	n := 0
+	for _, s := range d.Specs {
+		if !w.removed[s.(*ast.ImportSpec)] {
+			n++
+		}
+	}
+	return n
+}
+
+// deleteDecl removes a whole import decl, line by line.
+func (w *editor) deleteDecl(d *ast.GenDecl) {
+	w.addEdit(Edit{Pos: w.lineStart(w.line(d.Pos())), End: w.lineStart(w.line(d.End()) + 1)})
 }
 
 func (w *editor) off(p token.Pos) int { return w.tf.Offset(p) }
@@ -202,7 +244,21 @@ func (w *editor) groups(d *ast.GenDecl) [][]*ast.ImportSpec {
 
 // insertInto adds paths to a parenthesized import decl.
 func (w *editor) insertInto(d *ast.GenDecl, adds []string) {
-	groups := w.groups(d)
+	// Groups are computed on the original layout, then the specs being
+	// removed are dropped so that nothing is inserted next to (or into the
+	// blank line widened around) a deletion.
+	var groups [][]*ast.ImportSpec
+	for _, g := range w.groups(d) {
+		var keep []*ast.ImportSpec
+		for _, sp := range g {
+			if !w.removed[sp] {
+				keep = append(keep, sp)
+			}
+		}
+		if len(keep) > 0 {
+			groups = append(groups, keep)
+		}
+	}
 	pending := map[token.Pos][]string{} // insertion point -> spec lines
 	var newStd, newOther []string
 	for _, p := range adds {
@@ -251,11 +307,8 @@ func quoteAll(ps []string) []string {
 }
 
 // remove deletes spec (and a now-redundant blank line) from a parenthesized
-// decl. The last remaining spec of a decl is never removed.
+// decl that keeps at least one other spec.
 func (w *editor) remove(d *ast.GenDecl, spec *ast.ImportSpec) {
-	if len(d.Specs) < 2 {
-		return
-	}
 	i := slices.IndexFunc(d.Specs, func(s ast.Spec) bool { return s == spec })
 	if i < 0 {
 		return
@@ -275,8 +328,9 @@ func (w *editor) remove(d *ast.GenDecl, spec *ast.ImportSpec) {
 	w.addEdit(Edit{Pos: from, End: to})
 }
 
-// result sorts the edits and merges an insertion that lands exactly on the
-// start of a deletion into one replacement.
+// result sorts the edits and makes them non-overlapping: an insertion that
+// lands on or inside a deletion is merged into it (a replacement), and
+// overlapping deletions are united. Drivers reject overlapping edits.
 func (w *editor) result() []Edit {
 	sort.SliceStable(w.edits, func(i, j int) bool {
 		a, b := w.edits[i], w.edits[j]
@@ -287,12 +341,25 @@ func (w *editor) result() []Edit {
 	})
 	var out []Edit
 	for _, e := range w.edits {
-		if n := len(out); n > 0 && out[n-1].Pos == e.Pos && (out[n-1].End == out[n-1].Pos || e.End == e.Pos) {
-			prev := out[n-1]
-			out[n-1] = Edit{Pos: prev.Pos, End: max(prev.End, e.End), NewText: slices.Concat(prev.NewText, e.NewText)}
+		n := len(out)
+		if n == 0 {
+			out = append(out, e)
 			continue
 		}
-		out = append(out, e)
+		prev := out[n-1]
+		switch {
+		case prev.Pos == e.Pos && (prev.End == prev.Pos || e.End == e.Pos):
+			out[n-1] = Edit{Pos: prev.Pos, End: max(prev.End, e.End), NewText: slices.Concat(prev.NewText, e.NewText)}
+		case e.Pos < prev.End && e.End == e.Pos && len(prev.NewText) == 0:
+			// Insertion inside a pure deletion: keep the text at the
+			// insertion point and delete the rest around it.
+			out[n-1] = Edit{Pos: prev.Pos, End: e.Pos}
+			out = append(out, Edit{Pos: e.Pos, End: prev.End, NewText: e.NewText})
+		case e.Pos < prev.End:
+			out[n-1] = Edit{Pos: prev.Pos, End: max(prev.End, e.End), NewText: slices.Concat(prev.NewText, e.NewText)}
+		default:
+			out = append(out, e)
+		}
 	}
-	return out
+	return slices.DeleteFunc(out, func(e Edit) bool { return e.Pos == e.End && len(e.NewText) == 0 })
 }

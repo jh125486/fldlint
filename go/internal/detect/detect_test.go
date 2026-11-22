@@ -47,8 +47,8 @@ var probe = &analysis.Analyzer{
 			}
 			f := files[pass.Fset.File(call.Pos()).Name()]
 			fa := env.Site(f, call, method).Facts
-			pass.Reportf(call.Pos(), "method=%s static=%t key=%s ctx=%t eval=%s client=%s bound=%t default=%s typed=%t goctx=%s add=%v consumed=%d",
-				method, fa.KeyStatic, fa.Key, fa.ContextProven, fa.EvalCtx, fa.Client, fa.ClientBound, fa.Default, fa.DefaultProven, fa.GoCtx, fa.AddImports, len(fa.Consumed))
+			pass.Reportf(call.Pos(), "method=%s static=%t key=%s ctx=%t eval=%s client=%s bound=%t default=%s typed=%t goctx=%s add=%v consumed=%d pure=%t local=%t",
+				method, fa.KeyStatic, fa.Key, fa.ContextProven, fa.EvalCtx, fa.Client, fa.ClientBound, fa.Default, fa.DefaultProven, fa.GoCtx, fa.AddImports, len(fa.Consumed), fa.ReceiverPure, fa.Receiver != nil)
 		})
 		return nil, nil
 	},
@@ -102,7 +102,7 @@ func TestMethod(t *testing.T) {
 // TestEnv_Site checks the collected facts (see the probe's want comments).
 func TestEnv_Site(t *testing.T) {
 	t.Parallel()
-	analysistest.Run(t, testdata(t), probe, "detectprobe")
+	analysistest.Run(t, testdata(t), probe, "detectprobe", "detectalias")
 }
 
 // TestEnv_Removable checks that every reference to the ldcontext import is

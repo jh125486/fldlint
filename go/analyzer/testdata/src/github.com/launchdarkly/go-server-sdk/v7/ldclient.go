@@ -59,21 +59,27 @@ func (client *LDClient) JSONVariation(key string, context ldcontext.Context, def
 }
 
 // MigrationVariation evaluates a migration flag.
-func (client *LDClient) MigrationVariation(key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.MigrationOpTracker, error) {
+func (client *LDClient) MigrationVariation(key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	return defaultStage, nil, nil
 }
 
 // MigrationVariationCtx evaluates a migration flag with a Go context.
-func (client *LDClient) MigrationVariationCtx(ctx context.Context, key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.MigrationOpTracker, error) {
+func (client *LDClient) MigrationVariationCtx(ctx context.Context, key string, context ldcontext.Context, defaultStage ldmigration.Stage) (ldmigration.Stage, interfaces.LDMigrationOpTracker, error) {
 	return defaultStage, nil, nil
 }
 
 // AllFlagsState returns every flag.
-func (client *LDClient) AllFlagsState(context ldcontext.Context) flagstate.AllFlags {
+func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flagstate.Option) flagstate.AllFlags {
 	return flagstate.AllFlags{}
 }
 
+// Identify identifies a context.
+func (client *LDClient) Identify(context ldcontext.Context) error { return nil }
+
+// TrackEvent tracks an event.
+func (client *LDClient) TrackEvent(eventName string, context ldcontext.Context) error { return nil }
+
 var (
-	_ interfaces.LDClientEvaluation = (*LDClient)(nil)
-	_ interfaces.LDClientInterface  = (*LDClient)(nil)
+	_ interfaces.LDClientEvaluations = (*LDClient)(nil)
+	_ interfaces.LDClientInterface   = (*LDClient)(nil)
 )
