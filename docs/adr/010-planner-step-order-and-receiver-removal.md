@@ -33,8 +33,11 @@ engines could report different categories for the same call.
    fixes diff3-style; editors apply one at a time). A fix removes an import
    only if that fix removes the file's last remaining use; batch drivers clean
    up the rest. The conformance harness compiles each fix alone and the union.
-5. A literal default of the wrong kind (e.g. `"yes"` for a boolean rule) and
-   any non-literal default is `default-type-unproven`. Rule-level
+5. A default is proven by its static type where the language has one (Go: a
+   `bool` variable or typed constant is fine) and by its literal kind where it
+   does not (JS/TS: only a literal of the right kind is proven). A default that
+   is not proven, including a literal of the wrong kind (e.g. `"yes"` for a
+   boolean rule), is `default-type-unproven`. Rule-level
    `type-mismatch` remains only for rule-level mismatches; M0.2a forbids it on
    rewriting rules.
 6. JS emits `receiver-unproven` only for impure receivers (it detects only
