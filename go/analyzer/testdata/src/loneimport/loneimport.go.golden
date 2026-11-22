@@ -1,8 +1,6 @@
 package loneimport
 
-import (
-	"context"
-)
+import "context"
 import "github.com/launchdarkly/go-server-sdk/v7"
 import "github.com/open-feature/go-sdk/openfeature"
 

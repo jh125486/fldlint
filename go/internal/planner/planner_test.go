@@ -10,9 +10,13 @@ import (
 	"github.com/jh125486/fldlint/go/internal/planner"
 )
 
-func call(t *testing.T) *ast.CallExpr {
+func call(t *testing.T) *ast.CallExpr { return callAt(t, 0) }
+
+// callAt parses the call at a distinct source offset, so calls built for one
+// file never share a range (a nested or duplicate range is a different case).
+func callAt(t *testing.T, n int) *ast.CallExpr {
 	t.Helper()
-	e, err := parser.ParseExpr(`ld.BoolVariation("k", ldcontext.New("u"), false)`)
+	e, err := parser.ParseExpr(strings.Repeat(" ", n*100) + `ld.BoolVariation("k", ldcontext.New("u"), false)`)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -211,6 +215,7 @@ func h() {
 		kind     planner.Kind
 		category string
 		imports  bool
+		nested   bool
 	}
 	rewrite := want{kind: planner.KindRewrite}
 	rewriteImport := want{kind: planner.KindRewrite, imports: true}
@@ -238,7 +243,7 @@ func h() {
 				if c == nil {
 					facts.KeyStatic = false
 				}
-				sites = append(sites, planner.CallSite{Call: call(t), Method: "BoolVariation", Facts: facts})
+				sites = append(sites, planner.CallSite{Call: callAt(t, len(sites)), Method: "BoolVariation", Facts: facts})
 			}
 			return planner.FileInfo{Fset: fset, File: file, Src: []byte(importSrc), Removable: map[*ast.ImportSpec][]*ast.Ident{ldspec: uses}}, sites
 		}
@@ -265,9 +270,30 @@ func h() {
 				if i < len(dynamic) && dynamic[i] {
 					facts.KeyStatic = false
 				}
-				sites = append(sites, planner.CallSite{Call: call(t), Method: "BoolVariation", Facts: facts})
+				sites = append(sites, planner.CallSite{Call: callAt(t, len(sites)), Method: "BoolVariation", Facts: facts})
 			}
 			return planner.FileInfo{Fset: fset, File: file, Src: []byte(localSrc)}, sites
+		}
+	}
+	// nestedCase builds two rewrite sites where the first call contains the
+	// second (`a(b())`), in the given order.
+	nestedCase := func(innerFirst bool) func(*testing.T) (planner.FileInfo, []planner.CallSite) {
+		return func(t *testing.T) (planner.FileInfo, []planner.CallSite) {
+			e, err := parser.ParseExpr(`a(b())`)
+			if err != nil {
+				t.Fatal(err)
+			}
+			outer := e.(*ast.CallExpr)
+			inner := outer.Args[0].(*ast.CallExpr)
+			sites := []planner.CallSite{
+				{Call: outer, Method: "BoolVariation", Facts: good()},
+				{Call: inner, Method: "BoolVariation", Facts: good()},
+			}
+			if innerFirst {
+				sites[0], sites[1] = sites[1], sites[0]
+			}
+			fset, file := parse(t, importSrc)
+			return planner.FileInfo{Fset: fset, File: file, Src: []byte(importSrc)}, sites
 		}
 	}
 	tests := []struct {
@@ -295,6 +321,16 @@ func h() {
 			want:  []want{rewrite, rewrite},
 		},
 		{
+			name:  "of nested rewrites only the inner call keeps its fix",
+			setup: nestedCase(false),
+			want:  []want{{kind: planner.KindRewrite, nested: true}, {kind: planner.KindRewrite, imports: true}},
+		},
+		{
+			name:  "nesting does not depend on source order of the sites",
+			setup: nestedCase(true),
+			want:  []want{{kind: planner.KindRewrite, imports: true}, {kind: planner.KindRewrite, nested: true}},
+		},
+		{
 			// local-client-survivor-skip: the dynamic-key call keeps the local
 			// used, so the first call is rewritten and the second is skipped
 			// for its own reason.
@@ -314,6 +350,9 @@ func h() {
 			for i, w := range tt.want {
 				if res[i].Kind != w.kind || res[i].Category != w.category {
 					t.Errorf("site %d: got kind=%s category=%q, want kind=%s category=%q", i, res[i].Kind, res[i].Category, w.kind, w.category)
+				}
+				if res[i].Nested != w.nested {
+					t.Errorf("site %d: nested = %v, want %v", i, res[i].Nested, w.nested)
 				}
 				if got := len(res[i].Imports) > 0; got != w.imports {
 					t.Errorf("site %d: import edits present = %v, want %v (%+v)", i, got, w.imports, res[i])

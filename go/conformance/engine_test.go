@@ -32,19 +32,42 @@ type workspace struct {
 	dir string
 }
 
-func newWorkspace(t *testing.T, file string, content []byte) *workspace {
+// newWorkspace also copies <caseDir>/go/extra, when present, into src/ so a
+// case can bring helper packages (for example a package of shared clients).
+func newWorkspace(t *testing.T, file string, content []byte, caseDir string) *workspace {
 	t.Helper()
 	dir := t.TempDir()
 	stubs, err := filepath.Abs(sdkStubs)
 	if err != nil {
 		t.Fatal(err)
 	}
-	dst := filepath.Join(dir, "src", "github.com")
-	err = filepath.WalkDir(stubs, func(p string, d fs.DirEntry, err error) error {
+	copyTree(t, stubs, filepath.Join(dir, "src", "github.com"))
+	if extra := filepath.Join(caseDir, "go", "extra"); dirExists(extra) {
+		copyTree(t, extra, filepath.Join(dir, "src"))
+	}
+	pkg := filepath.Join(dir, "src", "flags")
+	if err := os.MkdirAll(pkg, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(pkg, file), content, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	return &workspace{dir: dir}
+}
+
+func dirExists(p string) bool {
+	fi, err := os.Stat(p)
+	return err == nil && fi.IsDir()
+}
+
+// copyTree copies the files under src into dst, creating directories.
+func copyTree(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		rel, _ := filepath.Rel(stubs, p)
+		rel, _ := filepath.Rel(src, p)
 		if d.IsDir() {
 			return os.MkdirAll(filepath.Join(dst, rel), 0o755)
 		}
@@ -57,14 +80,6 @@ func newWorkspace(t *testing.T, file string, content []byte) *workspace {
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := filepath.Join(dir, "src", "flags")
-	if err := os.MkdirAll(pkg, 0o755); err != nil {
-		t.Fatal(err)
-	}
-	if err := os.WriteFile(filepath.Join(pkg, file), content, 0o644); err != nil {
-		t.Fatal(err)
-	}
-	return &workspace{dir: dir}
 }
 
 // load type-checks the "flags" package in GOPATH mode, as analysistest does.
@@ -103,7 +118,14 @@ func runEngine(t *testing.T, caseDir string, tolerateTypeErrors bool) (out []fin
 	if err != nil {
 		t.Fatal(err)
 	}
-	pkg := newWorkspace(t, "input.go", src).load(t)
+	out, offset = runSource(t, src, caseDir, tolerateTypeErrors)
+	return out, src, offset
+}
+
+// runSource runs the analyzer over src as the "flags" package.
+func runSource(t *testing.T, src []byte, caseDir string, tolerateTypeErrors bool) (out []finding, offset func(token.Pos) int) {
+	t.Helper()
+	pkg := newWorkspace(t, "input.go", src, caseDir).load(t)
 	if !tolerateTypeErrors && len(pkg.Errors) > 0 {
 		t.Fatalf("fixture does not type-check against the SDK stubs: %v", pkg.Errors)
 	}
@@ -138,7 +160,7 @@ func runEngine(t *testing.T, caseDir string, tolerateTypeErrors bool) (out []fin
 		}
 		return out[i].col < out[j].col
 	})
-	return out, src, offset
+	return out, offset
 }
 
 // applyEdits applies the union of the fixes' edits (identical edits from
@@ -214,7 +236,7 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 		if err != nil {
 			t.Fatalf("%d:%d: fix alone does not parse: %v", f.line, f.col, err)
 		}
-		if pkg := newWorkspace(t, "input.go", alone).load(t); len(pkg.Errors) > 0 {
+		if pkg := newWorkspace(t, "input.go", alone, caseDir).load(t); len(pkg.Errors) > 0 {
 			t.Fatalf("%d:%d: fix applied alone does not compile: %v\n%s", f.line, f.col, pkg.Errors, alone)
 		}
 	}
@@ -229,7 +251,7 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 	if _, err := format.Source(fixed); err != nil {
 		t.Fatalf("union of fixes does not parse: %v\n%s", err, fixed)
 	}
-	cleaned := removeUnusedImports(t, fixed)
+	cleaned := removeUnusedImports(t, fixed, caseDir)
 	wantSrc, err := os.ReadFile(filepath.Join(caseDir, "go", "output.go.golden"))
 	if err != nil {
 		t.Fatal(err)
@@ -246,7 +268,7 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 		t.Fatalf("fixed output differs from output.go.golden\n--- got ---\n%s\n--- want ---\n%s", gotFmt, wantFmt)
 	}
 	// Go must compile: the rewritten file type-checks against the stubs.
-	if pkg := newWorkspace(t, "input.go", gotFmt).load(t); len(pkg.Errors) > 0 {
+	if pkg := newWorkspace(t, "input.go", gotFmt, caseDir).load(t); len(pkg.Errors) > 0 {
 		t.Fatalf("fixed output does not compile: %v\n%s", pkg.Errors, gotFmt)
 	}
 }
@@ -254,9 +276,9 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 // removeUnusedImports emulates the cleanup batch drivers run after applying
 // fixes (driverutil.FormatSourceRemoveImports): every import the compiler
 // reports as unused is deleted.
-func removeUnusedImports(t *testing.T, src []byte) []byte {
+func removeUnusedImports(t *testing.T, src []byte, caseDir string) []byte {
 	t.Helper()
-	pkg := newWorkspace(t, "input.go", src).load(t)
+	pkg := newWorkspace(t, "input.go", src, caseDir).load(t)
 	drop := map[int]bool{}
 	for _, e := range pkg.Errors {
 		if !strings.Contains(e.Msg, "imported and not used") && !strings.Contains(e.Msg, "imported as") {
@@ -283,4 +305,35 @@ func removeUnusedImports(t *testing.T, src []byte) []byte {
 		}
 	}
 	return bytes.Join(out, []byte("\n"))
+}
+
+// converge emulates `go fix` style driving: apply every fix of a run, clean up
+// unused imports, and run again until no fix is offered. It returns the final
+// source, which must compile; it fails if the loop does not settle.
+func converge(t *testing.T, src []byte, caseDir string) []byte {
+	t.Helper()
+	const maxRuns = 5
+	for run := 1; run <= maxRuns; run++ {
+		got, offset := runSource(t, src, caseDir, false)
+		var edits []analysis.TextEdit
+		for _, f := range got {
+			edits = append(edits, f.edits...)
+		}
+		if len(edits) == 0 {
+			if pkg := newWorkspace(t, "input.go", src, caseDir).load(t); len(pkg.Errors) > 0 {
+				t.Fatalf("converged source does not compile: %v\n%s", pkg.Errors, src)
+			}
+			return src
+		}
+		fixed, err := format.Source(removeUnusedImports(t, applyEdits(t, src, offset, edits), caseDir))
+		if err != nil {
+			t.Fatalf("run %d: fixed source does not parse: %v", run, err)
+		}
+		if bytes.Equal(fixed, src) {
+			t.Fatalf("run %d: fixes were offered but changed nothing", run)
+		}
+		src = fixed
+	}
+	t.Fatalf("fixes did not settle after %d runs:\n%s", maxRuns, src)
+	return nil
 }

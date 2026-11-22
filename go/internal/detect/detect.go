@@ -383,15 +383,14 @@ func (e *Env) iclient() *types.Interface {
 	return found
 }
 
-// Removable returns, for the file, each ldcontext import spec with every
-// identifier that references it. The caller passes it to planner.PlanFile.
+// Removable returns, for the file, each named import spec with every
+// identifier that references it. The planner removes an import only when one
+// fix consumes all of its remaining uses (ldcontext, a package-qualified
+// client receiver). The caller passes it to planner.PlanFile.
 func (e *Env) Removable(f File) map[*ast.ImportSpec][]*ast.Ident {
 	out := map[*ast.ImportSpec][]*ast.Ident{}
 	byPkg := map[*types.PkgName]*ast.ImportSpec{}
 	for _, spc := range f.AST.Imports {
-		if p, _ := strconv.Unquote(spc.Path.Value); p != PkgLDContext {
-			continue
-		}
 		if pn := e.Info.PkgNameOf(spc); pn != nil {
 			byPkg[pn] = spc
 			out[spc] = nil
@@ -532,8 +531,12 @@ func (e *Env) receiver(f File, call *ast.CallExpr, fa *planner.Facts) {
 	}
 	fa.ReceiverPure = true
 	fa.ReceiverRoot = root
-	if v, ok := e.Info.Uses[root].(*types.Var); ok {
-		fa.Receiver = ff.locals[v] // nil for package-level variables and parameters
+	switch o := e.Info.Uses[root].(type) {
+	case *types.Var:
+		fa.Receiver = ff.locals[o] // nil for package-level variables and parameters
+	case *types.PkgName:
+		// pkg.Client.Method(...): the rewrite removes this use of the import.
+		fa.Consumed = append(fa.Consumed, root)
 	}
 }
 

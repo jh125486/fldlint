@@ -117,14 +117,14 @@ func TestImportEdits(t *testing.T) {
 			src:    "package p\n\nimport \"" + ldctx + "\"\n",
 			add:    []string{"context"},
 			remove: []string{ldctx},
-			want:   "package p\n\nimport (\n\t\"context\"\n)\n",
+			want:   "package p\n\nimport \"context\"\n",
 		},
 		{
 			name:   "a lone removed import is not copied into the new group",
 			src:    "package p\n\nimport ld \"" + ldctx + "\"\nimport \"x.com/a\"\n",
 			add:    []string{"context"},
 			remove: []string{ldctx},
-			want:   "package p\n\nimport (\n\t\"context\"\n)\nimport \"x.com/a\"\n",
+			want:   "package p\n\nimport \"context\"\nimport \"x.com/a\"\n",
 		},
 		{
 			name:   "removed spec alone in a group followed by another group while a third-party import is added",

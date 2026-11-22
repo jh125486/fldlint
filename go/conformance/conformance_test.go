@@ -111,6 +111,65 @@ func TestConformance(t *testing.T) {
 	}
 }
 
+// TestLocalCases runs harness-local cases that the shared spec fixtures do not
+// carry (they need a helper package or several engine runs). Same checks as
+// the fixtures: findings, each fix alone, the union, the golden.
+func TestLocalCases(t *testing.T) {
+	t.Parallel()
+	rw := func(line, col int) spec.Diagnostic {
+		return spec.Diagnostic{Line: line, Col: col, RuleID: "bool-variation"}
+	}
+	tests := []struct {
+		name string
+		want []spec.Diagnostic
+	}{
+		// A package-qualified receiver: the fix removes the import of the
+		// package when it is the last use, and leaves it for the driver when
+		// another fix still needs it.
+		{name: "pkg-receiver", want: []spec.Diagnostic{rw(13, 11)}},
+		{name: "pkg-receiver-shared", want: []spec.Diagnostic{rw(13, 11), rw(18, 11)}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			c := &spec.Case{ID: tt.name, Rule: "bool-variation", Expect: map[string]spec.LangExpect{"go": {Diagnostics: tt.want, Output: true}}}
+			checkEngine(t, c, filepath.Join("testdata", "local", tt.name))
+		})
+	}
+}
+
+// TestNestedConvergence checks that nested rewritable calls converge under
+// `go fix`-style driving: only the inner call carries a fix in the first
+// run, the outer one in the next, and the result compiles with nothing left
+// to fix.
+func TestNestedConvergence(t *testing.T) {
+	t.Parallel()
+	for _, name := range []string{"nested-default", "nested-in-context"} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			dir := filepath.Join("testdata", "local", name)
+			src, err := os.ReadFile(filepath.Join(dir, "go", "input.go"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			first, _ := runSource(t, src, dir, false)
+			fixes := 0
+			for _, f := range first {
+				if f.hasFix {
+					fixes++
+				}
+			}
+			if len(first) != 2 || fixes != 1 {
+				t.Fatalf("first run: %d diagnostics with %d fixes, want 2 with 1 (the inner call)", len(first), fixes)
+			}
+			final := converge(t, src, dir)
+			if left, _ := runSource(t, final, dir, false); len(left) != 0 {
+				t.Fatalf("diagnostics left after converging: %+v\n%s", left, final)
+			}
+		})
+	}
+}
+
 func TestLocate(t *testing.T) {
 	t.Parallel()
 	full := t.TempDir()

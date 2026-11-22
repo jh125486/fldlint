@@ -105,7 +105,7 @@ func TestEnv_Site(t *testing.T) {
 	analysistest.Run(t, testdata(t), probe, "detectprobe", "detectalias")
 }
 
-// TestEnv_Removable checks that every reference to the ldcontext import is
+// TestEnv_Removable checks that every reference to each named import is
 // collected.
 func TestEnv_Removable(t *testing.T) {
 	t.Parallel()
@@ -124,7 +124,13 @@ func TestEnv_Removable(t *testing.T) {
 		},
 	}
 	analysistest.Run(t, testdata(t), removable, "detectplain")
-	want := []string{`"github.com/launchdarkly/go-sdk-common/v3/ldcontext":7`}
+	slices.Sort(got) // map iteration order
+	want := []string{
+		`"context":1`,
+		`"github.com/launchdarkly/go-sdk-common/v3/ldcontext":7`,
+		`"github.com/launchdarkly/go-server-sdk/v7":1`,
+		`"github.com/open-feature/go-sdk/openfeature":1`,
+	}
 	if !slices.Equal(got, want) {
 		t.Fatalf("got %v, want %v", got, want)
 	}

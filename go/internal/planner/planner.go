@@ -58,6 +58,10 @@ type Result struct {
 	// longer exist after the rewrite.
 	AddImports []string
 	Consumed   []*ast.Ident
+	// Nested is set on a rewrite whose call contains another rewritten call:
+	// both would edit overlapping ranges, so only the inner one carries a
+	// fix. The outer rewrite is picked up on the next run.
+	Nested bool
 }
 
 // Facts are the call-site proofs the detector established. Text fields are
@@ -186,6 +190,9 @@ type FileInfo struct {
 // leave it with no remaining use (Go rejects an unused local), all of those
 // calls are skipped as receiver-unproven, never a subset.
 //
+// Nesting: when one rewritten call contains another, only the inner call
+// carries a fix (see Result.Nested).
+//
 // Imports: each fix must be sound when applied alone, so a removal candidate
 // (for example ldcontext) is attached to a fix only when that fix alone
 // consumes every remaining use of it in the file. Batch drivers clean up the
@@ -196,6 +203,7 @@ func PlanFile(fi FileInfo, sites []CallSite) []Result {
 		results[i] = Plan(s)
 	}
 	strand(sites, results)
+	markNested(sites, results)
 
 	order := make([]*ast.ImportSpec, 0, len(fi.Removable))
 	for sp := range fi.Removable {
@@ -203,7 +211,7 @@ func PlanFile(fi FileInfo, sites []CallSite) []Result {
 	}
 	slices.SortFunc(order, func(a, b *ast.ImportSpec) int { return int(a.Pos()) - int(b.Pos()) })
 	for i := range results {
-		if results[i].Kind != KindRewrite {
+		if results[i].Kind != KindRewrite || results[i].Nested {
 			continue
 		}
 		consumed := map[*ast.Ident]bool{}
@@ -220,6 +228,22 @@ func PlanFile(fi FileInfo, sites []CallSite) []Result {
 		results[i].Imports = fix.ImportEdits(fi.Fset, fi.File, fi.Src, fix.ImportChange{Add: results[i].AddImports, Remove: remove})
 	}
 	return results
+}
+
+// markNested flags every rewrite whose call range contains another rewrite's.
+func markNested(sites []CallSite, results []Result) {
+	for i := range sites {
+		if results[i].Kind != KindRewrite {
+			continue
+		}
+		for j := range sites {
+			if i != j && results[j].Kind == KindRewrite &&
+				sites[i].Call.Pos() <= sites[j].Call.Pos() && sites[j].Call.End() <= sites[i].Call.End() {
+				results[i].Nested = true
+				break
+			}
+		}
+	}
 }
 
 // strand turns into receiver-unproven skips every rewrite whose receiver root

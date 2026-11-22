@@ -174,6 +174,13 @@ func rewriteDecl(w *editor, d *ast.GenDecl, adds []string) Edit {
 		}
 		existing = append(existing, string(w.src[w.off(s.Pos()):w.off(s.End())]))
 	}
+	if len(adds)+len(existing) == 1 {
+		one := existing
+		if len(one) == 0 {
+			one = []string{strconv.Quote(adds[0])}
+		}
+		return Edit{Pos: d.Pos(), End: d.End(), NewText: []byte("import " + one[0])}
+	}
 	return Edit{Pos: d.Pos(), End: d.End(), NewText: []byte("import " + block(adds, existing))}
 }
 
@@ -329,8 +336,9 @@ func (w *editor) remove(d *ast.GenDecl, spec *ast.ImportSpec) {
 }
 
 // result sorts the edits and makes them non-overlapping: an insertion that
-// lands on or inside a deletion is merged into it (a replacement), and
-// overlapping deletions are united. Drivers reject overlapping edits.
+// lands on a deletion's start is merged into it (a replacement), and
+// overlapping deletions (two removed specs in neighbouring groups each widen
+// over the blank line between them) are united. Drivers reject overlapping edits.
 func (w *editor) result() []Edit {
 	sort.SliceStable(w.edits, func(i, j int) bool {
 		a, b := w.edits[i], w.edits[j]
@@ -350,11 +358,6 @@ func (w *editor) result() []Edit {
 		switch {
 		case prev.Pos == e.Pos && (prev.End == prev.Pos || e.End == e.Pos):
 			out[n-1] = Edit{Pos: prev.Pos, End: max(prev.End, e.End), NewText: slices.Concat(prev.NewText, e.NewText)}
-		case e.Pos < prev.End && e.End == e.Pos && len(prev.NewText) == 0:
-			// Insertion inside a pure deletion: keep the text at the
-			// insertion point and delete the rest around it.
-			out[n-1] = Edit{Pos: prev.Pos, End: e.Pos}
-			out = append(out, Edit{Pos: e.Pos, End: prev.End, NewText: e.NewText})
 		case e.Pos < prev.End:
 			out[n-1] = Edit{Pos: prev.Pos, End: max(prev.End, e.End), NewText: slices.Concat(prev.NewText, e.NewText)}
 		default:
