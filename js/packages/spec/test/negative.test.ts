@@ -1,5 +1,5 @@
 import { execFileSync, spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, readFileSync, mkdtempSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -70,12 +70,35 @@ function mkSpec(): string {
   return root;
 }
 
+const REAL_SPEC = resolve(dirname(fileURLToPath(import.meta.url)), "../../../../spec");
+
 const errs = (root: string): string => validateSpec(root).errors.join("\n");
 
 describe("base spec", () => {
   it("is valid", () => {
     expect(validateSpec(mkSpec()).errors).toEqual([]);
   });
+});
+
+describe("template placeholders (real schema patterns)", () => {
+  const defs = (JSON.parse(readFileSync(join(REAL_SPEC, "schema/rules.schema.json"), "utf8")) as { $defs: Record<string, { pattern: string }> }).$defs;
+  const re = (name: string): RegExp => new RegExp(defs[name]!.pattern, "u");
+  const cases: { name: string; tmpl: string; ok: boolean }[] = [
+    { name: "templateJsGo", tmpl: "{{client}}.x({{key}})", ok: true },
+    { name: "templateJsGo", tmpl: "}", ok: false },
+    { name: "templateJsGo", tmpl: "{{client}}}", ok: false },
+    { name: "templateJsGo", tmpl: "{{ key }}", ok: false },
+    { name: "templateJava", tmpl: "#{key}", ok: true },
+    { name: "templateJava", tmpl: "#{key}}", ok: false },
+    { name: "templateJava", tmpl: "}", ok: false },
+    { name: "message", tmpl: "for {{key}}", ok: true },
+    { name: "message", tmpl: "}", ok: false },
+  ];
+  for (const c of cases) {
+    it(`${c.name} ${c.ok ? "accepts" : "rejects"} ${JSON.stringify(c.tmpl)}`, () => {
+      expect(re(c.name).test(c.tmpl)).toBe(c.ok);
+    });
+  }
 });
 
 describe("fixture discovery", () => {
@@ -124,6 +147,15 @@ describe("fixture discovery", () => {
     const r2 = mkSpec();
     w(r2, "fixtures/js-only/rw/go/input.go", "x");
     expect(errs(r2)).toContain("go/input.go");
+  });
+
+  it("rejects an unknown dir, a stray file inside a case, and a stray language-dir file", () => {
+    const r = mkSpec();
+    w(r, "fixtures/bool-variation/rw/notes.txt", "x");
+    expect(errs(r)).toContain("fixtures/bool-variation/rw/notes.txt: unexpected file in case directory");
+    const r2 = mkSpec();
+    w(r2, "fixtures/bool-variation/rw/js/extra.ts", "x");
+    expect(errs(r2)).toContain("unexpected entry in js/");
   });
 
   it("rejects a missing fixtures directory", () => {
@@ -333,6 +365,16 @@ describe("bins: --spec-root handling", () => {
       expect(run(bin, ["--spec-rot=/x"]).status).toBe(2);
     });
   }
+
+  it("validate: with no spec root the built CLI uses the repo spec, not the stub", () => {
+    const r = run("validate", []);
+    expect(r.status).toBe(0);
+    expect(r.stderr).not.toContain("stub");
+    const m = /root=(.*), cases checked=(\d+)/.exec(r.stdout);
+    expect(m).not.toBeNull();
+    expect(m![1]).toBe(resolve(pkg, "../../../spec"));
+    expect(Number(m![2])).toBeGreaterThanOrEqual(21);
+  });
 
   it("validate: a valid explicit root passes", () => {
     expect(run("validate", [`--spec-root=${mkSpec()}`]).status).toBe(0);
