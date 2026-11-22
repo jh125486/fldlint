@@ -1,0 +1,7 @@
+id: skip-order-default-before-unbound
+rule: bool-variation
+tags: [skip-order]
+description: When a call has both an unproven default and no OpenFeature client in scope, the earlier planner step wins (default-type-unproven comes before unbound-client).
+expect:
+  js: {diagnostics: [{line: 6, col: 16, ruleId: bool-variation, skip: default-type-unproven}], output: false}
+  go: {diagnostics: [{line: 12, col: 11, ruleId: bool-variation, skip: default-type-unproven}], output: false}

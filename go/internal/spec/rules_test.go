@@ -17,6 +17,7 @@ skipCategories:
   type-mismatch: {severity: warning, message: t}
   context-unproven: {severity: warning, message: c}
   default-type-unproven: {severity: warning, message: p}
+  receiver-unproven: {severity: warning, message: r}
 rules:
   - id: a
     valueType: boolean

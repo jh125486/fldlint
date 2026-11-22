@@ -1,0 +1,7 @@
+id: stranded-local-client
+rule: bool-variation
+tags: [stranded-local-client]
+description: A function-local LaunchDarkly client whose only use is the rewritten call would be left unused, which Go rejects; the call is skipped as receiver-unproven. JS tolerates the unused local and rewrites.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 18, col: 11, ruleId: bool-variation, skip: receiver-unproven}], output: false}

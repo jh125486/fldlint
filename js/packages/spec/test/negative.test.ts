@@ -13,6 +13,7 @@ skipCategories:
   detail: {severity: warning, message: "Detail call"}
   dynamic-key: {severity: warning, message: "Flag key is not a static string"}
   default-type-unproven: {severity: warning, message: "Default value type not proven"}
+  receiver-unproven: {severity: warning, message: "LaunchDarkly client expression cannot be removed safely"}
 rules:
   - id: bool-variation
     valueType: boolean
@@ -212,6 +213,14 @@ describe("case semantics", () => {
   it("accepts the default-type-unproven call-site skip on a rewriting rule with output false", () => {
     const r = mkSpec();
     set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D(", skip: default-type-unproven")}], output: false}`);
+    rmSync(join(r, "fixtures/bool-variation/rw/js/output.ts"));
+    rmSync(join(r, "fixtures/bool-variation/rw/go"), { recursive: true });
+    expect(errs(r)).toBe("");
+  });
+
+  it("accepts the receiver-unproven call-site skip on a rewriting rule with output false", () => {
+    const r = mkSpec();
+    set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D(", skip: receiver-unproven")}], output: false}`);
     rmSync(join(r, "fixtures/bool-variation/rw/js/output.ts"));
     rmSync(join(r, "fixtures/bool-variation/rw/go"), { recursive: true });
     expect(errs(r)).toBe("");
