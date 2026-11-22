@@ -11,6 +11,7 @@ type Variable = TSESLint.Scope.Variable;
 type Definition = TSESLint.Scope.Definition;
 type Reference = TSESLint.Scope.Reference;
 export type ScopeManager = TSESLint.Scope.ScopeManager;
+export type VisitorKeys = TSESLint.SourceCode.VisitorKeys;
 
 const LD_PACKAGES: readonly string[] = ["@launchdarkly/node-server-sdk", "launchdarkly-node-server-sdk"];
 const OPENFEATURE_PACKAGES: readonly string[] = ["@openfeature/server-sdk"];
@@ -31,30 +32,47 @@ function propName(key: Node): string | undefined {
 class Detector {
   private readonly refs = new Map<Node, Reference>();
   private readonly sites: CallSite[] = [];
+  // `parent` links are set by ESLint's traversal, not by the parser; build our own.
+  private readonly parents = new Map<Node, Node>();
 
   constructor(
     private readonly ast: TSESTree.Program,
     private readonly scopes: ScopeManager,
     private readonly source: string,
+    private readonly visitorKeys: VisitorKeys,
   ) {
     for (const scope of scopes.scopes) for (const ref of scope.references) this.refs.set(ref.identifier, ref);
   }
 
   run(): CallSite[] {
+    this.link(this.ast);
     this.walk(this.ast);
     return this.sites;
   }
 
-  private walk(node: Node): void {
-    if (node.type === AST_NODE_TYPES.CallExpression) this.call(node);
-    for (const [key, value] of Object.entries(node)) {
-      if (key === "parent" || key === "loc" || key === "range") continue;
+  private children(node: Node): Node[] {
+    const out: Node[] = [];
+    for (const key of this.visitorKeys[node.type] ?? []) {
+      const value = (node as unknown as Record<string, unknown>)[key];
       if (Array.isArray(value)) {
-        for (const v of value) if (isNode(v)) this.walk(v);
+        for (const v of value) if (isNode(v)) out.push(v);
       } else if (isNode(value)) {
-        this.walk(value);
+        out.push(value);
       }
     }
+    return out;
+  }
+
+  private link(node: Node): void {
+    for (const c of this.children(node)) {
+      this.parents.set(c, node);
+      this.link(c);
+    }
+  }
+
+  private walk(node: Node): void {
+    if (node.type === AST_NODE_TYPES.CallExpression) this.call(node);
+    for (const c of this.children(node)) this.walk(c);
   }
 
   // ---------- scope helpers ----------
@@ -88,7 +106,10 @@ class Detector {
     if (expr?.type !== AST_NODE_TYPES.CallExpression || expr.optional) return false;
     const { callee } = expr;
     if (callee.type !== AST_NODE_TYPES.Identifier || callee.name !== "require") return false;
-    if (this.resolve(callee) !== null) return false;
+    // ESLint resolves configured globals (globals.node, `globals: { require }`)
+    // to a global-scope Variable with no definitions; that is still the global.
+    const resolved = this.resolve(callee);
+    if (resolved !== null && !(resolved.scope.type === "global" && resolved.defs.length === 0)) return false;
     const [arg] = expr.arguments;
     return expr.arguments.length === 1 && isStringLiteral(arg) && pkgs.includes(arg.value);
   }
@@ -102,6 +123,7 @@ class Detector {
     if (!def || !v) return false;
     if (def.type === "ImportBinding") {
       const spec = def.node;
+      if (isTypeOnlyImport(def)) return false;
       const fromPkg = def.parent?.type === AST_NODE_TYPES.ImportDeclaration && pkgs.includes(def.parent.source.value);
       return fromPkg && (spec.type === AST_NODE_TYPES.ImportNamespaceSpecifier || spec.type === AST_NODE_TYPES.ImportDefaultSpecifier);
     }
@@ -129,7 +151,7 @@ class Detector {
     if (!def || !v) return false;
     if (def.type === "ImportBinding") {
       const spec = def.node;
-      if (spec.type !== AST_NODE_TYPES.ImportSpecifier) return false;
+      if (spec.type !== AST_NODE_TYPES.ImportSpecifier || isTypeOnlyImport(def)) return false;
       if (def.parent?.type !== AST_NODE_TYPES.ImportDeclaration || !pkgs.includes(def.parent.source.value)) return false;
       return propName(spec.imported) === exportName;
     }
@@ -171,7 +193,24 @@ class Detector {
     if (callee.property.type !== AST_NODE_TYPES.Identifier || callee.property.name !== "getClient") return false;
     if (!this.isSdkExport(callee.object, OPENFEATURE_PACKAGES, "OpenFeature")) return false;
     const def = v.defs[0]!;
-    return def.name.range[1] <= callStart; // declared before use
+    if (def.type !== "Variable") return false;
+    const declaration = def.parent;
+    // `var` hoists (use before the initializer runs sees undefined); only
+    // block-scoped declarations have a position-based proof.
+    if (declaration?.type !== AST_NODE_TYPES.VariableDeclaration || (declaration.kind !== "const" && declaration.kind !== "let")) {
+      return false;
+    }
+    // Declared before use: the whole declarator (initializer included) must end
+    // before the call, so a client is never bound inside its own initializer.
+    if (def.node.range[1] > callStart) return false;
+    // Different SwitchCases share one scope, but the declaration of another
+    // case never ran (TDZ). The enclosing block itself is guaranteed by the
+    // scope walk in bindClient.
+    const clause = this.parents.get(declaration);
+    if (clause?.type === AST_NODE_TYPES.SwitchCase && !(clause.range[0] <= callStart && callStart < clause.range[1])) return false;
+    // Known gap (documented, not fixed): a function declared after the const
+    // but invoked before the const is initialized is accepted.
+    return true;
   }
 
   private bindClient(callStart: number): ClientBinding {
@@ -205,6 +244,9 @@ class Detector {
     const match = findRuleByMethod("js", callee.property.name);
     if (!match || !this.isLdClient(callee.object)) return;
     const { rule } = match;
+    // A rewriting rule with no JS template is not a JS finding (see
+    // validation-parity.md); the planner has nothing to say about it.
+    if (rule.skip === undefined && match.language.template === undefined) return;
 
     const arg = (i: number | undefined): Expr | undefined => {
       if (i === undefined) return undefined;
@@ -261,6 +303,35 @@ function staticKey(n: Node | undefined): string | undefined {
   return undefined;
 }
 
+function isTypeOnlyImport(def: Definition): boolean {
+  const spec = def.node as { importKind?: string };
+  const decl = def.parent as { importKind?: string } | null;
+  return spec.importKind === "type" || decl?.importKind === "type";
+}
+
+/** Only JSON-literal leaves: string/number/boolean/null, arrays and plain objects of those. */
+function isJsonLiteral(n: Node | null): boolean {
+  if (!n) return false;
+  switch (n.type) {
+    case AST_NODE_TYPES.Literal:
+      return !("regex" in n) && !("bigint" in n);
+    case AST_NODE_TYPES.TemplateLiteral:
+      return n.expressions.length === 0;
+    case AST_NODE_TYPES.UnaryExpression:
+      return (n.operator === "-" || n.operator === "+") && n.argument.type === AST_NODE_TYPES.Literal && typeof n.argument.value === "number";
+    case AST_NODE_TYPES.ArrayExpression:
+      return n.elements.every((e) => e !== null && e.type !== AST_NODE_TYPES.SpreadElement && isJsonLiteral(e));
+    case AST_NODE_TYPES.ObjectExpression:
+      return n.properties.every((p) => {
+        if (p.type !== AST_NODE_TYPES.Property || p.kind !== "init" || p.method || p.computed || p.shorthand) return false;
+        const name = propName(p.key);
+        return name !== undefined && name !== "__proto__" && isJsonLiteral(p.value);
+      });
+    default:
+      return false;
+  }
+}
+
 function defaultType(n: Node | undefined): DefaultType {
   if (!n) return "unknown";
   switch (n.type) {
@@ -277,7 +348,7 @@ function defaultType(n: Node | undefined): DefaultType {
         : "unknown";
     case AST_NODE_TYPES.ObjectExpression:
     case AST_NODE_TYPES.ArrayExpression:
-      return "object";
+      return isJsonLiteral(n) ? "object" : "unknown";
     default:
       return "unknown";
   }
@@ -286,8 +357,9 @@ function defaultType(n: Node | undefined): DefaultType {
 /**
  * Find LaunchDarkly evaluation calls whose receiver is proven (through scope
  * references, never by name) to be a client created by the LD server SDK's
- * `init`. `source` is the text `ast` was parsed from.
+ * `init`. `source` is the text `ast` was parsed from
+ * (BOM already stripped, as ESLint does) and `visitorKeys` come from the parser.
  */
-export function detect(ast: TSESTree.Program, scopes: ScopeManager, source: string): CallSite[] {
-  return new Detector(ast, scopes, source).run();
+export function detect(ast: TSESTree.Program, scopes: ScopeManager, source: string, visitorKeys: VisitorKeys): CallSite[] {
+  return new Detector(ast, scopes, source, visitorKeys).run();
 }

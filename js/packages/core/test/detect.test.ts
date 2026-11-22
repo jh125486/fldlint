@@ -154,6 +154,14 @@ describe("planner steps and order", () => {
     it(name, () => expect(outcomes(`${head}${call};`)).toEqual([want]));
   }
 
+  it("default-type-unproven wins over a genuinely unbound client", () => {
+    const noClient = `${LD}const ld = init("x");\n`;
+    expect(outcomes(`${noClient}ld.boolVariation("k", { key: u }, d); ld.boolVariation("k", { key: u }, false);`)).toEqual([
+      "default-type-unproven",
+      "unbound-client",
+    ]);
+  });
+
   it("keeps await and verbatim argument text, shorthand key", () => {
     const src = `${head}async function f(key: string) { return await ld.stringVariation('a', {key}, "x"); }`;
     expect(rewrite(src)).toBe(

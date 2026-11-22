@@ -16,7 +16,15 @@ describe("fingerprint", () => {
     (_n, v) => expect(fingerprint(v)).toBe(v.fingerprint),
   );
 
-  it("has the documented vectors (>= the original ten)", () => expect(vectors.length).toBeGreaterThanOrEqual(10));
+  it("has exactly the documented vectors, covering absent/empty keys and several occ values", () => {
+    const rows = readFileSync(join(contracts, "fingerprint.md"), "utf8").split("\n").filter((l) => /^\| [a-z-]+ \| `/.test(l));
+    expect(vectors).toHaveLength(rows.length);
+    expect(vectors.length).toBeGreaterThanOrEqual(25);
+    expect(vectors.every((v) => /^[0-9a-f]{32}$/.test(v.fingerprint))).toBe(true);
+    expect(vectors.some((v) => v.key === null)).toBe(true);
+    expect(vectors.some((v) => v.key === "")).toBe(true);
+    expect(vectors.some((v) => v.occ > 0)).toBe(true);
+  });
 
   it("keeps fingerprint-vectors.json and the fingerprint.md table in agreement", () => {
     const md = readFileSync(join(contracts, "fingerprint.md"), "utf8");
