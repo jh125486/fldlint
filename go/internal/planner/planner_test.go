@@ -97,7 +97,7 @@ func TestPlan(t *testing.T) {
 		},
 		{
 			name: "an empty value still expands", method: "BoolVariation",
-			facts: with(func(f *planner.Facts) { f.EvalCtx = "" }),
+			facts:    with(func(f *planner.Facts) { f.EvalCtx = "" }),
 			wantKind: planner.KindRewrite, wantRule: "bool-variation",
 			wantText: `client.BooleanValue(context.TODO(), "k", false, )`,
 		},
