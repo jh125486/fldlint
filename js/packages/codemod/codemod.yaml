@@ -1,0 +1,15 @@
+schema_version: "1.0"
+name: "@fldlint/launchdarkly-to-openfeature"
+version: "0.0.0"
+description: "Rewrite proven LaunchDarkly server SDK variation calls to OpenFeature; unproven sites are left untouched and reported."
+author: "fldlint contributors"
+license: "MIT"
+workflow: "workflow.yaml"
+repository: "https://github.com/jh125486/fldlint"
+category: "migration"
+targets:
+  languages: ["typescript", "javascript"]
+keywords: ["launchdarkly", "openfeature", "feature-flags", "migration"]
+registry:
+  access: "public"
+  visibility: "public"

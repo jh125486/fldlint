@@ -1,41 +1,84 @@
 # @fldlint/codemod
 
-Planned: an `npx codemod` package applying the same rewrites as `@fldlint/core`
-(issue #15). Not yet built; this file records the platform research (spike run
-2026-11-22 with `codemod@1.18.7`).
+An [`npx codemod`](https://codemod.com) package that rewrites proven LaunchDarkly
+server SDK calls to OpenFeature. It runs `@fldlint/core`'s own parse, detect,
+plan and apply steps, so it makes exactly the rewrites the ESLint plugin's
+fixer makes. Nothing is re-implemented here.
+
+## Usage
+
+From a checkout (registry publishing is tracked in #20):
+
+```sh
+cd js && npm ci && npm run build -w @fldlint/codemod
+npx codemod@1.18.7 workflow run -w js/packages/codemod -t path/to/your/project --no-interactive
+```
+
+Once published: `npx codemod @fldlint/launchdarkly-to-openfeature`.
+
+- `--dry-run` previews; `--allow-dirty` is needed outside a clean Git tree.
+- JS and TS files are processed (`.ts .mts .cts .js .mjs .cjs .tsx .jsx`); `node_modules`, `dist` and `.d.ts` are skipped.
+- The legacy `launchdarkly-node-server-sdk` package is never rewritten (core rule).
+
+## Safety model
+
+- A call is rewritten only if core proves, with the TypeScript-ESLint scope
+  manager, that the receiver is a LaunchDarkly client and an OpenFeature client
+  binding is visible at the call. Anything unproven is left untouched. A file
+  is never partly rewritten at a skipped site; skip categories and the step
+  order (ADR 010) come from core's `plan()`.
+- Nested rewrites are applied by repeating the pass until nothing changes (at most
+  10 passes, like `eslint --fix`), so a second run changes nothing (idempotent).
+- A file that fails to parse is left untouched and reported.
+
+## Skip reporting
+
+Each skipped site and each unparseable file is printed to stdout, one line per
+finding, in the shared text shape of `spec/contracts/output-format.md`:
+
+```
+src/c.ts:9:20  bool-variation  OpenFeature client binding not proven in scope [skip: unbound-client]
+src/bad.ts  parse-error  could not analyze file, left unchanged: Variable declaration expected.
+```
+
+Paths are relative to the target directory. Codemod groups lines by file and
+the file order between files is not deterministic. Positions refer to the
+original file. Skips are reported on the first pass only.
 
 ## How this works / limits
 
-Labels: VERIFIED = observed by running it or read in the docs; UNVERIFIED = not checked.
+Labels: VERIFIED = observed by running `codemod@1.18.7`; UNVERIFIED = not checked.
 
-- VERIFIED: a JSSG transform is a module whose default export receives an
-  `SgRoot` and returns a string (new source) or `null` (no change). The tree it
-  hands you is ast-grep/tree-sitter (oxc for semantic analysis), not ESTree, and
-  has no ESLint `ScopeManager`.
-- VERIFIED: the runtime is QuickJS plus LLRT, deny-by-default. `fs` is sandboxed
-  to the target directory; `child_process` and `fetch` need opt-in
-  `capabilities` in `codemod.yaml` (or `--allow-child-process`).
-- VERIFIED: `npx codemod jssg test -l typescript <transform> <tests-dir>`; each
-  case is a directory holding `input.<ext>` and `expected.<ext>`. Exit codes of
-  the test runner: 0 pass, 1 failure, 2 error.
-- VERIFIED: bare `node_modules` imports from an unbundled transform fail at
-  runtime (`Could not find export 'lstatSync' in module 'fs'`). The module must
-  be bundled to a single file.
-- VERIFIED: core's `analyze()`/`rewrite()` CAN run inside the runtime if bundled
-  (parse with `@typescript-eslint/parser`, binding proof via its scope manager),
-  and the shared fixture `bool-variation/static-key-double-quote` passed through
-  `jssg test`. So core is reusable as-is and no second engine is needed. The
-  bundle needs these shims, because LLRT lacks the real modules:
-  - `eslint` and `jiti` stubbed (pulled in only by `@typescript-eslint/utils`
-    runtime exports that are never executed);
-  - `debug` stubbed (it calls `tty.isatty` at load);
-  - `node:inspector` stubbed (absent from LLRT);
-  - bare `require("fs")` style calls rewritten to `node:fs`.
-  The result is about 11.7 MB (it contains the TypeScript compiler).
-- UNVERIFIED: bundle load time and memory on large repos (one JSSG instance per
-  file); `console.log` reaching the terminal from `workflow run`; exit codes of
-  `workflow run` / `jssg run`; publishing via `codemod/publish-action`.
-
-Blocker for the build: bundling needs a bundler (esbuild or rolldown, the latter
-is only a transitive dependency of vitest). Neither is on the approved
-dependency list in CONTRIBUTING.md, so it needs an owner decision first.
+- VERIFIED: a JSSG transform is `export default (sg, options) => string | null`
+  running in QuickJS + LLRT. The tree it provides is ast-grep, not ESTree, with
+  no ESLint scope manager. We do not use that tree. The transform takes the file
+  text and calls core, which parses it again with `@typescript-eslint/parser`.
+  So core is reused as-is and the binding proof is unchanged.
+- VERIFIED: an unbundled transform cannot import `node_modules`. `scripts/build.mjs`
+  bundles `src/transform.ts` with esbuild (devDependency, build-time only) into
+  one file, `dist/transform.js` (about 11.7 MB, because it contains the TypeScript
+  compiler). It is not committed; build it before running or publishing.
+- The build applies four runtime shims (all for code never executed on our path):
+  `eslint`/`jiti` stubbed, `debug` stubbed (calls `tty.isatty` at load),
+  `node:inspector` stubbed, CJS `require("fs")` style calls routed to `node:fs`.
+- The bundle only runs inside Codemod's runtime and vitest, not as plain Node ESM
+  (`__filename` is undefined there).
+- Reproducibility: `npm run build:check -w @fldlint/codemod` rebuilds and fails
+  if `dist/transform.js` differs from a fresh build or contains an absolute path.
+  Proposed CI step: `cd js && npm ci && npm run build:check -w @fldlint/codemod`.
+  Wiring it into `.github/workflows` is left to the orchestrator.
+- Tests: `npm test -w @fldlint/codemod` runs every `spec/fixtures/**/js` fixture
+  through the built bundle (output equals `output.ts`, idempotent, `null` when
+  unchanged, skip lines match the case's diagnostics). `npm run test:jssg -w
+  @fldlint/codemod` generates `jssg test` case dirs from the same fixtures and
+  runs them in the real runtime (needs network for `npx codemod`).
+- VERIFIED observed exit codes (`codemod@1.18.7`, unchanged by our transform):
+  `workflow run` and `jssg run` exit 0 with changes, with no changes, with skips,
+  and with an unparseable file, and also for a missing `-t` target (so CI cannot
+  detect skips from the exit code; read the output). `workflow run` exits 1 on a
+  non-Git or dirty target without `--allow-dirty`. `jssg run` exits 2 on a usage
+  error. `jssg test` exits 0 pass, 1 failure, 2 error.
+- VERIFIED: `console.log` from the transform reaches the terminal under
+  `workflow run` and `jssg test`.
+- UNVERIFIED: publishing via `codemod/publish-action`; behaviour on very large
+  repos (about 1.4 s for a 4-file run including bundle load).

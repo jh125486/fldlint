@@ -3,10 +3,21 @@
   "version": "0.0.0",
   "private": true,
   "type": "module",
-  "main": "dist/index.js",
-  "types": "dist/index.d.ts",
+  "description": "npx codemod package: LaunchDarkly to OpenFeature rewrites powered by @fldlint/core",
   "scripts": {
-    "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json"
+    "prebuild": "npm run build -w @fldlint/spec -w @fldlint/core --silent",
+    "build": "node scripts/build.mjs",
+    "build:check": "npm run build --silent && node scripts/build.mjs --check",
+    "pretypecheck": "npm run build -w @fldlint/spec -w @fldlint/core --silent",
+    "typecheck": "tsc -p tsconfig.json",
+    "pretest": "npm run build --silent",
+    "test": "vitest run",
+    "test:jssg": "npm run build --silent && node scripts/gen-jssg-tests.mjs && node scripts/run-jssg.mjs"
+  },
+  "devDependencies": {
+    "@fldlint/core": "0.0.0",
+    "@fldlint/spec": "0.0.0",
+    "@types/node": "^22.0.0",
+    "esbuild": "^0.28.2"
   }
 }
