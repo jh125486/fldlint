@@ -42,7 +42,7 @@ describe("fingerprint", () => {
   it("distinguishes absent and empty keys, and NFC from NFD", () => {
     const base = { ruleId: "r", path: "p", occ: 0 };
     expect(fingerprint({ ...base, key: null })).not.toBe(fingerprint({ ...base, key: "" }));
-    expect(fingerprint({ ...base, path: "é" })).not.toBe(fingerprint({ ...base, path: "é", key: null }));
+    expect(fingerprint({ ...base, path: "\u00e9", key: null })).not.toBe(fingerprint({ ...base, path: "e\u0301", key: null }));
   });
 
   it("uses the decoded key value of JS literals", () => {
