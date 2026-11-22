@@ -62,7 +62,17 @@ describe("messages", () => {
 
   it("reports the end of the call range", () => {
     const m = lint(ts, "espree")[0]!;
-    expect(m).toMatchObject({ line: 5, column: 18, endLine: 5 });
+    const call = 'ld.boolVariation("a", { key: "u" }, false)';
+    expect(m).toMatchObject({ line: 5, column: 18, endLine: 5, endColumn: 18 + call.length });
+  });
+
+  it("pins end line and column for skips and multi-line calls", () => {
+    const msgs = lint(ts, "espree");
+    const bulk = msgs[2]!;
+    const call = "ld.allFlagsState({ key: \"u\" })";
+    expect(bulk).toMatchObject({ line: 7, column: 18, endLine: 7, endColumn: 18 + call.length });
+    const multi = ts.replace('ld.boolVariation("a", { key: "u" }, false)', 'ld.boolVariation(\n  "a",\n  { key: "u" },\n  false)');
+    expect(lint(multi, "espree")[0]).toMatchObject({ line: 5, column: 18, endLine: 8, endColumn: 9 });
   });
 });
 
@@ -118,4 +128,53 @@ tester.run("fldlint/bool-variation", rules["bool-variation"]!, {
       output: null,
     },
   ],
+});
+
+describe("report-only rules", () => {
+  const head = `import { init } from "@launchdarkly/node-server-sdk";
+const ld = init("k");
+`;
+  const cases: [string, string, string][] = [
+    ["variation", 'ld.variation("a", { key: "u" }, false)', "type-mismatch"],
+    ["migration-variation", 'ld.migrationVariation("a", { key: "u" }, "off")', "type-mismatch"],
+    ["bool-variation-detail", 'ld.boolVariationDetail("a", { key: "u" }, false)', "detail"],
+    ["string-variation-detail", 'ld.stringVariationDetail("a", { key: "u" }, "")', "detail"],
+    ["number-variation-detail", 'ld.numberVariationDetail("a", { key: "u" }, 0)', "detail"],
+    ["json-variation-detail", 'ld.jsonVariationDetail("a", { key: "u" }, {})', "detail"],
+    ["variation-detail", 'ld.variationDetail("a", { key: "u" }, 0)', "detail"],
+    ["all-flags-state", 'ld.allFlagsState({ key: "u" })', "bulk"],
+  ];
+  for (const [id, call, category] of cases) {
+    it(`${id} reports [skip: ${category}] without a fix, only under its own rule`, () => {
+      const src = `${head}export const x = ${call};\n`;
+      const msgs = lint(src, "espree");
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]).toMatchObject({
+        ruleId: `fldlint/${id}`,
+        severity: 1,
+        line: 3,
+        column: 18,
+        endLine: 3,
+        endColumn: 18 + call.length,
+      });
+      expect(skipOf(msgs[0]!)).toBe(category);
+      expect(msgs[0]!.fix).toBeUndefined();
+      // Other rules stay quiet when only this one is enabled and vice versa.
+      expect(lint(src, "espree", { [`fldlint/${id}`]: "off" })).toEqual([]);
+      const others = Object.fromEntries(Object.keys(rules).filter((r) => r !== id).map((r) => [`fldlint/${r}`, "warn" as const]));
+      expect(lint(src, "espree", others)).toEqual([]);
+    });
+  }
+
+  it("typed rewritable rules report their own ids", () => {
+    for (const [id, call] of [
+      ["string-variation", 'ld.stringVariation("a", { key: "u" }, "")'],
+      ["number-variation", 'ld.numberVariation("a", { key: "u" }, 0)'],
+      ["json-variation", 'ld.jsonVariation("a", { key: "u" }, {})'],
+    ] as const) {
+      const msgs = lint(`${head}export const x = ${call};\n`, "espree");
+      expect(msgs.map((m) => m.ruleId)).toEqual([`fldlint/${id}`]);
+      expect(skipOf(msgs[0]!)).toBe("unbound-client");
+    }
+  });
 });
