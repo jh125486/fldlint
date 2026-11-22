@@ -43,9 +43,18 @@ when the repo goes public. If you change `spec/rules.yaml`, run
 
 Only approved dependencies may be used.
 
-- JS: `eslint` 9.x, `@types/node` ^22, `@typescript-eslint/parser`, `@typescript-eslint/utils`,
-  `ajv` (+ `ajv-formats`), `yaml`, `vitest` ^5.1.1, `typescript`.
-- Go: `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not approved.
+- JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
+  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+- JS (test/build time only): `@types/node` ^22, `typescript`, `vitest` ^5.1.1,
+  `fast-check` (approved by the owner).
+- Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not
+  approved.
+- Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
+  OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
+  `rewrite-maven-plugin` 6.46.1. ADR 009 is Proposed until merged.
+- Plugin-module-register (test/build time only).
+- Real-SDK compile-check modules for Go, JS and Java (test/build time only;
+  never shipped).
 
 Anything else: ask first, in an issue or on the PR, before adding it.
 
