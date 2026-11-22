@@ -146,6 +146,7 @@ func TestCase_Validate(t *testing.T) {
 		{name: "rewriting rule with default-type-unproven skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: default-type-unproven}", 1), "output: true", "output: false", 1)},
 		{name: "rewriting rule call-site skip with output true", src: strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: context-unproven}", 1), wantErr: "output must be false"},
 		{name: "skip rule with output true", old: "output: false", new: "output: true", wantErr: "output must be false"},
+		{name: "rewriting rule no skip with output false", src: strings.Replace(rewrite, "output: true", "output: false", 1), wantErr: "has no skip on rewriting rule"},
 		{name: "output true without diagnostics", src: strings.Replace(rewrite, "[{line: 1, col: 1, ruleId: bool-variation}]", "[]", 1), wantErr: "no diagnostics"},
 		{name: "language not bound", src: strings.Replace(rewrite, "  go:", "  java:", 1), wantErr: "has no java binding"},
 		{name: "rule bound to go and js", src: strings.Replace(rewrite, "  go:", "  js:", 1)},
@@ -224,6 +225,8 @@ expect:
 		{name: "missing output", ruleDir: "bool-variation-detail", output: "true", files: []string{"go/input.go"}, wantErr: "output is true but go/output.go.golden does not exist"},
 		{name: "unexpected output", ruleDir: "bool-variation-detail", output: "false", files: []string{"go/input.go", "go/output.go.golden"}, wantErr: "output is false but go/output.go.golden exists"},
 		{name: "stray js output", ruleDir: "bool-variation-detail", output: "false", files: []string{"go/input.go", "js/output.ts"}, wantErr: "js/output.ts exists but case.yaml has no expect.js"},
+		{name: "stray js input", ruleDir: "bool-variation-detail", output: "false", files: []string{"go/input.go", "js/input.ts"}, wantErr: "js/input.ts exists but case.yaml has no expect.js"},
+		{name: "stray java input", ruleDir: "bool-variation-detail", output: "false", files: []string{"go/input.go", "java/Before.java"}, wantErr: "java/Before.java exists but case.yaml has no expect.java"},
 		{name: "stray java output", ruleDir: "bool-variation-detail", output: "false", files: []string{"go/input.go", "java/After.java"}, wantErr: "java/After.java exists but case.yaml has no expect.java"},
 	}
 	for _, tt := range tests {
@@ -272,11 +275,16 @@ func TestDiscoverFixtures(t *testing.T) {
 		want    int
 		wantErr string
 	}{
-		{name: "ok", files: []string{"r/a/case.yaml", "r/b/case.yaml", "r/README"}, want: 2},
+		{name: "ok", files: []string{"r/a/case.yaml", "r/b/case.yaml", "r/b/go/input.go", "r/b/go/output.go.golden", "r/.DS_Store", "r/a/.gitkeep"}, want: 2},
+		{name: "stray file at root", files: []string{"r/a/case.yaml", "README"}, wantErr: "README: stray file at fixtures/ level"},
+		{name: "stray file at rule level", files: []string{"r/a/case.yaml", "r/README"}, wantErr: "r/README: stray file at fixtures/<rule>/ level"},
+		{name: "stray file in case", files: []string{"r/a/case.yaml", "r/a/notes.txt"}, wantErr: "r/a/notes.txt: unexpected file in case directory"},
+		{name: "unknown dir in case", files: []string{"r/a/case.yaml", "r/a/rust/input.rs"}, wantErr: "r/a/rust: unexpected directory in case directory"},
+		{name: "unknown file in language dir", files: []string{"r/a/case.yaml", "r/a/go/output.go"}, wantErr: "unexpected entry in go/"},
 		{name: "dir without case", files: []string{"r/a/case.yaml"}, dirs: []string{"r/b"}, wantErr: "r/b has no case.yaml"},
 		{name: "case.yml", files: []string{"r/a/case.yaml", "r/b/case.yaml", "r/b/case.yml"}, wantErr: "case.yml is not allowed"},
 		{name: "case.yml only", files: []string{"r/b/case.yml"}, wantErr: "r/b has no case.yaml"},
-		{name: "too deep", files: []string{"r/a/case.yaml", "r/a/x/case.yaml"}, wantErr: "unexpected depth"},
+		{name: "too deep", files: []string{"r/a/case.yaml", "r/a/x/case.yaml"}, wantErr: "unexpected directory in case directory"},
 		{name: "too shallow", files: []string{"r/case.yaml"}, wantErr: "unexpected depth"},
 		{name: "at root", files: []string{"case.yaml"}, wantErr: "unexpected depth"},
 	}

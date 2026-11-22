@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
@@ -173,7 +172,7 @@ func LoadCase(path string) (*Case, error) {
 // Validate checks the cross-references into rf and the semantic rules of the
 // fixture contract: the case rule must exist and bind every expected language;
 // every diagnostic ruleId must equal the case rule; on a skip rule every diagnostic must carry the rule's skip, on a rewriting
-// rule a diagnostic carries no skip or a call-site skip; any skip implies
+// rule a diagnostic carries a call-site skip, or no skip only when output is true; any skip implies
 // output false, and output true needs at least one diagnostic.
 func (c *Case) Validate(rf *RulesFile) error {
 	idx := slices.IndexFunc(rf.Rules, func(r Rule) bool { return r.ID == c.Rule })
@@ -206,6 +205,8 @@ func (c *Case) Validate(rf *RulesFile) error {
 				return fmt.Errorf("case %q: %s diagnostic %d: skip %q must equal the rule's skip %q", c.ID, lang, i, d.Skip, rule.Skip)
 			case rule.Skip == "" && d.Skip != "" && !slices.Contains(callSiteSkips, d.Skip):
 				return fmt.Errorf("case %q: %s diagnostic %d: skip %q is not a call-site skip (dynamic-key, unbound-client, context-unproven, default-type-unproven) allowed on rewriting rule %q", c.ID, lang, i, d.Skip, c.Rule)
+			case rule.Skip == "" && d.Skip == "" && !e.Output:
+				return fmt.Errorf("case %q: %s diagnostic %d: has no skip on rewriting rule %q but output is false", c.ID, lang, i, c.Rule)
 			}
 			if d.Skip != "" && e.Output {
 				return fmt.Errorf("case %q: expect.%s.output must be false when a diagnostic carries skip %q", c.ID, lang, d.Skip)
@@ -218,50 +219,96 @@ func (c *Case) Validate(rf *RulesFile) error {
 	return nil
 }
 
+// ignoredNames are editor/VCS placeholder files skipped during discovery
+// (same set as the JS checkFixtureLayout).
+var ignoredNames = []string{".DS_Store", ".gitkeep"}
+
+// langAllowedFiles are the only entries permitted inside a language directory.
+var langAllowedFiles = map[string][]string{
+	"js":   {"input.ts", "output.ts"},
+	"go":   {"input.go", "output.go.golden"},
+	"java": {"Before.java", "After.java"},
+}
+
+// listEntries returns the entries of dir minus ignored names, sorted by name.
+func listEntries(dir string) ([]os.DirEntry, error) {
+	ents, err := os.ReadDir(dir)
+	if err != nil {
+		return nil, fmt.Errorf("fixtures: %w", err)
+	}
+	return slices.DeleteFunc(ents, func(e os.DirEntry) bool { return slices.Contains(ignoredNames, e.Name()) }), nil
+}
+
 // DiscoverFixtures returns the sorted case.yaml paths under root, which must be
-// laid out as <root>/<rule>/<case>/case.yaml. A case directory without
-// case.yaml, a case.yml, or a case file at any other depth is an error.
-// Regular files directly under root or a rule directory are ignored.
+// laid out as <root>/<rule>/<case>/case.yaml with only js, go and java
+// directories (holding their known files) beside case.yaml. It mirrors the JS
+// checkFixtureLayout: a case directory without case.yaml, a case.yml, a case
+// file at any other depth, a regular file at the root or rule level, and any
+// unknown file or directory inside a case or language directory are errors.
+// Symlinks are not directories, so they are rejected as stray files.
 func DiscoverFixtures(root string) ([]string, error) {
 	if fi, err := os.Stat(root); err != nil {
 		return nil, fmt.Errorf("fixtures: %w", err)
 	} else if !fi.IsDir() {
 		return nil, fmt.Errorf("fixtures: %s is not a directory", root)
 	}
+	stray := func(rel, level string, e os.DirEntry) error {
+		if e.Name() == "case.yaml" || e.Name() == "case.yml" {
+			return fmt.Errorf("fixtures: %s is at an unexpected depth, expected <rule>/<case>/case.yaml", rel)
+		}
+		return fmt.Errorf("fixtures: %s: stray file at %s level", rel, level)
+	}
 	var paths []string
-	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil {
-			return err
-		}
-		rel, err := filepath.Rel(root, p)
-		if err != nil {
-			return err
-		}
-		if rel == "." {
-			return nil
-		}
-		depth := len(strings.Split(rel, string(filepath.Separator)))
-		if d.IsDir() {
-			if depth == 2 {
-				if _, err := os.Stat(filepath.Join(p, "case.yaml")); err != nil {
-					return fmt.Errorf("fixtures: %s has no case.yaml", filepath.ToSlash(rel))
-				}
-			}
-			return nil
-		}
-		switch d.Name() {
-		case "case.yml":
-			return fmt.Errorf("fixtures: %s: case.yml is not allowed, use case.yaml", filepath.ToSlash(rel))
-		case "case.yaml":
-			if depth != 3 {
-				return fmt.Errorf("fixtures: %s is at an unexpected depth, expected <rule>/<case>/case.yaml", filepath.ToSlash(rel))
-			}
-			paths = append(paths, p)
-		}
-		return nil
-	})
+	rules, err := listEntries(root)
 	if err != nil {
 		return nil, err
+	}
+	for _, rule := range rules {
+		ruleRel := rule.Name()
+		if !rule.IsDir() {
+			return nil, stray(ruleRel, "fixtures/", rule)
+		}
+		cases, err := listEntries(filepath.Join(root, ruleRel))
+		if err != nil {
+			return nil, err
+		}
+		for _, c := range cases {
+			caseRel := ruleRel + "/" + c.Name()
+			if !c.IsDir() {
+				return nil, stray(caseRel, "fixtures/<rule>/", c)
+			}
+			caseDir := filepath.Join(root, ruleRel, c.Name())
+			if fi, err := os.Stat(filepath.Join(caseDir, "case.yaml")); err != nil || !fi.Mode().IsRegular() {
+				return nil, fmt.Errorf("fixtures: %s has no case.yaml", caseRel)
+			}
+			items, err := listEntries(caseDir)
+			if err != nil {
+				return nil, err
+			}
+			for _, it := range items {
+				itRel := caseRel + "/" + it.Name()
+				switch {
+				case it.Name() == "case.yaml":
+				case it.Name() == "case.yml":
+					return nil, fmt.Errorf("fixtures: %s: case.yml is not allowed, use case.yaml", itRel)
+				case !it.IsDir():
+					return nil, fmt.Errorf("fixtures: %s: unexpected file in case directory", itRel)
+				case !slices.Contains(Languages, it.Name()):
+					return nil, fmt.Errorf("fixtures: %s: unexpected directory in case directory (only js, go, java allowed; wrong depth?)", itRel)
+				default:
+					files, err := listEntries(filepath.Join(caseDir, it.Name()))
+					if err != nil {
+						return nil, err
+					}
+					for _, f := range files {
+						if !slices.Contains(langAllowedFiles[it.Name()], f.Name()) {
+							return nil, fmt.Errorf("fixtures: %s/%s: unexpected entry in %s/ (allowed: %s)", itRel, f.Name(), it.Name(), strings.Join(langAllowedFiles[it.Name()], ", "))
+						}
+					}
+				}
+			}
+			paths = append(paths, filepath.Join(caseDir, "case.yaml"))
+		}
 	}
 	sort.Strings(paths)
 	return paths, nil
@@ -295,8 +342,8 @@ var langFiles = map[string][2]string{
 // CheckFixtureDir verifies the case against its directory, which must be
 // <...>/<rule-id>/<case-id>: the rule must equal the parent directory name,
 // an expected language needs its input file (and its output file exactly when
-// output is true), and a language without an expectation must have no output
-// file. It mirrors the semantic checks of the JS validator.
+// output is true), and a language without an expectation must have neither an
+// input nor an output file. It mirrors the semantic checks of the JS validator.
 func (c *Case) CheckFixtureDir(dir string) error {
 	abs, err := filepath.Abs(dir)
 	if err != nil {
@@ -316,6 +363,9 @@ func (c *Case) CheckFixtureDir(dir string) error {
 		if !ok {
 			if hasOut {
 				return fmt.Errorf("case %q: %s exists but case.yaml has no expect.%s", c.ID, out, lang)
+			}
+			if exists(in) {
+				return fmt.Errorf("case %q: %s exists but case.yaml has no expect.%s", c.ID, in, lang)
 			}
 			continue
 		}
