@@ -1,0 +1,7 @@
+id: stranded-two-calls
+rule: bool-variation
+tags: [stranded-two-calls]
+description: "Two rewritable calls on one function-local client: rewriting both would strand the local, so the planner skips every call on it, never a subset. JS rewrites both."
+expect:
+  js: {diagnostics: [{line: 8, col: 26, ruleId: bool-variation}, {line: 9, col: 24, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 18, col: 17, ruleId: bool-variation, skip: receiver-unproven}, {line: 19, col: 15, ruleId: bool-variation, skip: receiver-unproven}], output: false}

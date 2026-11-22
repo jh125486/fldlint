@@ -39,6 +39,7 @@ skipCategories:
   type-mismatch:    {severity: warning, message: "Return/default type differs between SDKs"}
   context-unproven: {severity: warning, message: "Cannot prove LD context -> EvaluationContext conversion"}
   default-type-unproven: {severity: warning, message: "Default value type not proven"}
+  receiver-unproven: {severity: warning, message: "LaunchDarkly client expression cannot be removed safely"}
 rules:
   - id: bool-variation
     valueType: boolean          # boolean | string | number | integer | object
@@ -219,8 +220,9 @@ Rewrites must leave code that compiles. Go: remove an import only if the file
 no longer references it (e.g. `ldcontext` after its only use is rewritten); a
 rewrite must not leave an unused local variable, so Go fixtures keep the LD
 client referenced elsewhere (e.g. `defer ldClient.Close()`). TypeScript
-tolerates unused locals, so JS outputs may keep the now-unused client; state
-this difference in the contracts.
+tolerates unused locals only by default (it is an error under
+`--noUnusedLocals`, TS6133; see the M0.5 amendment), so JS outputs may keep the
+now-unused client; state this difference in the contracts.
 
 ### Fixture coverage
 - The seven mandatory shape tags apply to the reference rule `bool-variation`
@@ -327,9 +329,9 @@ There are two kinds of skip. Do not conflate them:
   that the rule would normally rewrite but that is left alone because of how it
   is written or where it sits. Allowed categories: `dynamic-key`,
   `unbound-client`, `context-unproven`, `default-type-unproven` (amendment
-  M0.4). A diagnostic on a rewriting rule either
+  M0.4), `receiver-unproven` (amendment M0.5). A diagnostic on a rewriting rule either
   carries no `skip` (it is rewritten; `output: true` for that language) or
-  carries one of those four call-site categories (`output: false` for that
+  carries one of those five call-site categories (`output: false` for that
   language).
 
 Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
@@ -412,3 +414,34 @@ type mismatch between SDKs. Like the other call-site skips it is allowed only
 on rewriting rules, requires `output: false`, and is enumerated in
 `spec/rules.yaml`, both schemas, and the JS and Go validators. Fixture:
 `spec/fixtures/bool-variation/default-type-unproven`.
+
+## M0.5 amendment: `receiver-unproven` call-site skip and planner step order
+
+Owner decision. A new call-site skip category, `receiver-unproven` (severity
+warning, message "LaunchDarkly client expression cannot be removed safely"),
+becomes the fifth call-site category (M0.2a: `dynamic-key`, `context-unproven`,
+`default-type-unproven`, `unbound-client`, `receiver-unproven`). It is allowed
+only on rewriting rules, requires `output: false`, and is enumerated in
+`spec/rules.yaml`, both schemas, and the JS and Go validators.
+
+The planner step order is shared by every language and first match wins:
+rule-level skip, `dynamic-key`, `context-unproven`, `default-type-unproven`,
+`unbound-client`, `receiver-unproven`, else rewrite. A call is
+`receiver-unproven` when its receiver is not pure, or when rewriting it would
+strand a local variable (every rewritable call on that local is then skipped,
+never a subset). A literal default of the wrong kind and any non-literal default
+are `default-type-unproven`; rule-level `type-mismatch` stays only for
+rule-level mismatches. Rationale and details: ADR 010. The static-key and step
+order definitions are in `spec/contracts/placeholders.md`.
+
+Other points settled here:
+- The M0.1 claim that TypeScript tolerates unused locals is true only by
+  default. Under `--noUnusedLocals` (TS6133) an unused client local is a compile
+  error. JS emits `receiver-unproven` only for impure receivers (it detects only
+  identifier receivers today) and keeps the now-unused local.
+- The legacy `launchdarkly-node-server-sdk` package is report-only in JS: it is
+  detected but never rewritten.
+
+Fixtures: `stranded-local-client`, `stranded-two-calls`, `impure-receiver`,
+`field-receiver`, `skip-order-default-before-unbound`, `ldcontext-shared-import`
+under `spec/fixtures/bool-variation`.

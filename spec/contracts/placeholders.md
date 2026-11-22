@@ -22,6 +22,26 @@ other `{{...}}`. A rule's human `message` may use `{{key}}` only.
 Substitution is textual and exact: an engine never reformats the argument
 text it copies.
 
+## Planner step order
+
+Identical in every language; the first matching step decides the call:
+
+1. rule-level skip (`detail`, `bulk`, `type-mismatch`)
+2. `dynamic-key`
+3. `context-unproven`
+4. `default-type-unproven`
+5. `unbound-client`
+6. `receiver-unproven`
+7. otherwise rewrite
+
+Rationale and the receiver/stranded-local rules: [ADR 010](../../docs/adr/010-planner-step-order-and-receiver-removal.md).
+
+## Static key
+
+A flag key is static only if it is a string literal, or (JS/TS) a template
+literal with zero `${}` expressions. In Go only a string literal counts,
+interpreted (`"x"`) or raw (`` `x` ``); a named constant is `dynamic-key`.
+
 ## Context-conversion policy
 
 LaunchDarkly contexts (multi-kind, private attributes, custom attributes) do
@@ -93,7 +113,7 @@ Rewrites must leave code that compiles, but the two languages differ.
   strand a local. Go fixtures keep the LaunchDarkly client referenced
   elsewhere (e.g. `defer ldClient.Close()`).
 - **TypeScript may keep an unused client.** TypeScript tolerates unused
-  locals and imports, so JS outputs may keep the now-unused LaunchDarkly
+  locals and imports by default (not under `--noUnusedLocals`, TS6133), so JS outputs may keep the now-unused LaunchDarkly
   client. The codemod does not delete bindings it cannot prove are dead;
   removing them is left to the user's linter.
 

@@ -25,6 +25,10 @@ export const skipCategories: Readonly<Record<string, SkipCategory>> = {
     "message": "Flag key is not a static string",
     "severity": "warning"
   },
+  "receiver-unproven": {
+    "message": "LaunchDarkly client expression cannot be removed safely",
+    "severity": "warning"
+  },
   "type-mismatch": {
     "message": "Return/default type differs between SDKs",
     "severity": "warning"

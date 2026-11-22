@@ -37,6 +37,7 @@ func TestParseCase(t *testing.T) {
 	}{
 		{name: "ok"},
 		{name: "default-type-unproven skip accepted", old: "skip: detail", new: "skip: default-type-unproven"},
+		{name: "receiver-unproven skip accepted", old: "skip: detail", new: "skip: receiver-unproven"},
 		{name: "empty", old: okCase, new: "", wantErr: "empty document"},
 		{name: "bad yaml", old: "id: c1", new: "id: [", wantErr: "parse case"},
 		{name: "unknown field", old: "description: d", new: "description: d\nbogus: 1", wantErr: `unknown key "bogus"`},
@@ -144,6 +145,7 @@ func TestCase_Validate(t *testing.T) {
 		{name: "rewriting rule with skip detail", src: strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: detail}", 1), wantErr: "not a call-site skip"},
 		{name: "rewriting rule with call-site skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: dynamic-key}", 1), "output: true", "output: false", 1)},
 		{name: "rewriting rule with default-type-unproven skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: default-type-unproven}", 1), "output: true", "output: false", 1)},
+		{name: "rewriting rule with receiver-unproven skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: receiver-unproven}", 1), "output: true", "output: false", 1)},
 		{name: "rewriting rule call-site skip with output true", src: strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: context-unproven}", 1), wantErr: "output must be false"},
 		{name: "skip rule with output true", old: "output: false", new: "output: true", wantErr: "output must be false"},
 		{name: "rewriting rule no skip with output false", src: strings.Replace(rewrite, "output: true", "output: false", 1), wantErr: "has no skip on rewriting rule"},

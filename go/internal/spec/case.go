@@ -18,7 +18,7 @@ var Languages = []string{"js", "go", "java"}
 
 // callSiteSkips are the skip categories allowed on a rewriting rule's
 // diagnostics (the call is left alone because of how or where it is written).
-var callSiteSkips = []string{"dynamic-key", "unbound-client", "context-unproven", "default-type-unproven"}
+var callSiteSkips = []string{"dynamic-key", "unbound-client", "context-unproven", "default-type-unproven", "receiver-unproven"}
 
 // Diagnostic is one expected report. Line and Col are 1-based.
 type Diagnostic struct {
@@ -204,7 +204,7 @@ func (c *Case) Validate(rf *RulesFile) error {
 			case rule.Skip != "" && d.Skip != rule.Skip:
 				return fmt.Errorf("case %q: %s diagnostic %d: skip %q must equal the rule's skip %q", c.ID, lang, i, d.Skip, rule.Skip)
 			case rule.Skip == "" && d.Skip != "" && !slices.Contains(callSiteSkips, d.Skip):
-				return fmt.Errorf("case %q: %s diagnostic %d: skip %q is not a call-site skip (dynamic-key, unbound-client, context-unproven, default-type-unproven) allowed on rewriting rule %q", c.ID, lang, i, d.Skip, c.Rule)
+				return fmt.Errorf("case %q: %s diagnostic %d: skip %q is not a call-site skip (dynamic-key, unbound-client, context-unproven, default-type-unproven, receiver-unproven) allowed on rewriting rule %q", c.ID, lang, i, d.Skip, c.Rule)
 			case rule.Skip == "" && d.Skip == "" && !e.Output:
 				return fmt.Errorf("case %q: %s diagnostic %d: has no skip on rewriting rule %q but output is false", c.ID, lang, i, c.Rule)
 			}

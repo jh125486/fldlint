@@ -18,7 +18,7 @@ import (
 // `5` to string), null entries and duplicate keys are all rejected.
 
 // SkipNames is the closed set of skipCategories keys (mirrors the schemas).
-var SkipNames = []string{"detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven", "default-type-unproven"}
+var SkipNames = []string{"detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven", "default-type-unproven", "receiver-unproven"}
 
 var (
 	ruleIDRe     = regexp.MustCompile(`\A[a-z][a-z0-9]*(?:-[a-z0-9]+)*\z`)
