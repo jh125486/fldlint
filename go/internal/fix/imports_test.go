@@ -155,6 +155,43 @@ func TestImportEdits(t *testing.T) {
 			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
 		},
 		{
+			name: "a parenthesized import on one line is rewritten whole",
+			src:  "package p\n\nimport (\"fmt\")\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
+		},
+		{
+			name:   "several specs on a line: removal rewrites the decl",
+			src:    "package p\n\nimport (\"fmt\"; \"" + ldctx + "\")\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport \"fmt\"\n",
+		},
+		{
+			name: "several specs on a line: addition",
+			src:  "package p\n\nimport (\"fmt\"; \"os\")\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n)\n",
+		},
+		{
+			name:   "a decl sharing its line is deleted with its semicolon",
+			src:    "package p\n\nimport \"" + ldctx + "\"; import \"x.com/a\"\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport \"x.com/a\"\n",
+		},
+		{
+			name:   "comments between specs are kept or removed with their spec",
+			src:    "package p\n\nimport (\n\t\"fmt\"\n\n\t// doc for ldcontext\n\t\"" + ldctx + "\"\n\t\"x.com/a\" // trailing\n)\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\t\"x.com/a\" // trailing\n)\n",
+		},
+		{
+			name: "CRLF files get CRLF in inserted text",
+			src:  "package p\r\n\r\nimport (\r\n\t\"fmt\"\r\n)\r\n",
+			add:  []string{"context"},
+			want: "package p\r\n\r\nimport (\r\n\t\"context\"\r\n\t\"fmt\"\r\n)\r\n",
+		},
+		{
 			name: "no changes",
 			src:  "package p\n",
 			want: "package p\n",

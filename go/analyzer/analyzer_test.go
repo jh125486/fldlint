@@ -2,6 +2,7 @@ package analyzer_test
 
 import (
 	"bytes"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -25,6 +26,8 @@ func TestAnalyzer(t *testing.T) {
 		name string
 		a    *analysis.Analyzer
 		pkg  string
+		// dir is the testdata root; empty means analysistest.TestData().
+		dir string
 		// fixes reports whether the package has .golden files to compare.
 		fixes bool
 	}{
@@ -42,6 +45,9 @@ func TestAnalyzer(t *testing.T) {
 		{name: "package-qualified receiver import is removed with its last use", a: analyzer.Analyzer, pkg: "pkgrecv", fixes: true},
 		{name: "package-qualified receiver shared by two fixes", a: analyzer.Analyzer, pkg: "pkgrecvtwo", fixes: true},
 		{name: "nested rewrites fix only the inner call", a: analyzer.Analyzer, pkg: "nested", fixes: true},
+		{name: "a changed SDK signature is not a finding", a: analyzer.Analyzer, pkg: "forkuse", dir: "testdata/fork"},
+		{name: "blank and dot openfeature imports are unbound", a: analyzer.Analyzer, pkg: "badof"},
+		{name: "a shadowed or unusable context import is context-unproven", a: analyzer.Analyzer, pkg: "badctx"},
 		{name: "skip categories", a: analyzer.Analyzer, pkg: "skips"},
 		{name: "client identity and binding", a: analyzer.Analyzer, pkg: "clients"},
 		{name: "default type unproven", a: &withErrors, pkg: "defaulttype"},
@@ -49,11 +55,19 @@ func TestAnalyzer(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
+			dir := analysistest.TestData()
+			if tt.dir != "" {
+				abs, err := filepath.Abs(tt.dir)
+				if err != nil {
+					t.Fatal(err)
+				}
+				dir = abs
+			}
 			if tt.fixes {
-				analysistest.RunWithSuggestedFixes(t, analysistest.TestData(), tt.a, tt.pkg)
+				analysistest.RunWithSuggestedFixes(t, dir, tt.a, tt.pkg)
 				return
 			}
-			analysistest.Run(t, analysistest.TestData(), tt.a, tt.pkg)
+			analysistest.Run(t, dir, tt.a, tt.pkg)
 		})
 	}
 }

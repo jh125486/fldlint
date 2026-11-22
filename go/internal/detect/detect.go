@@ -66,10 +66,59 @@ func Method(info *types.Info, call *ast.CallExpr) (string, bool) {
 	if !ok || !sdkReceivers[[2]string{path, name}] {
 		return "", false
 	}
-	if _, known := spec.LookupGoMethod(fn.Name()); !known {
+	rule, known := spec.LookupGoMethod(fn.Name())
+	if !known {
+		return "", false
+	}
+	// Argument positions and the template are fixed per rule, so a method
+	// whose signature differs (an SDK revision, a fork) is not a finding.
+	if rule.Skip == "" && rule.Go != nil && rule.Go.Template != "" && !signatureOK(sig, rule, fn.Name()) {
 		return "", false
 	}
 	return fn.Name(), true
+}
+
+// valueKind maps a rule value type to the Go basic kind of its default and
+// result.
+var valueKind = map[string]types.BasicKind{
+	"boolean": types.Bool,
+	"string":  types.String,
+	"number":  types.Float64,
+}
+
+// signatureOK reports whether sig is the signature the rule's argument
+// positions and template assume: ([ctx context.Context,] key string, context
+// ldcontext.Context, default T) (T, error), not variadic.
+func signatureOK(sig *types.Signature, rule spec.Rule, method string) bool {
+	kind, ok := valueKind[rule.ValueType]
+	if !ok || sig.Variadic() {
+		return false
+	}
+	_, hasCtx := rule.Go.CtxArg[method]
+	want := 3
+	if hasCtx {
+		want++
+	}
+	if sig.Params().Len() != want || sig.Results().Len() != 2 {
+		return false
+	}
+	basic := func(t types.Type, k types.BasicKind) bool {
+		b, ok := types.Unalias(t).(*types.Basic)
+		return ok && b.Kind() == k
+	}
+	param := func(i int) types.Type { return sig.Params().At(argIndex(rule, method, i)).Type() }
+	if hasCtx && !isGoContext(sig.Params().At(rule.Go.CtxArg[method]).Type()) {
+		return false
+	}
+	ldctx, ok := types.Unalias(param(rule.ContextArg)).(*types.Named)
+	if !ok || ldctx.Obj().Pkg() == nil || ldctx.Obj().Pkg().Path() != PkgLDContext || ldctx.Obj().Name() != "Context" {
+		return false
+	}
+	errType := types.Universe.Lookup("error").Type()
+	return basic(param(rule.KeyArg), types.String) &&
+		basic(param(rule.DefaultArg), kind) &&
+		basic(sig.Results().At(0).Type(), kind) &&
+		types.Identical(sig.Results().At(1).Type(), errType)
 }
 
 // File bundles a type-checked file with its bytes.
@@ -206,16 +255,25 @@ func (e *Env) context(f File, x ast.Expr, ofName string, fa *planner.Facts) {
 // can be proven (shadowed or taken).
 func (e *Env) openFeatureName(f File, pos token.Pos) (name string, add, ok bool) {
 	scope := e.Pkg.Scope().Innermost(pos)
+	unusable := false
 	for _, spc := range f.AST.Imports {
 		if p, _ := strconv.Unquote(spc.Path.Value); p != PkgOpenFeature {
 			continue
 		}
 		pn := e.Info.PkgNameOf(spc)
 		if pn == nil {
-			continue // blank or dot import: not usable by name
+			unusable = true // blank or dot import: not usable by name
+			continue
 		}
-		_, obj := scope.LookupParent(pn.Name(), pos)
-		return pn.Name(), false, obj == types.Object(pn)
+		if _, obj := scope.LookupParent(pn.Name(), pos); obj == types.Object(pn) {
+			return pn.Name(), false, true
+		}
+		unusable = true // shadowed
+	}
+	if unusable {
+		// The path is already imported but cannot be named here; adding a
+		// second import of it is not an option, so the client is unbound.
+		return "openfeature", false, false
 	}
 	name = "openfeature"
 	_, obj := scope.LookupParent(name, pos)
@@ -239,10 +297,12 @@ func (e *Env) goctx(f File, call *ast.CallExpr, method string, rule spec.Rule) (
 	scope := e.Pkg.Scope().Innermost(call.Pos())
 	// Reuse any usable import of the standard library package, including an
 	// aliased one (`stdctx "context"`), rather than adding a second import.
+	imported := false
 	for _, spc := range f.AST.Imports {
 		if p, _ := strconv.Unquote(spc.Path.Value); p != "context" {
 			continue
 		}
+		imported = true
 		pn := e.Info.PkgNameOf(spc)
 		if pn == nil {
 			continue
@@ -250,6 +310,12 @@ func (e *Env) goctx(f File, call *ast.CallExpr, method string, rule spec.Rule) (
 		if _, obj := scope.LookupParent(pn.Name(), call.Pos()); obj == types.Object(pn) {
 			return pn.Name() + ".TODO()", false, true
 		}
+	}
+	if imported {
+		// "context" is imported but no import of it is nameable here (all
+		// shadowed, blank or dot): adding another import would duplicate it,
+		// so the {{goctx}} source is unproven (context-unproven).
+		return "", false, false
 	}
 	_, obj := scope.LookupParent("context", call.Pos())
 	if obj == nil {

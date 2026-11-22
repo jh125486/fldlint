@@ -1,6 +1,7 @@
 package fix
 
 import (
+	"bytes"
 	"go/ast"
 	"go/token"
 	"slices"
@@ -25,9 +26,12 @@ type ImportChange struct {
 }
 
 // ImportEdits returns the edits that apply ch to file, whose bytes are src.
-// It works on source text (not the AST), so the result is a minimal edit set.
-// The file is assumed gofmt-formatted: one spec per line, groups separated by
-// blank lines.
+// It works on source text (not the AST), so the result is a minimal edit set
+// for gofmt-style declarations (one spec per line, groups separated by blank
+// lines). A declaration that is laid out differently (`import ("fmt")` on one
+// line, several specs on a line, a declaration sharing its line with other
+// code) is instead rewritten whole from its specs: doc comments of its specs
+// are not kept, trailing comments are. CRLF files get CRLF in inserted text.
 func ImportEdits(fset *token.FileSet, file *ast.File, src []byte, ch ImportChange) []Edit {
 	adds := slices.Clone(ch.Add)
 	sort.Strings(adds)
@@ -57,7 +61,7 @@ func ImportEdits(fset *token.FileSet, file *ast.File, src []byte, ch ImportChang
 		switch {
 		case target == nil:
 			w.addEdit(Edit{Pos: file.Name.End(), End: file.Name.End(), NewText: []byte("\n\nimport " + block(adds, nil))})
-		case !target.Lparen.IsValid() || w.remaining(target) == 0:
+		case !target.Lparen.IsValid() || w.remaining(target) == 0 || !w.tidy(target):
 			w.addEdit(rewriteDecl(w, target, adds))
 			replaced = target
 		default:
@@ -78,6 +82,8 @@ func ImportEdits(fset *token.FileSet, file *ast.File, src []byte, ch ImportChang
 		case n == 0:
 		case n == len(d.Specs):
 			w.deleteDecl(d)
+		case !w.tidy(d):
+			w.addEdit(rewriteDecl(w, d, nil))
 		default:
 			for _, sp := range d.Specs {
 				if w.removed[sp.(*ast.ImportSpec)] {
@@ -172,7 +178,11 @@ func rewriteDecl(w *editor, d *ast.GenDecl, adds []string) Edit {
 		if w.removed[s.(*ast.ImportSpec)] {
 			continue
 		}
-		existing = append(existing, string(w.src[w.off(s.Pos()):w.off(s.End())]))
+		end := s.End()
+		if is := s.(*ast.ImportSpec); is.Comment != nil && is.Comment.End() > end {
+			end = is.Comment.End()
+		}
+		existing = append(existing, string(w.src[w.off(s.Pos()):w.off(end)]))
 	}
 	if len(adds)+len(existing) == 1 {
 		one := existing
@@ -203,9 +213,57 @@ func (w *editor) remaining(d *ast.GenDecl) int {
 	return n
 }
 
-// deleteDecl removes a whole import decl, line by line.
+// deleteDecl removes a whole import decl: its lines when it has them to
+// itself, otherwise exactly its text (and a following semicolon).
 func (w *editor) deleteDecl(d *ast.GenDecl) {
-	w.addEdit(Edit{Pos: w.lineStart(w.line(d.Pos())), End: w.lineStart(w.line(d.End()) + 1)})
+	if w.alone(d) {
+		w.addEdit(Edit{Pos: w.lineStart(w.line(d.Pos())), End: w.lineStart(w.line(d.End()) + 1)})
+		return
+	}
+	end := w.off(d.End())
+	for i := end; i < len(w.src); i++ {
+		if w.src[i] == ' ' || w.src[i] == '\t' {
+			continue
+		}
+		if w.src[i] == ';' {
+			end = i + 1
+			for end < len(w.src) && (w.src[end] == ' ' || w.src[end] == '\t') {
+				end++
+			}
+		}
+		break
+	}
+	w.addEdit(Edit{Pos: d.Pos(), End: w.tf.Pos(end)})
+}
+
+// alone reports whether only whitespace shares d's first and last lines.
+func (w *editor) alone(d *ast.GenDecl) bool {
+	blank := func(b []byte) bool { return len(bytes.TrimSpace(b)) == 0 }
+	ls := w.off(w.lineStart(w.line(d.Pos())))
+	le := w.off(w.lineStart(w.line(d.End()) + 1))
+	return blank(w.src[ls:w.off(d.Pos())]) && blank(w.src[w.off(d.End()):le])
+}
+
+// tidy reports whether d has the gofmt layout the line-based edits assume: it
+// has its lines to itself, the parentheses are on lines of their own and
+// every spec starts on a new line.
+func (w *editor) tidy(d *ast.GenDecl) bool {
+	if !w.alone(d) {
+		return false
+	}
+	if !d.Lparen.IsValid() {
+		return true
+	}
+	first, last := d.Specs[0].(*ast.ImportSpec), d.Specs[len(d.Specs)-1].(*ast.ImportSpec)
+	if w.line(d.Lparen) >= w.startLine(first) || w.endLine(last) >= w.line(d.Rparen) {
+		return false
+	}
+	for i := 1; i < len(d.Specs); i++ {
+		if w.startLine(d.Specs[i].(*ast.ImportSpec)) <= w.endLine(d.Specs[i-1].(*ast.ImportSpec)) {
+			return false
+		}
+	}
+	return true
 }
 
 func (w *editor) off(p token.Pos) int { return w.tf.Offset(p) }
@@ -364,5 +422,11 @@ func (w *editor) result() []Edit {
 			out = append(out, e)
 		}
 	}
-	return slices.DeleteFunc(out, func(e Edit) bool { return e.Pos == e.End && len(e.NewText) == 0 })
+	out = slices.DeleteFunc(out, func(e Edit) bool { return e.Pos == e.End && len(e.NewText) == 0 })
+	if bytes.Contains(w.src, []byte("\r\n")) {
+		for i := range out {
+			out[i].NewText = bytes.ReplaceAll(out[i].NewText, []byte("\n"), []byte("\r\n"))
+		}
+	}
+	return out
 }
