@@ -54,7 +54,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
           cache-dependency-path: js/package-lock.json
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
@@ -70,7 +70,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node: [22, 24]
+        node: [22, 24, 26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -100,7 +100,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 22
+          node-version: 26
           cache: npm
           cache-dependency-path: js/package-lock.json
       - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
@@ -112,3 +112,53 @@ jobs:
           version: v2.15.0
           working-directory: go
       - run: make lint-js
+
+  # Guards the Node >=22.12 floor: typechecks against @types/node ^22 so code
+  # cannot use APIs newer than the oldest supported line (M0.6).
+  js-types-floor:
+    needs: changes
+    if: needs.changes.outputs.js == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - name: Install with @types/node ^22 (not saved)
+        working-directory: js
+        run: |
+          npm ci
+          npm install --no-save --workspaces --include-workspace-root '@types/node@^22'
+          node -e "const v=require('@types/node/package.json').version; if(!v.startsWith('22.')){console.error('expected @types/node 22.x, got '+v);process.exit(1)}"
+      - name: Typecheck
+        working-directory: js
+        run: npm run typecheck
+
+  # Non-required canary: tells us when TypeScript 7 (native port) becomes viable
+  # with our toolchain. Never add to required checks (remove with M0.6 follow-up
+  # once typescript-eslint supports TS 7 and we adopt it).
+  typescript-next:
+    needs: changes
+    if: needs.changes.outputs.js == 'true'
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 26
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - name: Install typescript@latest (not saved)
+        working-directory: js
+        run: |
+          npm ci
+          npm install --no-save typescript@latest
+          npx tsc -v
+      - name: Typecheck and build
+        working-directory: js
+        run: |
+          npm run typecheck
+          npm run build

@@ -14,8 +14,8 @@
     "spec:tags": "npm run build -w @fldlint/spec --silent && node packages/spec/dist/bin/tags.js"
   },
   "devDependencies": {
-    "@types/node": "^22.0.0",
-    "typescript": "^5.6.0",
+    "@types/node": "^26.0.0",
+    "typescript": "~6.0.3",
     "vitest": "^5.1.1"
   }
 }

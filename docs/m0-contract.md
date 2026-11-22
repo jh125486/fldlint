@@ -188,7 +188,8 @@ Decided after the first integration review. Authors working on the fix round
 must follow these.
 
 ### Toolchain
-- Node `>=22.12`; CI matrix `[22, 24]`; `vitest ^5.1.1`; `@types/node ^22` (approved).
+- SUPERSEDED by M0.6 (Node/TypeScript/@types/node lines): Node `>=22.12`; CI matrix `[22, 24]`; `@types/node ^22`.
+- `vitest ^5.1.1` (approved) still stands.
 - Node 20 is dropped (end of life).
 
 ### Context policy (both languages)
@@ -412,3 +413,32 @@ type mismatch between SDKs. Like the other call-site skips it is allowed only
 on rewriting rules, requires `output: false`, and is enumerated in
 `spec/rules.yaml`, both schemas, and the JS and Go validators. Fixture:
 `spec/fixtures/bool-variation/default-type-unproven`.
+
+## M0.6 amendment: toolchain policy (supersedes the M0.1 Toolchain lines for Node, TypeScript and `@types/node`)
+
+Owner decisions, 2026-11-22.
+
+- Node: support the latest Node LTS, always. As of 2026-11-22 Node 26
+  "Lithium" is LTS (since 2026-10-28); 24 "Krypton" and 22 "Jod" are in
+  maintenance (22 ends 2027-04-30). CI runs the JS test matrix on every
+  supported LTS line: `[22, 24, 26]` (`js-test`). `lint` and `spec-check` run
+  on a single Node, the latest LTS (26). `engines.node` stays `>=22.12` until
+  Node 22 reaches end of life.
+- `@types/node` tracks the latest LTS (`^26`). To guard the only real risk
+  (code using APIs newer than the floor), CI job `js-types-floor` installs
+  `@types/node@^22` with `npm install --no-save` over the locked tree and runs
+  `npm run typecheck`.
+- TypeScript: track the newest TypeScript that typescript-eslint supports.
+  `@typescript-eslint/parser@8.73.0` (typescript-eslint latest) peers
+  `typescript >=4.8.4 <6.1.0`, so we pin `typescript ~6.0.3` (latest 6.0.x).
+  TS 7.x is the native Go port: `require('typescript')` exposes no
+  programmatic compiler API, so typescript-eslint cannot support it yet (tsc
+  7.0.2 does build and test this repo cleanly). The non-required CI canary
+  `typescript-next` installs `typescript@latest` (7.x) and runs typecheck and
+  build only. When typescript-eslint supports TS 7, adopt it, drop the
+  Dependabot ignore, and retire the canary.
+- Dependabot: npm ignores `typescript` major updates (pending the above) and
+  `@types/node` non-LTS (odd) majors; dev-dependency minor/patch updates are
+  grouped.
+- Required checks: `js-test (26)` is to be added to the repo ruleset;
+  `js-types-floor` may be added; `typescript-next` must never be required.
