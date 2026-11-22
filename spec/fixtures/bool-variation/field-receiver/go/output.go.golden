@@ -1,0 +1,19 @@
+package flags
+
+import (
+	"context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("api")
+
+type service struct {
+	ld *ldclient.LDClient
+}
+
+func (s *service) APIEnabled() bool {
+	on, _ := client.BooleanValue(context.TODO(), "new-api", false, openfeature.NewEvaluationContext("user", nil))
+	return on
+}

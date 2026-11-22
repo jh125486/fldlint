@@ -1,0 +1,177 @@
+[
+  {
+    "ruleId": "bool-variation",
+    "path": "src/checkout/service.ts",
+    "key": "checkout-v2",
+    "occ": 0,
+    "fingerprint": "d1a64654f64fa217171b2841c61090fd"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "./src/checkout/service.ts",
+    "key": "checkout-v2",
+    "occ": 0,
+    "fingerprint": "d1a64654f64fa217171b2841c61090fd"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src\\checkout\\service.ts",
+    "key": "checkout-v2",
+    "occ": 0,
+    "fingerprint": "d1a64654f64fa217171b2841c61090fd"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/checkout/service.ts",
+    "key": "checkout-v2",
+    "occ": 1,
+    "fingerprint": "665e542cff4f57f1be484d06d7934fe5"
+  },
+  {
+    "ruleId": "string-variation",
+    "path": "src/checkout/service.ts",
+    "key": "checkout-v2",
+    "occ": 0,
+    "fingerprint": "206d1b51231868124d10e9cd2842bf72"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "internal/flags/flags.go",
+    "key": "new-ui",
+    "occ": 0,
+    "fingerprint": "c1d9df69df563046fb3dbdcdf5bde64b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/checkout/service.ts",
+    "key": null,
+    "occ": 0,
+    "fingerprint": "bbe22edf1d42d792c2119cd54a764d84"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/checkout/service.ts",
+    "key": null,
+    "occ": 1,
+    "fingerprint": "0c1ab39ac97767156d8a818304b68367"
+  },
+  {
+    "ruleId": "all-flags-state",
+    "path": "svc/main.go",
+    "key": null,
+    "occ": 0,
+    "fingerprint": "990be9e272e7aebbdf1c140532da54e1"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/ünï/a.ts",
+    "key": "clé",
+    "occ": 0,
+    "fingerprint": "d323baf0889c2c95e1dea4eeab9485c9"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a//b",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "9a0875cbf32a433a5c53f854bc5cae8b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a/./b",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "9a0875cbf32a433a5c53f854bc5cae8b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a/././b",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "9a0875cbf32a433a5c53f854bc5cae8b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "././a",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "34a9ce2a3037bc949209c8e341dbe93c"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a/b/",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "9a0875cbf32a433a5c53f854bc5cae8b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": ".\\a\\b",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "9a0875cbf32a433a5c53f854bc5cae8b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a\\\\b",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "9a0875cbf32a433a5c53f854bc5cae8b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "key": "aA",
+    "occ": 0,
+    "fingerprint": "c2b9a4b7493c4f088396feeceebf56b0"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "key": "😀",
+    "occ": 0,
+    "fingerprint": "6258b6b636174d39b39768f39444c88b"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "key": "",
+    "occ": 0,
+    "fingerprint": "32238f7f244421f8dca4df9a114b5b7c"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "key": null,
+    "occ": 0,
+    "fingerprint": "d51bead2c60751272a82a139ecfa9eb2"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "Src/a.ts",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "ba0d8e621f35e978e2d71023dcc087ea"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/a.ts",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "f6c5f08066efd25f70ae39048ca0a679"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/é.ts",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "919507daef37bd442ae0cfe0e433e3c9"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "src/é.ts",
+    "key": "flag",
+    "occ": 0,
+    "fingerprint": "5859735d23d412d60e7983c627a469d7"
+  }
+]

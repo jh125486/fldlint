@@ -1,0 +1,6 @@
+id: field-receiver
+rule: bool-variation
+tags: [field-receiver]
+description: A receiver that is a selector chain through a struct field is pure and never stranded (the field keeps its declaration), so the call is rewritten.
+expect:
+  go: {diagnostics: [{line: 17, col: 11, ruleId: bool-variation}], output: true}
