@@ -1,0 +1,6 @@
+id: ambiguous-client
+rule: bool-variation
+tags: [ambiguous-client]
+description: Two OpenFeature client bindings are visible in the same scope, so the proof is ambiguous and the call is skipped as unbound-client.
+expect:
+  js: {diagnostics: [{line: 9, col: 20, ruleId: bool-variation, skip: unbound-client}], output: false}
