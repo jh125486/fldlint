@@ -103,9 +103,10 @@ func TestConformance(t *testing.T) {
 			if _, ok := c.Expect["go"]; !ok {
 				t.Skip("not applicable: no go expectation")
 			}
-			// TODO(M2): replace with analysistest.RunWithSuggestedFixes once the
-			// real engine lands; until then the case is only counted, not passed.
-			t.Skip("pending: Go engine lands in M2 (analysistest.RunWithSuggestedFixes)")
+			if rulesPath == stubRulesPath {
+				t.Skip("stub spec: the M0 stub fixtures are not backed by the real engine")
+			}
+			checkEngine(t, c, filepath.Dir(p))
 		})
 	}
 }

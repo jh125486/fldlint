@@ -56,4 +56,9 @@ func Variant(r *http.Request) bool {
 	return on
 }
 
+func RawKey(userKey string) bool {
+	on, _ := ld.BoolVariation(`raw-key`, ldcontext.New(userKey), false) // want "Migrate boolean flag .raw-key. to OpenFeature"
+	return on
+}
+
 var pkgLevel, _ = ld.BoolVariation("pkg-level", ldcontext.New("u"), false) // want `Migrate boolean flag "pkg-level" to OpenFeature`

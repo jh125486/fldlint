@@ -55,4 +55,9 @@ func Variant(r *http.Request) bool {
 	return on
 }
 
+func RawKey(userKey string) bool {
+	on, _ := client.BooleanValue(context.TODO(), `raw-key`, false, openfeature.NewEvaluationContext(userKey, nil)) // want "Migrate boolean flag .raw-key. to OpenFeature"
+	return on
+}
+
 var pkgLevel, _ = client.BooleanValue(context.TODO(), "pkg-level", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "pkg-level" to OpenFeature`
