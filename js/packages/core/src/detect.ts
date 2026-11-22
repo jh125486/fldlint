@@ -180,8 +180,10 @@ class Detector {
     return decl.init;
   }
 
-  private ldClientKind(id: Node): "current" | "legacy" | undefined {
-    const init = this.simpleInit(this.resolve(id));
+  private ldClientKind(id: Node, callStart: number): "current" | "legacy" | undefined {
+    const v = this.resolve(id);
+    if (!v || !this.declaredBefore(v, callStart)) return undefined;
+    const init = this.simpleInit(v);
     if (init?.type !== AST_NODE_TYPES.CallExpression || init.optional) return undefined;
     if (this.isSdkExport(init.callee, LD_PACKAGES, "init")) return "current";
     if (this.isSdkExport(init.callee, LD_LEGACY_PACKAGES, "init")) return "legacy";
@@ -195,25 +197,29 @@ class Detector {
     if (callee.type !== AST_NODE_TYPES.MemberExpression || callee.computed || callee.optional) return false;
     if (callee.property.type !== AST_NODE_TYPES.Identifier || callee.property.name !== "getClient") return false;
     if (!this.isSdkExport(callee.object, OPENFEATURE_PACKAGES, "OpenFeature")) return false;
-    const def = v.defs[0]!;
-    if (def.type !== "Variable") return false;
+    return this.declaredBefore(v, callStart);
+  }
+
+  /**
+   * The variable is a `const`/`let` whose whole declarator (initializer
+   * included) ends before `pos`, and `pos` is not in a different SwitchCase.
+   * That the declaring block encloses `pos` is guaranteed by scope resolution.
+   * Known gap (documented, not fixed): a function declared after the const but
+   * invoked before the const is initialized is accepted.
+   */
+  private declaredBefore(v: Variable, pos: number): boolean {
+    const def = v.defs[0];
+    if (def?.type !== "Variable") return false;
     const declaration = def.parent;
     // `var` hoists (use before the initializer runs sees undefined); only
     // block-scoped declarations have a position-based proof.
     if (declaration?.type !== AST_NODE_TYPES.VariableDeclaration || (declaration.kind !== "const" && declaration.kind !== "let")) {
       return false;
     }
-    // Declared before use: the whole declarator (initializer included) must end
-    // before the call, so a client is never bound inside its own initializer.
-    if (def.node.range[1] > callStart) return false;
-    // Different SwitchCases share one scope, but the declaration of another
-    // case never ran (TDZ). The enclosing block itself is guaranteed by the
-    // scope walk in bindClient.
+    if (def.node.range[1] > pos) return false;
+    // Different SwitchCases share one scope, but another case's declaration never ran (TDZ).
     const clause = this.parents.get(declaration);
-    if (clause?.type === AST_NODE_TYPES.SwitchCase && !(clause.range[0] <= callStart && callStart < clause.range[1])) return false;
-    // Known gap (documented, not fixed): a function declared after the const
-    // but invoked before the const is initialized is accepted.
-    return true;
+    return !(clause?.type === AST_NODE_TYPES.SwitchCase && !(clause.range[0] <= pos && pos < clause.range[1]));
   }
 
   private bindClient(callStart: number): ClientBinding {
@@ -246,15 +252,18 @@ class Detector {
     if (callee.property.type !== AST_NODE_TYPES.Identifier || callee.object.type !== AST_NODE_TYPES.Identifier) return;
     const match = findRuleByMethod("js", callee.property.name);
     if (!match) return;
-    const kind = this.ldClientKind(callee.object);
+    const kind = this.ldClientKind(callee.object, call.range[0]);
     if (!kind) return;
     const { rule } = match;
     // The legacy typings have no typed variation methods: not a recognized call.
     if (kind === "legacy" && rule.skip === undefined) return;
-    // The call must match the SDK signature: exactly the rule's arguments, no spread.
+    // The call must match the SDK signature. A spread never does, for any rule.
+    // Exact arity is checked only where rules.yaml carries argument positions
+    // (rewriting rules); report-only rules have none and are not guessed.
+    if (call.arguments.some((a) => a.type === AST_NODE_TYPES.SpreadElement)) return;
     if (rule.skip === undefined) {
       const arity = Math.max(rule.keyArg ?? -1, rule.defaultArg ?? -1, rule.contextArg ?? -1) + 1;
-      if (call.arguments.length !== arity || call.arguments.some((a) => a.type === AST_NODE_TYPES.SpreadElement)) return;
+      if (call.arguments.length !== arity) return;
     }
     // A rewriting rule with no JS template is not a JS finding (see
     // validation-parity.md); the planner has nothing to say about it.
