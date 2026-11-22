@@ -1,0 +1,6 @@
+id: namespace-import
+rule: bool-variation
+tags: [namespace-import]
+description: Namespace imports of both SDKs (ld.init, of.OpenFeature.getClient) are proven and rewritten.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
