@@ -459,9 +459,11 @@ Owner decisions, 2026-11-22.
   on a single Node, the latest LTS (26). `engines.node` stays `>=22.12` until
   Node 22 reaches end of life.
 - `@types/node` tracks the latest LTS (`^26`). To guard the only real risk
-  (code using APIs newer than the floor), CI job `js-types-floor` installs
-  `@types/node@^22` with `npm install --no-save` over the locked tree and runs
-  `npm run typecheck`.
+  (code using APIs newer than the floor), CI job `js-types-floor` runs on Node
+  22.12.0 itself, installs `@types/node@22.12.0` (the only 22.12-era typings
+  release; `^22` would resolve to 22.20.x and accept later APIs such as
+  `zstdCompressSync`, @since 22.15) with `npm install --no-save` over the
+  locked tree, and runs `npm run typecheck`.
 - TypeScript: track the newest TypeScript that typescript-eslint supports.
   `@typescript-eslint/parser@8.73.0` (typescript-eslint latest) peers
   `typescript >=4.8.4 <6.1.0`, so we pin `typescript ~6.0.3` (latest 6.0.x).

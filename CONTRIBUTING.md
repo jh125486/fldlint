@@ -32,7 +32,7 @@
 | `make lint` | `lint-go` and `lint-js` |
 | `make test` | `js-test` and `go-test` |
 
-CI calls only these targets. Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks against `@types/node` ^22) and
+CI calls only these targets. Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)

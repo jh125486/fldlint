@@ -113,8 +113,9 @@ jobs:
           working-directory: go
       - run: make lint-js
 
-  # Guards the Node >=22.12 floor: typechecks against @types/node ^22 so code
-  # cannot use APIs newer than the oldest supported line (M0.6).
+  # Guards the Node >=22.12 floor: runs on Node 22.12.0 itself and typechecks
+  # against @types/node 22.12.0 (the only 22.12-era typings release) so code
+  # cannot use APIs newer than the floor (M0.6).
   js-types-floor:
     needs: changes
     if: needs.changes.outputs.js == 'true'
@@ -123,15 +124,15 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: 26
+          node-version: 22.12.0
           cache: npm
           cache-dependency-path: js/package-lock.json
-      - name: Install with @types/node ^22 (not saved)
+      - name: Install with @types/node 22.12.0 (not saved)
         working-directory: js
         run: |
           npm ci
-          npm install --no-save --workspaces --include-workspace-root '@types/node@^22'
-          node -e "const v=require('@types/node/package.json').version; if(!v.startsWith('22.')){console.error('expected @types/node 22.x, got '+v);process.exit(1)}"
+          npm install --no-save --workspaces --include-workspace-root '@types/node@22.12.0'
+          node -e "const v=require('@types/node/package.json').version; if(v!=='22.12.0'){console.error('expected @types/node 22.12.0, got '+v);process.exit(1)}"
       - name: Typecheck
         working-directory: js
         run: npm run typecheck
