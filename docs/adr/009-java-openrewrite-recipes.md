@@ -78,8 +78,10 @@ rewrite plugin conventions (no new exit codes or flags).
   produces a `null` default; only a misbehaving provider can return `null` (UNVERIFIED).
   Document it in recipe docs.
 - Frozen transitive deps (jackson, commons-text, antlr4, classgraph, asm, micrometer)
-  cannot be bumped and will draw CVE alerts. Triage: they run only inside the
-  user's build plugin, so record each alert as not reachable in release notes.
+  cannot be bumped and will draw CVE alerts. Triage per CVE: assess reachability
+  and mitigation for the specific dependency and call path (they execute inside
+  the user's build plugin process, so they are not unreachable by default) and
+  record the finding in release notes; never close an alert as a class.
 - Gradle users are uncovered: the Plugin Portal is frozen at 7.41.0, 7.44.1 is CGP-only,
   untested. Multi-module Maven and CLI use need
   `-Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:<v>` with
