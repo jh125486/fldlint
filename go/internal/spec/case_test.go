@@ -142,6 +142,8 @@ func TestCase_Validate(t *testing.T) {
 		{name: "skip rule diagnostic without skip", old: ", skip: detail", new: "", wantErr: "must equal the rule's skip"},
 		{name: "rewriting rule with skip detail", src: strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: detail}", 1), wantErr: "not a call-site skip"},
 		{name: "rewriting rule with call-site skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: dynamic-key}", 1), "output: true", "output: false", 1)},
+		{name: "rewriting rule with default-type-unproven skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: default-type-unproven}", 1), "output: true", "output: false", 1)},
+		{name: "rewriting rule with unknown skip", src: strings.Replace(strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: not-a-category}", 1), "output: true", "output: false", 1), wantErr: "is not one of"},
 		{name: "rewriting rule call-site skip with output true", src: strings.Replace(rewrite, "ruleId: bool-variation}", "ruleId: bool-variation, skip: context-unproven}", 1), wantErr: "output must be false"},
 		{name: "skip rule with output true", old: "output: false", new: "output: true", wantErr: "output must be false"},
 		{name: "output true without diagnostics", src: strings.Replace(rewrite, "[{line: 1, col: 1, ruleId: bool-variation}]", "[]", 1), wantErr: "no diagnostics"},

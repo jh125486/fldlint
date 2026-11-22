@@ -12,6 +12,7 @@ const RULES = `version: 1
 skipCategories:
   detail: {severity: warning, message: "Detail call"}
   dynamic-key: {severity: warning, message: "Flag key is not a static string"}
+  default-type-unproven: {severity: warning, message: "Default value type not proven"}
 rules:
   - id: bool-variation
     valueType: boolean
@@ -174,6 +175,20 @@ describe("case semantics", () => {
     rmSync(join(r, "fixtures/bool-variation/rw/js/output.ts"));
     rmSync(join(r, "fixtures/bool-variation/rw/go"), { recursive: true });
     expect(errs(r)).toBe("");
+  });
+
+  it("accepts the default-type-unproven call-site skip on a rewriting rule with output false", () => {
+    const r = mkSpec();
+    set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D(", skip: default-type-unproven")}], output: false}`);
+    rmSync(join(r, "fixtures/bool-variation/rw/js/output.ts"));
+    rmSync(join(r, "fixtures/bool-variation/rw/go"), { recursive: true });
+    expect(errs(r)).toBe("");
+  });
+
+  it("rejects an unknown skip category on a rewriting rule", () => {
+    const r = mkSpec();
+    set(r, "fixtures/bool-variation/rw/case.yaml", `  js: {diagnostics: [${D(", skip: not-a-category")}], output: false}`);
+    expect(errs(r)).toContain("not-a-category");
   });
 
   it("rejects a no-skip diagnostic on a rewriting rule when output is false", () => {

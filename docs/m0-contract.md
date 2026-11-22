@@ -38,6 +38,7 @@ skipCategories:
   unbound-client:   {severity: warning, message: "OpenFeature client binding not proven in scope"}
   type-mismatch:    {severity: warning, message: "Return/default type differs between SDKs"}
   context-unproven: {severity: warning, message: "Cannot prove LD context -> EvaluationContext conversion"}
+  default-type-unproven: {severity: warning, message: "Default value type not proven"}
 rules:
   - id: bool-variation
     valueType: boolean          # boolean | string | number | integer | object
@@ -325,9 +326,10 @@ There are two kinds of skip. Do not conflate them:
 - **Call-site skip** (only on rewriting rules, i.e. rules WITHOUT `skip`): a call
   that the rule would normally rewrite but that is left alone because of how it
   is written or where it sits. Allowed categories: `dynamic-key`,
-  `unbound-client`, `context-unproven`. A diagnostic on a rewriting rule either
+  `unbound-client`, `context-unproven`, `default-type-unproven` (amendment
+  M0.4). A diagnostic on a rewriting rule either
   carries no `skip` (it is rewritten; `output: true` for that language) or
-  carries one of those three call-site categories (`output: false` for that
+  carries one of those four call-site categories (`output: false` for that
   language).
 
 Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
@@ -396,3 +398,17 @@ help text. Do not copy one ecosystem's conventions into another.
   CONTRIBUTING.md and validation-parity.md must say which parts are shared and
   which are per ecosystem, and must drop any claim that all tools share exit
   codes, flags or `--max-warnings 0`.
+
+## M0.4 amendment: `default-type-unproven` call-site skip
+
+Owner decision. A new call-site skip category, `default-type-unproven`
+(severity warning, message "Default value type not proven"), sits alongside
+`dynamic-key`, `unbound-client` and `context-unproven`. It means the rule
+matched, but the default-value argument is an expression whose type cannot be
+proven to match the rule's `valueType` (for example a variable of unknown type),
+so no rewrite is made. It is distinct from the rule-level `type-mismatch`, which
+is used when the default is provably the wrong type or the rule itself has a
+type mismatch between SDKs. Like the other call-site skips it is allowed only
+on rewriting rules, requires `output: false`, and is enumerated in
+`spec/rules.yaml`, both schemas, and the JS and Go validators. Fixture:
+`spec/fixtures/bool-variation/default-type-unproven`.

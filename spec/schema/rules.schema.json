@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fldlint.dev/schema/rules.schema.json",
   "title": "fldlint rules",
-  "description": "Schema for spec/rules.yaml. JSON Schema cannot cross-reference object keys, so every `skip` / `requires` value is checked against the fixed six-name enumeration of skipCategories below; skipCategories itself must define exactly those six keys. Adding a category means editing this schema and the contract together.",
+  "description": "Schema for spec/rules.yaml. JSON Schema cannot cross-reference object keys, so every `skip` / `requires` value is checked against the fixed seven-name enumeration of skipCategories below; skipCategories itself must define exactly those seven keys. Adding a category means editing this schema and the contract together.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -23,7 +23,8 @@
         "dynamic-key",
         "unbound-client",
         "type-mismatch",
-        "context-unproven"
+        "context-unproven",
+        "default-type-unproven"
       ],
       "properties": {
         "detail": {
@@ -42,6 +43,9 @@
           "$ref": "#/$defs/skipCategory"
         },
         "context-unproven": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "default-type-unproven": {
           "$ref": "#/$defs/skipCategory"
         }
       }
@@ -63,7 +67,8 @@
         "dynamic-key",
         "unbound-client",
         "type-mismatch",
-        "context-unproven"
+        "context-unproven",
+        "default-type-unproven"
       ]
     },
     "skipCategory": {

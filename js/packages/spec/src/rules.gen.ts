@@ -13,6 +13,10 @@ export const skipCategories: Readonly<Record<string, SkipCategory>> = {
     "message": "Cannot prove LD context -> EvaluationContext conversion",
     "severity": "warning"
   },
+  "default-type-unproven": {
+    "message": "Default value type not proven",
+    "severity": "warning"
+  },
   "detail": {
     "message": "Detail call; reason/variation metadata has no 1:1 rewrite",
     "severity": "warning"
