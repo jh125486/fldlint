@@ -46,12 +46,16 @@ engines could report different categories for the same call.
    Java applies the purity rule (unused Java locals compile).
 7. Java constraint only: rewrites preserve primitive typing by emitting
    unboxing (`.booleanValue()`, `.intValue()`, `.doubleValue()`). Details live
-   in ADR 009.
+   in ADR 009 (proposed in PR #30; until it merges this item is the only
+   record of the constraint).
 
 ## Consequences
 
-- The same call gets the same category in JS, Go and Java; fixtures pin the
-  order (`skip-order-default-before-unbound`).
+- The step order is shared by JS, Go and Java and fixtures pin it
+  (`skip-order-default-before-unbound`). Which category a given call gets can
+  still differ by language when the language-specific facts differ: only Go can
+  strand a local (`receiver-unproven`), so the same JS call is rewritten where
+  the Go call is skipped (`stranded-local-client`).
 - Some safe-looking rewrites are skipped (a local client used only once in Go);
   the user migrates those by hand, which is the intended trade for never
   producing code that fails to compile.
