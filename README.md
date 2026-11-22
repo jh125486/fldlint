@@ -71,7 +71,7 @@ plans.
   be set when the repo goes public.
 
 Run `task --list` for tasks; `task test` runs the JS and Go tests,
-`task check` runs everything CI runs, and `task spec:check` validates the spec and checks generated code for drift.
+`task check` runs everything the required CI `check` job runs (the non-required `typescript-next` canary is `task js:ts-next`), and `task spec:check` validates the spec and checks generated code for drift.
 
 ## Milestones
 

@@ -451,7 +451,7 @@ linting, tests and static analysis, and CI runs the same `task check`, so local
 and CI are identical. The "Make targets" section above and ADR text are frozen
 history; read every `make X` there as the `task Y` below. go-task is a
 developer tool, not a project dependency. CI installs it with
-`arduino/setup-task`; golangci-lint v2.15.0 runs via `go run` in both places
+`arduino/setup-task` (go-task pinned to 3.54.0); golangci-lint v2.15.0 runs via `go run` in both places
 (the `golangci-lint-action` exception no longer applies).
 
 | Was | Now |
