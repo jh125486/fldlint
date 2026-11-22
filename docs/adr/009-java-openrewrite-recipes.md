@@ -57,7 +57,9 @@ rewrite plugin conventions (no new exit codes or flags).
   `boolean`/`int`/`double` call appends `.booleanValue()`/`.intValue()`/`.doubleValue()`
   to the OpenFeature call; `String` and `Object` need none. Otherwise behavior changes
   silently: `list.remove(ld.intVariation(..))` picks `remove(Object)`, `a == b` compares
-  `Integer` references, and overloads, `var` and ternary typing shift. The rewrite only
+  `Integer` references, and overloads and `var` shift. A ternary `b ? ld.intVariation(..) : other`
+  with an `Integer other` is an `int` conditional that throws on a null `other`; without the
+  unboxing call it is an `Integer` conditional that passes null through (VERIFIED, javac 21). The rewrite only
   fires when the default is exactly `boolean`/`int`/`double`/`String`; anything else is
   `default-type-unproven`. Pinned by fixtures in `java/fixtures/primitive-typing/`:
   `remove-int`, `eq-compare`, `ternary` (plus an int-literal-to-`doubleVariation` skip,
