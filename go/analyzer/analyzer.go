@@ -1,13 +1,112 @@
-// Package analyzer provides the fldlint go/analysis analyzer.
+// Package analyzer provides the fldlint go/analysis analyzer. It finds
+// LaunchDarkly Go SDK calls by type, plans each one with the planner, reports a
+// diagnostic per call and attaches one SuggestedFix to every rewritable call.
 package analyzer
 
-import "golang.org/x/tools/go/analysis"
+import (
+	"go/ast"
+	"go/token"
+	"slices"
 
-// Analyzer is the fldlint analyzer. M0 stub: reports nothing.
+	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/passes/inspect"
+	"golang.org/x/tools/go/ast/inspector"
+
+	"github.com/jh125486/fldlint/go/internal/detect"
+	"github.com/jh125486/fldlint/go/internal/planner"
+)
+
+// Doc is the analyzer documentation.
+const Doc = `report LaunchDarkly Go SDK calls that can migrate to OpenFeature
+
+fldlint finds calls to go-server-sdk v7 evaluation methods (BoolVariation,
+StringVariation, ...) on *ldclient.LDClient and its interfaces, identified by
+type. A call with a static flag key, an ldcontext.New(...) context, a provable
+OpenFeature client in scope and a provable default type is rewritten to the
+matching openfeature.Client method through a suggested fix. Every other call is
+reported with a skip category and left alone.
+
+Only go-server-sdk v7 is handled; v6 is not.`
+
+// Analyzer is the fldlint analyzer.
 var Analyzer = &analysis.Analyzer{
-	Name: "fldlint",
-	Doc:  "reports LaunchDarkly SDK usage that can migrate to OpenFeature (stub in M0)",
-	Run: func(*analysis.Pass) (any, error) {
-		return nil, nil
-	},
+	Name:     "fldlint",
+	Doc:      Doc,
+	URL:      "https://github.com/jh125486/fldlint",
+	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Run:      run,
+}
+
+func run(pass *analysis.Pass) (any, error) {
+	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
+	env := &detect.Env{Fset: pass.Fset, Pkg: pass.Pkg, Info: pass.TypesInfo}
+
+	files := map[*token.File]*ast.File{}
+	for _, f := range pass.Files {
+		files[pass.Fset.File(f.FileStart)] = f
+	}
+	sites := map[*ast.File][]planner.CallSite{}
+	srcs := map[*ast.File]detect.File{}
+	var order []*ast.File
+
+	var firstErr error
+	insp.Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
+		call := n.(*ast.CallExpr)
+		method, ok := detect.Method(pass.TypesInfo, call)
+		if !ok {
+			return
+		}
+		f := files[pass.Fset.File(call.Pos())]
+		if f == nil {
+			return
+		}
+		df, seen := srcs[f]
+		if !seen {
+			src, err := pass.ReadFile(pass.Fset.File(f.FileStart).Name())
+			if err != nil {
+				if firstErr == nil {
+					firstErr = err
+				}
+				return
+			}
+			df = detect.File{AST: f, Src: src}
+			srcs[f] = df
+			order = append(order, f)
+		}
+		sites[f] = append(sites[f], env.Site(df, call, method))
+	})
+	if firstErr != nil {
+		return nil, firstErr
+	}
+
+	for _, f := range order {
+		df := srcs[f]
+		fi := planner.FileInfo{Fset: pass.Fset, File: f, Src: df.Src, Removable: env.Removable(df)}
+		for i, res := range planner.PlanFile(fi, sites[f]) {
+			pass.Report(diagnostic(sites[f][i], res))
+		}
+	}
+	return nil, nil
+}
+
+func diagnostic(site planner.CallSite, res planner.Result) analysis.Diagnostic {
+	msg := res.Message
+	if res.Kind == planner.KindSkip {
+		msg += " [skip: " + res.Category + "]"
+	}
+	d := analysis.Diagnostic{
+		Pos:      site.Call.Pos(),
+		End:      site.Call.End(),
+		Category: res.RuleID,
+		Message:  msg,
+	}
+	if res.Kind == planner.KindRewrite && res.Edit != nil {
+		edits := slices.Concat([]planner.Edit{*res.Edit}, res.Imports)
+		fix := analysis.SuggestedFix{Message: res.Message}
+		for _, e := range edits {
+			fix.TextEdits = append(fix.TextEdits, analysis.TextEdit{Pos: e.Pos, End: e.End, NewText: e.NewText})
+		}
+		d.SuggestedFixes = []analysis.SuggestedFix{fix}
+	}
+	return d
 }

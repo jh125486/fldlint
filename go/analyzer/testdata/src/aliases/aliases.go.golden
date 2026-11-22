@@ -1,0 +1,23 @@
+package aliases
+
+import (
+	"context"
+	stdctx "context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	of "github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = of.NewClient("aliases")
+
+var ld *ldclient.LDClient
+
+func Enabled(ctx stdctx.Context, userKey string) bool {
+	on, _ := client.BooleanValue(ctx, "aliased", false, of.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "aliased" to OpenFeature`
+	return on
+}
+
+func Other(userKey string) bool {
+	on, _ := client.BooleanValue(context.TODO(), "aliased-two", false, of.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "aliased-two" to OpenFeature`
+	return on
+}

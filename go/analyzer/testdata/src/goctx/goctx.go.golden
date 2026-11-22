@@ -1,0 +1,58 @@
+package goctx
+
+import (
+	"context"
+	"net/http"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("goctx")
+
+var ld *ldclient.LDClient
+
+func OneParam(ctx context.Context, userKey string) bool {
+	on, _ := client.BooleanValue(ctx, "one", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "one" to OpenFeature`
+	return on
+}
+
+func NamedContext(context context.Context, userKey string) bool {
+	on, _ := client.BooleanValue(context, "named", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "named" to OpenFeature`
+	return on
+}
+
+func TwoParams(a, b context.Context, userKey string) bool {
+	on, _ := client.BooleanValue(context.TODO(), "two", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "two" to OpenFeature`
+	return on
+}
+
+func Closure(ctx context.Context, userKey string) func() bool {
+	return func() bool {
+		on, _ := client.BooleanValue(context.TODO(), "closure", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "closure" to OpenFeature`
+		return on
+	}
+}
+
+func ClosureWithParam(userKey string) func(context.Context) bool {
+	return func(c context.Context) bool {
+		on, _ := client.BooleanValue(c, "withparam", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "withparam" to OpenFeature`
+		return on
+	}
+}
+
+func ShadowedParam(ctx context.Context, userKey string) bool {
+	{
+		ctx := 1
+		_ = ctx
+		on, _ := client.BooleanValue(context.TODO(), "shadowed-param", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "shadowed-param" to OpenFeature`
+		return on
+	}
+}
+
+func Variant(r *http.Request) bool {
+	on, _ := client.BooleanValue(r.Context(), "variant", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "variant" to OpenFeature`
+	return on
+}
+
+var pkgLevel, _ = client.BooleanValue(context.TODO(), "pkg-level", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "pkg-level" to OpenFeature`
