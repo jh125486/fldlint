@@ -10,7 +10,7 @@
     "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "rule": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
     "tags": {
-      "description": "Mandatory shape tags for rewriting rules: quote-single quote-double typed-decl multi-declarator shadowed-client dynamic-key aliased-import (coverage is checked by make spec-check, not here).",
+      "description": "Mandatory shape tags for rewriting rules: quote-single quote-double typed-decl multi-declarator shadowed-client dynamic-key aliased-import (coverage is checked by task spec:check, not here).",
       "type": "array",
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }

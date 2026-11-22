@@ -70,8 +70,8 @@ plans.
   `GHAS_ENABLED` is `'true'`; it is unset while the repo is private and is to
   be set when the repo goes public.
 
-Run `make help` for targets; `make test` runs the JS and Go tests and
-`make spec-check` validates the spec and checks generated code for drift.
+Run `task --list` for tasks; `task test` runs the JS and Go tests,
+`task check` runs everything CI runs, and `task spec:check` validates the spec and checks generated code for drift.
 
 ## Milestones
 
