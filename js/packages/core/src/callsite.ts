@@ -22,7 +22,14 @@ export interface CallSite {
   ruleId: string;
   /** Called method name, e.g. `boolVariation`. */
   method: string;
-  /** Half-open `[start, end)` UTF-16 range of the whole call expression. */
+  /**
+   * Half-open `[start, end)` UTF-16 range of the whole call expression, in the
+   * coordinates of the text that was analyzed. `analyze()` reports them against
+   * the source as given (a leading BOM counts as one code unit, so the range
+   * can be passed to `applyEdits(source, ...)`); `line`/`col` follow ESLint and
+   * ignore the BOM. Calling `detect()` directly (ESLint) uses the
+   * BOM-stripped `sourceCode.text`.
+   */
   range: [number, number];
   /** 1-based line of the call start (its callee object). */
   line: number;
