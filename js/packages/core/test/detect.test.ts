@@ -43,9 +43,24 @@ describe("LD receiver proof (no finding unless proven)", () => {
       want: ["rewrite"],
     },
     {
-      name: "legacy package detected",
+      name: "legacy package: typed call is not a finding",
       src: `import { init } from "launchdarkly-node-server-sdk";${OF}const ld = init("x"); const c = OpenFeature.getClient(); ${CALL};`,
+      want: [],
+    },
+    {
+      name: "legacy package: variation keeps its rule-level skip",
+      src: `import { init } from "launchdarkly-node-server-sdk";${OF}const ld = init("x"); const c = OpenFeature.getClient(); ld.variation("k", { key: u }, false);`,
+      want: ["type-mismatch"],
+    },
+    {
+      name: "new package still rewrites",
+      src: `import { init } from "@launchdarkly/node-server-sdk";${OF}const ld = init("x"); const c = OpenFeature.getClient(); ${CALL};`,
       want: ["rewrite"],
+    },
+    {
+      name: "legacy via require is also never rewritten",
+      src: `const { init } = require("launchdarkly-node-server-sdk");${OF}const ld = init("x"); const c = OpenFeature.getClient(); ${CALL};`,
+      want: [],
     },
     { name: "init from another package", src: `import { init } from "other";${OF}const ld = init("x"); ${CALL};`, want: [] },
     { name: "init with no import", src: `const ld = init("x"); ${CALL};`, want: [] },
@@ -132,7 +147,7 @@ describe("planner steps and order", () => {
   const cases: { name: string; call: string; want: string }[] = [
     { name: "dynamic key", call: `ld.boolVariation(k, { key: u }, false)`, want: "dynamic-key" },
     { name: "template with expression", call: "ld.boolVariation(`a-${x}`, { key: u }, false)", want: "dynamic-key" },
-    { name: "missing key", call: `ld.boolVariation()`, want: "dynamic-key" },
+
     { name: "identifier context", call: `ld.boolVariation("k", ctx, false)`, want: "context-unproven" },
     { name: "spread in context", call: `ld.boolVariation("k", { ...c }, false)`, want: "context-unproven" },
     { name: "computed context key", call: `ld.boolVariation("k", { ["key"]: u }, false)`, want: "context-unproven" },
@@ -144,15 +159,28 @@ describe("planner steps and order", () => {
     { name: "context wins over default", call: `ld.boolVariation("k", ctx, d)`, want: "context-unproven" },
     { name: "default wins over client", call: `ld.boolVariation("k", { key: u }, d)`, want: "default-type-unproven" },
     { name: "string default for boolean rule", call: `ld.boolVariation("k", { key: u }, "yes")`, want: "default-type-unproven" },
-    { name: "missing default", call: `ld.boolVariation("k", { key: u })`, want: "default-type-unproven" },
     { name: "rule-level detail", call: `ld.boolVariationDetail(k, ctx, d)`, want: "detail" },
     { name: "rule-level bulk", call: `ld.allFlagsState(ctx)`, want: "bulk" },
     { name: "rule-level type-mismatch", call: `ld.variation("k", ctx, d)`, want: "type-mismatch" },
-    { name: "spread args are not positional", call: `ld.boolVariation(...args)`, want: "dynamic-key" },
   ];
   for (const { name, call, want } of cases) {
     it(name, () => expect(outcomes(`${head}${call};`)).toEqual([want]));
   }
+
+  it("calls that do not match the SDK arity are unrecognized: no finding, source unchanged", () => {
+    for (const call of [
+      `ld.boolVariation("k", { key: u }, false, sideEffect())`,
+      `ld.boolVariation("k", { key: u }, false, ...rest)`,
+      `ld.boolVariation(...args)`,
+      `ld.boolVariation("k", ...rest)`,
+      `ld.boolVariation("k", { key: u })`,
+      `ld.boolVariation()`,
+    ]) {
+      const src = `${head}${call};`;
+      expect(analyze(src), call).toEqual([]);
+      expect(rewrite(src), call).toBe(src);
+    }
+  });
 
   it("default-type-unproven wins over a genuinely unbound client", () => {
     const noClient = `${LD}const ld = init("x");\n`;

@@ -13,7 +13,9 @@ type Reference = TSESLint.Scope.Reference;
 export type ScopeManager = TSESLint.Scope.ScopeManager;
 export type VisitorKeys = TSESLint.SourceCode.VisitorKeys;
 
-const LD_PACKAGES: readonly string[] = ["@launchdarkly/node-server-sdk", "launchdarkly-node-server-sdk"];
+const LD_PACKAGES: readonly string[] = ["@launchdarkly/node-server-sdk"];
+// Legacy package: calls are reported when a skip rule covers them, never rewritten.
+const LD_LEGACY_PACKAGES: readonly string[] = ["launchdarkly-node-server-sdk"];
 const OPENFEATURE_PACKAGES: readonly string[] = ["@openfeature/server-sdk"];
 
 type Node = TSESTree.Node;
@@ -178,11 +180,12 @@ class Detector {
     return decl.init;
   }
 
-  private isLdClient(id: Node): boolean {
+  private ldClientKind(id: Node): "current" | "legacy" | undefined {
     const init = this.simpleInit(this.resolve(id));
-    return (
-      init?.type === AST_NODE_TYPES.CallExpression && !init.optional && this.isSdkExport(init.callee, LD_PACKAGES, "init")
-    );
+    if (init?.type !== AST_NODE_TYPES.CallExpression || init.optional) return undefined;
+    if (this.isSdkExport(init.callee, LD_PACKAGES, "init")) return "current";
+    if (this.isSdkExport(init.callee, LD_LEGACY_PACKAGES, "init")) return "legacy";
+    return undefined;
   }
 
   private isOpenFeatureClientVar(v: Variable, callStart: number): boolean {
@@ -242,8 +245,17 @@ class Detector {
     if (callee.computed || callee.optional) return;
     if (callee.property.type !== AST_NODE_TYPES.Identifier || callee.object.type !== AST_NODE_TYPES.Identifier) return;
     const match = findRuleByMethod("js", callee.property.name);
-    if (!match || !this.isLdClient(callee.object)) return;
+    if (!match) return;
+    const kind = this.ldClientKind(callee.object);
+    if (!kind) return;
     const { rule } = match;
+    // The legacy typings have no typed variation methods: not a recognized call.
+    if (kind === "legacy" && rule.skip === undefined) return;
+    // The call must match the SDK signature: exactly the rule's arguments, no spread.
+    if (rule.skip === undefined) {
+      const arity = Math.max(rule.keyArg ?? -1, rule.defaultArg ?? -1, rule.contextArg ?? -1) + 1;
+      if (call.arguments.length !== arity || call.arguments.some((a) => a.type === AST_NODE_TYPES.SpreadElement)) return;
+    }
     // A rewriting rule with no JS template is not a JS finding (see
     // validation-parity.md); the planner has nothing to say about it.
     if (rule.skip === undefined && match.language.template === undefined) return;
