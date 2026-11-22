@@ -46,7 +46,8 @@ Only approved dependencies may be used.
 - JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
   `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` ^22, `typescript`, `vitest` ^5.1.1,
-  `fast-check` (approved by the owner).
+  `fast-check` and `esbuild` (approved by the owner; `esbuild` only as a
+  build-time devDependency of `@fldlint/codemod`).
 - Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not
   approved.
 - Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
