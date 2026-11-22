@@ -63,10 +63,20 @@ describe("runCodemod", () => {
     const src = readFileSync(join(root, "fixtures/bool-variation/static-key-double-quote/js/input.ts"), "utf8") + "\nexport const el = <div />;\n";
     expect(bundle.default(fake(src, "a.tsx"))).toBe(rewrite(src, "a.tsx"));
   });
-  it("preserves a BOM", () => {
-    const src = "﻿" + readFileSync(join(root, "fixtures/bool-variation/static-key-double-quote/js/input.ts"), "utf8");
-    const out = runCodemod(src, "b.ts").output;
-    expect(out?.startsWith("﻿")).toBe(true);
+  describe("BOM", () => {
+    const fx = (name: string) => readFileSync(join(root, "fixtures", name, "js", "input.ts"), "utf8");
+    for (const name of ["bool-variation/static-key-double-quote", "bool-variation/dynamic-key", "bool-variation/stranded-two-calls"]) {
+      it(`${name}: BOM file == BOM + rewrite(no-BOM), idempotent, positions unchanged`, () => {
+        const plain = fx(name);
+        const bom = "\uFEFF" + plain;
+        const want = rewrite(plain);
+        const got = runCodemod(bom, "b.ts");
+        expect(got.output).toBe(want === plain ? null : "\uFEFF" + want);
+        expect(got.reports).toEqual(runCodemod(plain, "b.ts").reports);
+        expect(bundle.default(fake(bom, "b.ts"))).toBe(got.output);
+        if (got.output !== null) expect(runCodemod(got.output, "b.ts").output).toBeNull();
+      });
+    }
   });
   describe("deeply nested rewrites", () => {
     const head = `import { init } from "@launchdarkly/node-server-sdk";\nimport { OpenFeature } from "@openfeature/server-sdk";\nconst client = OpenFeature.getClient();\nconst ld = init("k");\nconst u = "u";\n`;

@@ -23,6 +23,16 @@ for (const c of discoverCases(resolveSpecRoot())) {
   n++;
 }
 
+// A leading BOM must survive and must not shift the edits.
+{
+  const plain = readFileSync(join(resolveSpecRoot(), "fixtures/bool-variation/static-key-double-quote/js/input.ts"), "utf8");
+  const out = join(ts, "bom");
+  mkdirSync(out, { recursive: true });
+  writeFileSync(join(out, "input.ts"), "\uFEFF" + plain);
+  writeFileSync(join(out, "expected.ts"), "\uFEFF" + rewrite(plain));
+  n++;
+}
+
 // JSX needs the tsx parser and a .tsx file name: one hand-made case.
 const jsxIn = readFileSync(join(resolveSpecRoot(), "fixtures/bool-variation/static-key-double-quote/js/input.ts"), "utf8") +
   "\nexport const el = <div>{String(1)}</div>;\n";

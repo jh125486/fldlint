@@ -18,10 +18,9 @@ function rewritePass(source: string, filePath: string) {
   const edits: Edit[] = [];
   for (const f of findings) if (f.result.kind === "rewrite") edits.push(f.result.edit);
   if (edits.length === 0) return { findings, next: source };
-  // Ranges index into the BOM-stripped text; keep the BOM on the way out.
-  const bom = source.startsWith(BOM);
-  const out = applyEdits(bom ? source.slice(1) : source, nonOverlapping(edits));
-  return { findings, next: bom ? BOM + out : out };
+  // analyze() reports ranges in the coordinates of `source` as given (BOM
+  // included), so edits apply to it directly and the BOM stays in place.
+  return { findings, next: applyEdits(source, nonOverlapping(edits)) };
 }
 
 /**
