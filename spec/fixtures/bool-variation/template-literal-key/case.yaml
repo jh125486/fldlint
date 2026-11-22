@@ -1,0 +1,6 @@
+id: template-literal-key
+rule: bool-variation
+tags: [template-literal-key]
+description: A template literal without expressions is a static key and is rewritten, keeping the backticks.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
