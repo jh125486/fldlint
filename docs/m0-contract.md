@@ -38,6 +38,7 @@ skipCategories:
   unbound-client:   {severity: warning, message: "OpenFeature client binding not proven in scope"}
   type-mismatch:    {severity: warning, message: "Return/default type differs between SDKs"}
   context-unproven: {severity: warning, message: "Cannot prove LD context -> EvaluationContext conversion"}
+  default-type-unproven: {severity: warning, message: "Default value type not proven"}
 rules:
   - id: bool-variation
     valueType: boolean          # boolean | string | number | integer | object
@@ -115,6 +116,9 @@ are committed and CI fails on any `git diff` after regenerating.
 
 ## Make targets (the ONLY entry points CI calls; owned by WP6)
 
+Exception: CI runs `golangci-lint` through `golangci/golangci-lint-action` pinned to
+the same version as local `make lint`; every other CI step calls a Make target.
+
 `make spec-check` (schema-validate rules.yaml + every case.yaml, run both
 codegens, fail on drift, fixture tag-coverage check), `make spec-gen`,
 `make js-test`, `make go-test`, `make lint`, `make test` (all).
@@ -131,10 +135,11 @@ validate them against the schema, and fail on a malformed case.
 
 ## Exit codes (output of the CLIs, documented by WP3)
 
-`0` clean, `1` problems found, `2` usage or config error (including a missing
-explicit `--config` path), `130` SIGINT. Results to stdout, diagnostics to
-stderr, line format `file:line:col  rule-id  message`. JSON and SARIF
-formatters. `--max-warnings` and `--quiet`. No `v2` labelling anywhere.
+SUPERSEDED by M0.3 (idiomatic per ecosystem): exit codes, flags and severity
+behaviour are per ecosystem, not shared. See spec/contracts/exit-codes.md. Still
+true everywhere: results to stdout, diagnostics to stderr, line format
+`file:line:col  rule-id  message`, JSON and SARIF formatters, and no `v2`
+labelling anywhere.
 
 ## Fingerprint
 
@@ -176,3 +181,234 @@ upstream repos and SHAs. Do not copy whole modules.
 - Never commit secrets. Do not edit `vendor/`. Do not add unapproved deps.
 - Run your own verification (tests/lint) before finishing and report the
   commands and results honestly, including failures and anything skipped.
+
+## M0.1 amendments (post-review; these override anything above that conflicts)
+
+Decided after the first integration review. Authors working on the fix round
+must follow these.
+
+### Toolchain
+- Node `>=22.12`; CI matrix `[22, 24]`; `vitest ^5.1.1`; `@types/node ^22` (approved).
+- Node 20 is dropped (end of life).
+
+### Context policy (both languages)
+A rewrite that changes the evaluation-context argument is only allowed when
+the LaunchDarkly context is a simple single-kind literal. Otherwise the call is
+reported as `skip: context-unproven`. So JS rules also carry
+`requires: [context-unproven]`, same as Go.
+- JS: rewrite only when the context argument is an object literal whose only
+  properties are `key` (any expression) and optionally `kind: "user"`; emit
+  `{ targetingKey: <key expr> }`. Any other context expression (identifier,
+  spread, extra attributes, other kinds, multi-kind) is skipped.
+- Go: rewrite only for `ldcontext.New(<expr>)`; emit
+  `openfeature.NewEvaluationContext(<expr>, nil)`. Anything else is skipped.
+- The JS `complex-context` fixture therefore becomes a skip, like Go's.
+
+### Placeholder semantics (document in spec/contracts/placeholders.md)
+- `{{client}}`: identifier of the proven OpenFeature client binding in scope.
+- `{{key}}`, `{{default}}`: source text of those arguments.
+- `{{context}}` (JS) / `{{evalctx}}` (Go): the converted context per the policy above.
+- `{{goctx}}`: for `*Ctx` variants, the source text of argument 0. For plain
+  variants, the enclosing function's `context.Context` parameter name if there
+  is exactly one, else `context.TODO()` (add `"context"` to imports if absent).
+  If inserting `context.TODO()` and the identifier `context` is shadowed in
+  scope at the call, skip with `context-unproven`.
+
+### Compilable output
+Rewrites must leave code that compiles. Go: remove an import only if the file
+no longer references it (e.g. `ldcontext` after its only use is rewritten); a
+rewrite must not leave an unused local variable, so Go fixtures keep the LD
+client referenced elsewhere (e.g. `defer ldClient.Close()`). TypeScript
+tolerates unused locals, so JS outputs may keep the now-unused client; state
+this difference in the contracts.
+
+### Fixture coverage
+- The seven mandatory shape tags apply to the reference rule `bool-variation`
+  only (detection shapes are shared engine behaviour, not per-method).
+- Every other rewriting rule needs at least one rewrite case per language that
+  has a template, in a directory named for the rule. (M0.1 originally also
+  required a skip case; M0.2 dropped that, and M0.2b limits M0 coverage to js
+  and go.)
+- Add `*Ctx` Go cases, including a `context`-named-parameter case, and a
+  `migrationVariation` skip case.
+- JS fixtures import `@launchdarkly/node-server-sdk` (not the legacy
+  `launchdarkly-node-server-sdk`, whose typings lack `boolVariation`).
+- `spec/rules.yaml`: add a `migration-variation` rule (`skip: type-mismatch`)
+  for JS `migrationVariation` and Go `MigrationVariation`/`MigrationVariationCtx`.
+  Drop JS `allFlags` and `isFeatureEnabled` only if verified absent from the
+  current LD Node SDK typings; otherwise keep them and say where they exist.
+
+### Validator parity (JS and Go must accept and reject the same inputs)
+Both loaders: reject unknown keys, enforce enums/patterns/required fields,
+integer `line`/`col`, `output` boolean, non-null language entries; reject a
+case whose `rule` or any `diagnostics[].ruleId` is not in `rules.yaml`; reject
+`ctxArg` for a method not in `methods`; reject the same method appearing in two
+rules for one language; reject a case that promises `expect.<lang>` without the
+language input file, or `output: true` without the output file (and vice versa).
+JS exposes `npm run spec:tags` (fails, naming rule and missing tag, when the
+coverage rules above are not met); the Makefile `fixture-tags` target calls it.
+
+### Output contract
+Reconcile `--quiet` with severities: `--quiet` suppresses findings below the
+configured failing threshold only in output and never changes the exit code;
+define a message for rewritable findings (add a `message` field to rewriting
+rules in rules.yaml, with placeholders limited to `{{key}}`).
+
+### CI
+CodeQL and dependency-review run only when the repo is public
+(`github.event.repository.private == false`). Pin the latest golangci-lint v2.x
+(same `gh api repos/golangci/golangci-lint/releases/latest` lookup for everyone)
+and give `go/` a `.golangci.yml`. Use `BASE...HEAD` for path filters and
+`git status --porcelain` for drift checks.
+
+## M0.2 amendments (second review round; override anything above that conflicts)
+
+### Fixture discovery and semantics (JS and Go validators must both enforce)
+- Every directory under `spec/fixtures/<rule>/<case>/` must contain `case.yaml`
+  (not `case.yml`); any other directory depth, or a directory without
+  `case.yaml`, is an error. Case ids are unique across the whole spec.
+- A case's `rule` must exist; every `diagnostics[].ruleId` must equal the case's
+  `rule`; `diagnostics[].skip`, when present, must equal that rule's own `skip`,
+  and a rule with `skip` requires every diagnostic to carry it; a rewriting rule's
+  diagnostics carry no `skip` unless the language has no template for it (then the
+  language must not appear in `expect` at all).
+- `skip` on a diagnostic implies `output: false`; `output: true` requires at
+  least one diagnostic, and the output file must differ from the input file.
+- `expect.<lang>` is only allowed when the rule binds that language
+  (`languages.<lang>` exists).
+
+### Coverage (`spec:tags`)
+- `bool-variation` covers the seven shape tags (unchanged).
+- Every rewriting rule (no `skip`) needs at least one rewrite case (`output: true`,
+  >=1 diagnostic) for EACH language that has a template. The earlier claim of
+  "and one skip case" is dropped everywhere.
+
+### Positions
+`line`/`col` are 1-based; `col` counts UTF-16 code units from the start of the
+line, a tab counts as one column (SARIF's default `columnKind`). Go
+implementations must convert from byte offsets. Add a non-ASCII fixture where a
+multi-byte character precedes the call on the same line.
+
+### Fix-mode exit code
+A run that applies fixes uses the same exit-code rules as a check run, evaluated
+on what REMAINS after fixing (like ESLint `--fix`): any remaining non-baselined
+finding exits per the ecosystem rules (JS: errors, or warnings over
+`--max-warnings`, which defaults to unlimited, exit 1); everything fixed exits 0.
+Baselined findings are excluded from `summary.warnings`/`errors` counts and
+reported in `summary.baselined`; add an `info` counter.
+
+### Rule messages
+Messages are shared across languages, so they must not name a language API
+(no `getBooleanValue`/`BooleanValue`); use neutral wording such as
+"Migrate boolean flag {{key}} to OpenFeature".
+
+### CI gating
+CodeQL and dependency-review are gated by the repository variable
+`vars.GHAS_ENABLED == 'true'` (not by repository privacy, which is absent from
+`schedule` events). Document setting it when the repo goes public. In the CodeQL
+job, `actions/setup-go` runs BEFORE `github/codeql-action/init`.
+
+### Loaders
+- An explicit `-spec` (Go) / `--spec-root` (JS) that is missing or invalid is a
+  hard error, never a silent fallback to the stub. The stub fallback only applies
+  when no spec root is given at all.
+- Go message regex rejects a lone `}` like the schema (`[^{}]`).
+- Known, deferred to a tracked issue (do NOT work on it now): YAML scalar typing
+  differences between ajv's YAML parser and yaml.v3 (octal/binary/underscore/1e17
+  integers, timestamps, custom tags, `%YAML 1.1`).
+
+### M0.2a correction (supersedes the M0.2 diagnostic/skip bullets above)
+
+There are two kinds of skip. Do not conflate them:
+- **Rule-level skip** (`skip:` on the rule in rules.yaml: `detail`, `bulk`,
+  `type-mismatch`): the call shape is never rewritten. Every diagnostic for that
+  rule MUST carry `skip` equal to the rule's `skip`; `output` is false.
+- **Call-site skip** (only on rewriting rules, i.e. rules WITHOUT `skip`): a call
+  that the rule would normally rewrite but that is left alone because of how it
+  is written or where it sits. Allowed categories: `dynamic-key`,
+  `unbound-client`, `context-unproven`, `default-type-unproven` (amendment
+  M0.4). A diagnostic on a rewriting rule either
+  carries no `skip` (it is rewritten; `output: true` for that language) or
+  carries one of those four call-site categories (`output: false` for that
+  language).
+
+Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
+`shadowed-client`, `goctx-shadowed-context`) assert their `skip` category again
+with `output: false`; any other `skip` value on a rewriting rule is an error;
+`ruleId` still equals the case's `rule`. A case may mix languages (e.g. one
+rewrites, the other skips) only if each language's `expect` is internally
+consistent. Coverage for a rewriting rule counts only cases with `output: true`
+and no `skip`.
+
+### M0.2b correction (coverage languages)
+In M0 the fixture languages are `js` and `go` only. `java` templates in
+rules.yaml are unverified and Java fixtures arrive in M3, so rewrite-coverage
+(`spec:tags`, the Go/JS validators and every checker) requires a rewrite case
+only for `js` and `go`, never `java`. A `java` entry in `expect` is still
+allowed by the schema but is not required or checked beyond file presence.
+
+## M0.3 amendments (idiomatic per ecosystem; override anything above that conflicts)
+
+Decided by the maintainer: each language's tool must be as idiomatic as possible
+for its own ecosystem, and nothing should catch a developer off guard. Process
+behaviour follows the ecosystem, not a cross-language contract.
+
+### What is shared across languages (the contract)
+Rule ids and `rules.yaml`, message text, positions (1-based line, UTF-16 column,
+tab = 1), the fingerprint, the baseline and SARIF shapes, and the fixtures.
+Anything a CI system aggregates across languages stays shared.
+
+### What is per ecosystem (NOT shared)
+Exit codes, flags, severity configuration, config file format, fix workflow and
+help text. Do not copy one ecosystem's conventions into another.
+
+- **JS/TS (ESLint plugin and CLI):** follow ESLint exactly.
+  - Exit `0` when there are no errors and warnings do not exceed `--max-warnings`;
+    `1` when there are errors or warnings exceed `--max-warnings`; `2` for
+    config, usage or internal errors. `130` is not specified by ESLint: do not
+    document it as part of the contract.
+  - `--max-warnings` defaults to `-1` (unlimited), exactly like ESLint. The
+    prior default of 0 is withdrawn.
+  - Severity is per rule via ESLint configuration (`off`/`warn`/`error`,
+    flat config, ESLint 9). The preset `recommended` sets every fldlint rule to
+    `warn`; a team gates CI with `error` severity or `--max-warnings 0`.
+  - `--quiet` is ESLint's: report errors only; it does not change the exit code.
+  - `--fix`, `--fix-dry-run`, `-f/--format` (including json and sarif),
+    `--no-inline-config`, and inline `// eslint-disable-next-line fldlint/<rule>`
+    suppression work as in ESLint. Prefer ESLint's own suppression mechanisms
+    over inventing new ones. fldlint's own baseline file is only for the
+    standalone CLI; record in a follow-up issue whether ESLint's bulk
+    suppressions should replace it for the plugin.
+  - The codemod follows `npx codemod` conventions (verify at M1).
+- **Go (go/analysis analyzer, `fldlint`, `fldlint-fix`):** follow the Go
+  analyzer ecosystem. Verify the real behaviour of `singlechecker` and
+  `unitchecker` binaries empirically (exit code when diagnostics are reported,
+  `-fix`, `-json`, `-c`, `-flags`, vet-tool use via `go vet -vettool`) and
+  document what you observe. No `--max-warnings` or severity in the Go tools:
+  analyzer diagnostics are all equal, and golangci-lint or the user decides
+  what fails. SARIF/baseline are optional extras, not default behaviour.
+- **Java (OpenRewrite, M3):** follow the Maven/Gradle rewrite plugin
+  conventions; unverified, do not specify details now.
+
+### Consequences for existing docs
+- ADR 004 ("exit codes follow ESLint") is narrowed to the JS tools; add ADR 008
+  "Idiomatic per ecosystem" recording this decision. Pre-release in-place
+  amendment is allowed (note "Amended 2026-11").
+- exit-codes.md, output-format.md, sarif.md, baseline.md, README.md,
+  CONTRIBUTING.md and validation-parity.md must say which parts are shared and
+  which are per ecosystem, and must drop any claim that all tools share exit
+  codes, flags or `--max-warnings 0`.
+
+## M0.4 amendment: `default-type-unproven` call-site skip
+
+Owner decision. A new call-site skip category, `default-type-unproven`
+(severity warning, message "Default value type not proven"), sits alongside
+`dynamic-key`, `unbound-client` and `context-unproven`. It means the rule
+matched, but the default-value argument is an expression whose type cannot be
+proven to match the rule's `valueType` (for example a variable of unknown type),
+so no rewrite is made. It is distinct from the rule-level `type-mismatch`, which
+is used when the default is provably the wrong type or the rule itself has a
+type mismatch between SDKs. Like the other call-site skips it is allowed only
+on rewriting rules, requires `output: false`, and is enumerated in
+`spec/rules.yaml`, both schemas, and the JS and Go validators. Fixture:
+`spec/fixtures/bool-variation/default-type-unproven`.

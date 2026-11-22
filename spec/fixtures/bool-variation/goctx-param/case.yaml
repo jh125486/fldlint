@@ -1,0 +1,6 @@
+id: goctx-param
+rule: bool-variation
+tags: [goctx]
+description: A plain BoolVariation inside a function with exactly one context.Context parameter reuses that parameter as the OpenFeature context.
+expect:
+  go: {diagnostics: [{line: 16, col: 11, ruleId: bool-variation}], output: true}

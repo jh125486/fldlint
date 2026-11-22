@@ -1,0 +1,15 @@
+# STUB spec used only when the repo-level spec/ directory is missing.
+version: 1
+skipCategories:
+  dynamic-key:    {severity: warning, message: "Flag key is not a static string"}
+  unbound-client: {severity: warning, message: "OpenFeature client binding not proven in scope"}
+rules:
+  - id: bool-variation
+    valueType: boolean
+    risk: low
+    keyArg: 0
+    defaultArg: 2
+    contextArg: 1
+    languages:
+      js: {methods: [boolVariation], async: true,
+           template: "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})"}

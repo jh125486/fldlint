@@ -1,0 +1,309 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fldlint.dev/schema/rules.schema.json",
+  "title": "fldlint rules",
+  "description": "Schema for spec/rules.yaml. JSON Schema cannot cross-reference object keys, so every `skip` / `requires` value is checked against the fixed seven-name enumeration of skipCategories below; skipCategories itself must define exactly those seven keys. Adding a category means editing this schema and the contract together.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "version",
+    "skipCategories",
+    "rules"
+  ],
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "skipCategories": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "detail",
+        "bulk",
+        "dynamic-key",
+        "unbound-client",
+        "type-mismatch",
+        "context-unproven",
+        "default-type-unproven"
+      ],
+      "properties": {
+        "detail": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "bulk": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "dynamic-key": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "unbound-client": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "type-mismatch": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "context-unproven": {
+          "$ref": "#/$defs/skipCategory"
+        },
+        "default-type-unproven": {
+          "$ref": "#/$defs/skipCategory"
+        }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/rule"
+      }
+    }
+  },
+  "$defs": {
+    "skipName": {
+      "description": "A key of skipCategories (enumerated; see top-level description).",
+      "enum": [
+        "detail",
+        "bulk",
+        "dynamic-key",
+        "unbound-client",
+        "type-mismatch",
+        "context-unproven",
+        "default-type-unproven"
+      ]
+    },
+    "skipCategory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "severity",
+        "message"
+      ],
+      "properties": {
+        "severity": {
+          "enum": [
+            "error",
+            "warning",
+            "info"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "message": {
+      "description": "Diagnostic text for a rewritable finding. The only placeholder allowed is {{key}}; any other brace is rejected.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:[^{}]|\\{\\{key\\}\\})*$"
+    },
+    "argIndex": {
+      "type": "integer",
+      "minimum": 0
+    },
+    "methods": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1
+      }
+    },
+    "templateJsGo": {
+      "description": "Only {{client}} {{key}} {{default}} {{context}} {{goctx}} {{evalctx}} placeholders; any other brace is rejected.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:[^{}]|\\{\\{(?:client|key|default|context|goctx|evalctx)\\}\\})*$"
+    },
+    "templateJava": {
+      "description": "Only #{key} #{default} #{context} #{any(<fully.qualified.Type>)} placeholders.",
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^(?:[^#{}]|#\\{(?:key|default|context|any\\([A-Za-z0-9_.]+\\))\\})*$"
+    },
+    "rule": {
+      "type": "object",
+      "required": [
+        "id",
+        "risk",
+        "languages"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"
+        },
+        "message": {
+          "$ref": "#/$defs/message"
+        },
+        "valueType": {
+          "enum": [
+            "boolean",
+            "string",
+            "number",
+            "integer",
+            "object"
+          ]
+        },
+        "risk": {
+          "enum": [
+            "low",
+            "medium",
+            "high"
+          ]
+        },
+        "keyArg": {
+          "$ref": "#/$defs/argIndex"
+        },
+        "defaultArg": {
+          "$ref": "#/$defs/argIndex"
+        },
+        "contextArg": {
+          "$ref": "#/$defs/argIndex"
+        },
+        "skip": {
+          "$ref": "#/$defs/skipName"
+        },
+        "languages": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": false,
+          "properties": {
+            "js": {
+              "$ref": "#/$defs/langJsGo"
+            },
+            "go": {
+              "$ref": "#/$defs/langJsGo"
+            },
+            "java": {
+              "$ref": "#/$defs/langJava"
+            }
+          }
+        }
+      },
+      "additionalProperties": false,
+      "if": {
+        "properties": {
+          "skip": true
+        },
+        "required": [
+          "skip"
+        ]
+      },
+      "then": {
+        "description": "skip rules are report-only: no `message` (the skipCategories message is used) and no language block may carry a template.",
+        "properties": {
+          "message": false,
+          "languages": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "not": {
+                "type": "object",
+                "properties": {
+                  "template": true
+                },
+                "required": [
+                  "template"
+                ]
+              }
+            }
+          }
+        }
+      },
+      "else": {
+        "description": "rewriting rules need a message, arg positions and a template for every language block.",
+        "required": [
+          "message",
+          "valueType",
+          "keyArg",
+          "defaultArg",
+          "contextArg"
+        ],
+        "properties": {
+          "message": true,
+          "valueType": true,
+          "keyArg": true,
+          "defaultArg": true,
+          "contextArg": true,
+          "languages": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "object",
+              "properties": {
+                "template": true
+              },
+              "required": [
+                "template"
+              ]
+            }
+          }
+        }
+      }
+    },
+    "langJsGo": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methods"
+      ],
+      "properties": {
+        "methods": {
+          "$ref": "#/$defs/methods"
+        },
+        "async": {
+          "type": "boolean"
+        },
+        "ctxArg": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/argIndex"
+          }
+        },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/skipName"
+          }
+        },
+        "template": {
+          "$ref": "#/$defs/templateJsGo"
+        }
+      }
+    },
+    "langJava": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "methods"
+      ],
+      "properties": {
+        "methods": {
+          "$ref": "#/$defs/methods"
+        },
+        "async": {
+          "type": "boolean"
+        },
+        "ctxArg": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/argIndex"
+          }
+        },
+        "requires": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "$ref": "#/$defs/skipName"
+          }
+        },
+        "template": {
+          "$ref": "#/$defs/templateJava"
+        }
+      }
+    }
+  }
+}

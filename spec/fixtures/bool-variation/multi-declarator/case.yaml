@@ -1,0 +1,7 @@
+id: multi-declarator
+rule: bool-variation
+tags: [multi-declarator]
+description: A client declared alongside other bindings in a single declaration is recognised and rewritten.
+expect:
+  js: {diagnostics: [{line: 9, col: 16, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 20, col: 11, ruleId: bool-variation}], output: true}

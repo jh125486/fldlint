@@ -1,0 +1,7 @@
+id: string-static-key
+rule: string-variation
+tags: []
+description: A static string flag is rewritten to getStringValue (JS) and StringValue (Go).
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: string-variation}], output: true}
+  go: {diagnostics: [{line: 16, col: 15, ruleId: string-variation}], output: true}

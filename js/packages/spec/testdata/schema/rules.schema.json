@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "STUB rules schema (the real one lives in spec/schema)",
+  "type": "object",
+  "required": ["version", "skipCategories", "rules"],
+  "properties": {
+    "version": { "const": 1 },
+    "skipCategories": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object", "required": ["severity", "message"],
+        "properties": { "severity": { "type": "string" }, "message": { "type": "string" } }
+      }
+    },
+    "rules": {
+      "type": "array",
+      "items": {
+        "type": "object", "required": ["id", "risk", "languages"],
+        "properties": {
+          "id": { "type": "string" },
+          "risk": { "enum": ["low", "medium", "high"] },
+          "valueType": { "enum": ["boolean", "string", "number", "integer", "object"] },
+          "languages": { "type": "object" }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,34 @@
+# Stub spec used until the real spec/rules.yaml is present.
+version: 1
+skipCategories:
+  detail:           {severity: warning, message: "Detail call; reason/variation metadata has no 1:1 rewrite"}
+  bulk:             {severity: warning, message: "Bulk evaluation; migrate manually"}
+  dynamic-key:      {severity: warning, message: "Flag key is not a static string"}
+  unbound-client:   {severity: warning, message: "OpenFeature client binding not proven in scope"}
+  type-mismatch:    {severity: warning, message: "Return/default type differs between SDKs"}
+  context-unproven: {severity: warning, message: "Cannot prove LD context -> EvaluationContext conversion"}
+  default-type-unproven: {severity: warning, message: "Default value type not proven"}
+rules:
+  - id: bool-variation
+    valueType: boolean
+    risk: low
+    keyArg: 0
+    defaultArg: 2
+    contextArg: 1
+    message: "Replace the LaunchDarkly variation call for {{key}} with an OpenFeature evaluation"
+    languages:
+      js:
+        methods: [boolVariation]
+        async: true
+        template: "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})"
+      go:
+        methods: [BoolVariation, BoolVariationCtx]
+        ctxArg: {BoolVariationCtx: 0}
+        template: "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"
+        requires: [context-unproven]
+  - id: bool-variation-detail
+    risk: high
+    languages:
+      js: {methods: [boolVariationDetail]}
+      go: {methods: [BoolVariationDetail]}
+    skip: detail

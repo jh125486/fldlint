@@ -1,0 +1,7 @@
+id: number-static-key
+rule: number-variation
+tags: []
+description: A static number flag is rewritten to getNumberValue (JS) and Go Float64Variation to FloatValue.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: number-variation}], output: true}
+  go: {diagnostics: [{line: 14, col: 13, ruleId: number-variation}], output: true}

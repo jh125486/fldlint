@@ -1,0 +1,44 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "STUB fixture schema (the real one lives in spec/schema)",
+  "type": "object",
+  "required": ["id", "rule", "tags", "description", "expect"],
+  "additionalProperties": false,
+  "properties": {
+    "id": { "type": "string" },
+    "rule": { "type": "string" },
+    "tags": { "type": "array", "items": { "type": "string" } },
+    "description": { "type": "string" },
+    "expect": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "js": { "$ref": "#/$defs/lang" },
+        "go": { "$ref": "#/$defs/lang" },
+        "java": { "$ref": "#/$defs/lang" }
+      }
+    }
+  },
+  "$defs": {
+    "lang": {
+      "type": "object",
+      "required": ["diagnostics", "output"],
+      "properties": {
+        "output": { "type": "boolean" },
+        "diagnostics": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["line", "col", "ruleId"],
+            "properties": {
+              "line": { "type": "integer", "minimum": 1 },
+              "col": { "type": "integer", "minimum": 1 },
+              "ruleId": { "type": "string" },
+              "skip": { "type": "string" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

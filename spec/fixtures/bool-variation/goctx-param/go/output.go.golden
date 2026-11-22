@@ -1,0 +1,17 @@
+package flags
+
+import (
+	"context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("billing")
+
+var ldClient *ldclient.LDClient
+
+func InvoicesEnabled(ctx context.Context, userKey string) bool {
+	on, _ := client.BooleanValue(ctx, "new-invoices", false, openfeature.NewEvaluationContext(userKey, nil))
+	return on
+}

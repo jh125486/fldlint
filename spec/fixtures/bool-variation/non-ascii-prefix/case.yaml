@@ -1,0 +1,7 @@
+id: non-ascii-prefix
+rule: bool-variation
+tags: [non-ascii]
+description: Multi-byte characters (an accented letter and an astral emoji) precede the call on the same line, so byte offsets and UTF-16 columns differ and the reported column must count UTF-16 code units.
+expect:
+  js: {diagnostics: [{line: 8, col: 44, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 20, col: 32, ruleId: bool-variation}], output: true}

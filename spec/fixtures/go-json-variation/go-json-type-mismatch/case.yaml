@@ -1,0 +1,6 @@
+id: go-json-type-mismatch
+rule: go-json-variation
+tags: []
+description: Go JSONVariation takes and returns ldvalue.Value while OpenFeature ObjectValue uses any, so the call is skipped as type-mismatch.
+expect:
+  go: {diagnostics: [{line: 15, col: 12, ruleId: go-json-variation, skip: type-mismatch}], output: false}

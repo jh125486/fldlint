@@ -1,0 +1,7 @@
+id: migration-type-mismatch
+rule: migration-variation
+tags: []
+description: A migration flag returns a stage and operation tracker rather than a plain value, so MigrationVariation(Ctx) is skipped as type-mismatch.
+expect:
+  js: {diagnostics: [{line: 8, col: 27, ruleId: migration-variation, skip: type-mismatch}], output: false}
+  go: {diagnostics: [{line: 17, col: 17, ruleId: migration-variation, skip: type-mismatch}, {line: 19, col: 17, ruleId: migration-variation, skip: type-mismatch}], output: false}

@@ -1,0 +1,23 @@
+{
+  "name": "@fldlint/spec",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "gen": "tsc -p tsconfig.build.json && node dist/bin/gen.js && tsc -p tsconfig.build.json",
+    "spec:validate": "tsc -p tsconfig.build.json && node dist/bin/validate.js",
+    "spec:tags": "tsc -p tsconfig.build.json && node dist/bin/tags.js"
+  },
+  "dependencies": {
+    "ajv": "^8.17.0",
+    "yaml": "^2.6.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0"
+  }
+}

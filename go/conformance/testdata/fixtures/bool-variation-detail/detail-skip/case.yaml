@@ -1,0 +1,6 @@
+id: detail-skip
+rule: bool-variation-detail
+tags: []
+description: Stub case, a detail call is reported and not rewritten.
+expect:
+  go: {diagnostics: [{line: 3, col: 1, ruleId: bool-variation-detail, skip: detail}], output: false}

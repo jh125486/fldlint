@@ -1,0 +1,6 @@
+id: static-key-single-quote
+rule: bool-variation
+tags: [quote-single]
+description: A single-quoted static flag key is rewritten, keeping the surrounding await and the quote style; the SDK import is left untouched.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}

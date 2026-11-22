@@ -1,0 +1,17 @@
+package flags
+
+import (
+	"context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("layout")
+
+var ldClient *ldclient.LDClient
+
+func CheckoutLayout(ctx context.Context, userKey string) string {
+	layout, _ := client.StringValue(ctx, "checkout-layout", "classic", openfeature.NewEvaluationContext(userKey, nil))
+	return layout
+}

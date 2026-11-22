@@ -1,0 +1,6 @@
+id: goctx-variant
+rule: bool-variation
+tags: [goctx]
+description: A BoolVariationCtx call reuses its own first argument as the OpenFeature context and adds no import.
+expect:
+  go: {diagnostics: [{line: 16, col: 11, ruleId: bool-variation}], output: true}

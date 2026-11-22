@@ -1,0 +1,41 @@
+fldlint
+Copyright (c) 2026 Jacob Hochstetler
+
+Portions of this software may be derived from the following MIT-licensed
+projects. Files containing ported code carry an SPDX header and a
+"Derived from flaglint-<x> <path> @<sha>" comment.
+
+  flaglint/flaglint-js  https://github.com/flaglint/flaglint-js
+    Upstream main commit b85599fec7aab9d9af79e018b3e2df3013fc0dd6
+
+  flaglint/flaglint-go  https://github.com/flaglint/flaglint-go
+    Upstream main commit 2865f5f7c4a0caa20378b5034208daab15647db0
+
+fldlint is a separate project and is not affiliated with or endorsed by the
+FlagLint project or its contributors.
+
+The upstream license text (identical for both projects) follows.
+
+--------------------------------------------------------------------------
+
+MIT License
+
+Copyright (c) 2026 FlagLint Contributors
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
