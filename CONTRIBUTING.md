@@ -32,7 +32,7 @@
 | `make lint` | `lint-go` and `lint-js` |
 | `make test` | `js-test` and `go-test` |
 
-CI calls only these targets. Requires Node `>=22.12` (CI runs 22 and 24) and
+CI calls only these targets. Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
@@ -43,8 +43,8 @@ when the repo goes public. If you change `spec/rules.yaml`, run
 
 Only approved dependencies may be used.
 
-- JS: `eslint` 9.x, `@types/node` ^22, `@typescript-eslint/parser`, `@typescript-eslint/utils`,
-  `ajv` (+ `ajv-formats`), `yaml`, `vitest` ^5.1.1, `typescript`.
+- JS: `eslint` 9.x, `@types/node` ^26 (latest LTS), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
+  `ajv` (+ `ajv-formats`), `yaml`, `vitest` ^5.1.1, `typescript` ~6.0 (newest line supported by typescript-eslint).
 - Go: `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not approved.
 
 Anything else: ask first, in an issue or on the PR, before adding it.
