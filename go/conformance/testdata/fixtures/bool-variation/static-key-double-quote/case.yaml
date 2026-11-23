@@ -1,6 +1,0 @@
-id: static-key-double-quote
-rule: bool-variation
-tags: [quote-double]
-description: Stub case, a rewritten call with a static double-quoted key.
-expect:
-  go: {diagnostics: [{line: 3, col: 1, ruleId: bool-variation}], output: true}

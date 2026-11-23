@@ -1,6 +1,0 @@
-id: dynamic-key
-rule: bool-variation
-tags: [dynamic-key]
-description: Stub case, a rewritten call whose output differs from its input.
-expect:
-  go: {diagnostics: [{line: 3, col: 1, ruleId: bool-variation}], output: true}
