@@ -169,6 +169,7 @@
         "id": "int-variation",
         "valueType": "integer",
         "risk": "low",
+        "keyArg": 0,
         "languages": {
           "go": {
             "methods": [
@@ -186,6 +187,7 @@
         "id": "go-json-variation",
         "valueType": "object",
         "risk": "medium",
+        "keyArg": 0,
         "languages": {
           "go": {
             "methods": [
@@ -202,6 +204,7 @@
       {
         "id": "variation",
         "risk": "medium",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
@@ -214,6 +217,7 @@
       {
         "id": "migration-variation",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
@@ -235,6 +239,7 @@
       {
         "id": "bool-variation-detail",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
@@ -256,6 +261,7 @@
       {
         "id": "string-variation-detail",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
@@ -277,6 +283,7 @@
       {
         "id": "number-variation-detail",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
@@ -298,6 +305,7 @@
       {
         "id": "int-variation-detail",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "go": {
             "methods": [
@@ -314,6 +322,7 @@
       {
         "id": "json-variation-detail",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
@@ -335,6 +344,7 @@
       {
         "id": "variation-detail",
         "risk": "high",
+        "keyArg": 0,
         "languages": {
           "js": {
             "methods": [
