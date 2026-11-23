@@ -33,8 +33,11 @@ engines could report different categories for the same call.
    fixes diff3-style; editors apply one at a time). A fix removes an import
    only if that fix removes the file's last remaining use; batch drivers clean
    up the rest. The conformance harness compiles each fix alone and the union.
-5. A literal default of the wrong kind (e.g. `"yes"` for a boolean rule) and
-   any non-literal default is `default-type-unproven`. Rule-level
+5. A default is proven by its static type where the language has one (Go: a
+   `bool` variable or typed constant is fine) and by its literal kind where it
+   does not (JS/TS: only a literal of the right kind is proven). A default that
+   is not proven, including a literal of the wrong kind (e.g. `"yes"` for a
+   boolean rule), is `default-type-unproven`. Rule-level
    `type-mismatch` remains only for rule-level mismatches; M0.2a forbids it on
    rewriting rules.
 6. JS emits `receiver-unproven` only for impure receivers (it detects only
@@ -43,12 +46,16 @@ engines could report different categories for the same call.
    Java applies the purity rule (unused Java locals compile).
 7. Java constraint only: rewrites preserve primitive typing by emitting
    unboxing (`.booleanValue()`, `.intValue()`, `.doubleValue()`). Details live
-   in ADR 009.
+   in ADR 009 (proposed in PR #30; until it merges this item is the only
+   record of the constraint).
 
 ## Consequences
 
-- The same call gets the same category in JS, Go and Java; fixtures pin the
-  order (`skip-order-default-before-unbound`).
+- The step order is shared by JS, Go and Java and fixtures pin it
+  (`skip-order-default-before-unbound`). Which category a given call gets can
+  still differ by language when the language-specific facts differ: only Go can
+  strand a local (`receiver-unproven`), so the same JS call is rewritten where
+  the Go call is skipped (`stranded-local-client`).
 - Some safe-looking rewrites are skipped (a local client used only once in Go);
   the user migrates those by hand, which is the intended trade for never
   producing code that fails to compile.

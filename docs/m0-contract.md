@@ -429,8 +429,9 @@ rule-level skip, `dynamic-key`, `context-unproven`, `default-type-unproven`,
 `unbound-client`, `receiver-unproven`, else rewrite. A call is
 `receiver-unproven` when its receiver is not pure, or when rewriting it would
 strand a local variable (every rewritable call on that local is then skipped,
-never a subset). A literal default of the wrong kind and any non-literal default
-are `default-type-unproven`; rule-level `type-mismatch` stays only for
+never a subset). A default is proven by its static type (Go) or its literal kind (JS/TS);
+a default that is not proven, including a literal of the wrong kind, is
+`default-type-unproven`; rule-level `type-mismatch` stays only for
 rule-level mismatches. Rationale and details: ADR 010. The static-key and step
 order definitions are in `spec/contracts/placeholders.md`.
 
