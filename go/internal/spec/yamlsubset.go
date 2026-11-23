@@ -37,10 +37,8 @@ var (
 	ErrMultipleDocuments = errors.New("multiple YAML documents")
 	// ErrTag marks an explicit tag (including the non-specific tag !).
 	ErrTag = errors.New("explicit tag not allowed")
-	// ErrAnchor marks an anchor.
+	// ErrAnchor marks an anchor, and so an alias, which needs one.
 	ErrAnchor = errors.New("anchor not allowed")
-	// ErrAlias marks an alias.
-	ErrAlias = errors.New("alias not allowed")
 	// ErrKeyNotScalar marks a mapping key that is not a scalar.
 	ErrKeyNotScalar = errors.New("mapping key must be a scalar")
 	// ErrKeyNotString marks a scalar mapping key that is not a string.

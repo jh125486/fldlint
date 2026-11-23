@@ -6,14 +6,13 @@ import (
 	"errors"
 	"fmt"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"reflect"
 	"slices"
 	"strings"
 	"testing"
-
-	"gopkg.in/yaml.v3"
 
 	"github.com/jh125486/fldlint/go/internal/spec"
 )
@@ -170,7 +169,8 @@ func scalarCasesR4cToR5() []scalarCase {
 
 func TestParseYAMLScalars(t *testing.T) {
 	t.Parallel()
-	for _, tt := range scalarCases() {
+	tests := scalarCases()
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			got, err := spec.ParseYAML([]byte("a: " + tt.value + "\n"))
@@ -339,7 +339,8 @@ func rejectionCases4() []rejectionCase {
 
 func TestParseYAMLRejections(t *testing.T) {
 	t.Parallel()
-	for _, tt := range rejectionCases() {
+	tests := rejectionCases()
+	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			for _, parse := range subsetLoaders() {
@@ -368,16 +369,6 @@ func subsetLoaders() []loader {
 		{"ParseRules", func(b []byte) (any, error) { return spec.ParseRules(b) }},
 		{"ParseCase", func(b []byte) (any, error) { return spec.ParseCase(b) }},
 	}
-}
-
-func TestCheckSubsetAlias(t *testing.T) {
-	t.Parallel()
-	// yaml.v3 refuses an alias without a preceding anchor and the anchor is
-	// rejected first, so build the tree by hand.
-	doc := &yaml.Node{Kind: yaml.DocumentNode, Content: []*yaml.Node{
-		{Kind: yaml.AliasNode, Value: "x", Line: 3, Column: 5},
-	}}
-	assertSubsetError(t, spec.CheckSubset(nil, doc), spec.ErrAlias, 3, 5)
 }
 
 func TestParseYAMLSyntaxErrorsAreNotSubsetViolations(t *testing.T) {
@@ -488,34 +479,31 @@ func TestParseYAMLNesting(t *testing.T) {
 	t.Parallel()
 	const depth = spec.MaxDepth
 	tests := []struct {
-		name string
-		doc  string
+		name    string
+		doc     string
+		wantErr bool // any error
+		col     int  // when set, the doc must fail with ErrTooDeep at line 1 and this column
 	}{
 		{name: "flow sequences", doc: strings.Repeat("[", depth) + "1" + strings.Repeat("]", depth)},
 		{name: "flow mappings", doc: strings.Repeat("{a: ", depth) + "1" + strings.Repeat("}", depth)},
 		{name: "block mappings", doc: blockMappings(depth)},
+		{name: "one level too many", doc: strings.Repeat("[", depth+1) + strings.Repeat("]", depth+1), col: depth + 1},
+		{name: "beyond the parser limit is an error, not a crash", doc: strings.Repeat("[", 100000) + strings.Repeat("]", 100000), wantErr: true},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			if _, err := spec.ParseYAML([]byte(tt.doc)); err != nil {
+			_, err := spec.ParseYAML([]byte(tt.doc))
+			switch {
+			case tt.col != 0:
+				assertSubsetError(t, err, spec.ErrTooDeep, 1, tt.col)
+			case tt.wantErr && err == nil:
+				t.Fatal("ParseYAML() accepted the document, want an error")
+			case !tt.wantErr && err != nil:
 				t.Fatalf("ParseYAML() error = %v", err)
 			}
 		})
 	}
-	t.Run("one level too many", func(t *testing.T) {
-		t.Parallel()
-		doc := strings.Repeat("[", depth+1) + strings.Repeat("]", depth+1)
-		_, err := spec.ParseYAML([]byte(doc))
-		assertSubsetError(t, err, spec.ErrTooDeep, 1, depth+1)
-	})
-	t.Run("beyond the parser limit is an error, not a crash", func(t *testing.T) {
-		t.Parallel()
-		doc := strings.Repeat("[", 100000) + strings.Repeat("]", 100000)
-		if _, err := spec.ParseYAML([]byte(doc)); err == nil {
-			t.Fatal("ParseYAML() accepted 100000 nested sequences")
-		}
-	})
 }
 
 func blockMappings(depth int) string {
@@ -533,15 +521,25 @@ func blockMappings(depth int) string {
 // them, as the JS loader does.
 func TestTypeChecksAgreeWithClassifier(t *testing.T) {
 	t.Parallel()
-	for _, text := range []string{"0e0_", "1e_0", "0o-1", "0b+1", "0_x1"} {
-		t.Run(text, func(t *testing.T) {
+	tests := []struct {
+		name string
+		text string
+	}{
+		{name: "0e0_", text: "0e0_"},
+		{name: "1e_0", text: "1e_0"},
+		{name: "0o-1", text: "0o-1"},
+		{name: "0b+1", text: "0b+1"},
+		{name: "0_x1", text: "0_x1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			c, err := spec.ParseCase([]byte(strings.Replace(okCase, "description: d", "description: "+text, 1)))
+			c, err := spec.ParseCase([]byte(strings.Replace(okCase, "description: d", "description: "+tt.text, 1)))
 			if err != nil {
 				t.Fatalf("ParseCase() error = %v", err)
 			}
-			if c.Description != text {
-				t.Errorf("Description = %q, want %q", c.Description, text)
+			if c.Description != tt.text {
+				t.Errorf("Description = %q, want %q", c.Description, tt.text)
 			}
 		})
 	}
@@ -606,43 +604,84 @@ func decodeJSONExact(tb testing.TB, data []byte) any {
 	return v
 }
 
-func TestProbes(t *testing.T) {
-	t.Parallel()
-	files := readProbes(t)
-	var rejects, accepts int
-	for name, data := range files {
+// probeCase is one row of TestProbes, built from the probe directory listing.
+type probeCase struct {
+	name    string
+	reject  bool
+	data    []byte
+	sidecar []byte
+	problem string // a structural problem of the directory, reported as a failure
+}
+
+// probeCases builds one row per probe from the directory listing, and one
+// row per file that is neither a probe nor the sidecar of an accept probe.
+func probeCases(tb testing.TB) []probeCase {
+	tb.Helper()
+	files := readProbes(tb)
+	names := slices.Sorted(maps.Keys(files))
+	var cases []probeCase
+	for _, name := range names {
 		slug, ext, _ := strings.Cut(name, ".")
 		switch {
 		case strings.HasPrefix(name, "reject-") && ext == "yaml":
-			rejects++
-			t.Run(slug, func(t *testing.T) {
-				t.Parallel()
-				checkRejectProbe(t, name, data)
-			})
+			cases = append(cases, probeCase{name: slug, reject: true, data: files[name]})
 		case strings.HasPrefix(name, "accept-") && ext == "yaml":
-			accepts++
 			sidecar, ok := files[slug+".json"]
 			if !ok {
-				t.Errorf("%s has no .json sidecar", name)
+				cases = append(cases, probeCase{name: slug, problem: name + " has no .json sidecar"})
 				continue
 			}
-			t.Run(slug, func(t *testing.T) {
-				t.Parallel()
-				checkAcceptProbe(t, data, sidecar)
-			})
+			cases = append(cases, probeCase{name: slug, data: files[name], sidecar: sidecar})
 		case strings.HasPrefix(name, "accept-") && ext == "json":
 			if _, ok := files[slug+".yaml"]; !ok {
-				t.Errorf("%s is an orphan sidecar", name)
+				cases = append(cases, probeCase{name: name, problem: name + " is an orphan sidecar"})
 			}
 		default:
-			t.Errorf("unexpected probe file %s", name)
+			cases = append(cases, probeCase{name: name, problem: "unexpected probe file " + name})
 		}
 	}
-	if rejects < minReject {
-		t.Errorf("found %d reject probes, want at least %d", rejects, minReject)
+	return cases
+}
+
+func TestProbes(t *testing.T) {
+	t.Parallel()
+	tests := probeCases(t)
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			switch {
+			case tt.problem != "":
+				t.Error(tt.problem)
+			case tt.reject:
+				checkRejectProbe(t, tt.name, tt.data)
+			default:
+				checkAcceptProbe(t, tt.data, tt.sidecar)
+			}
+		})
 	}
-	if accepts < minAccept {
-		t.Errorf("found %d accept probes, want at least %d", accepts, minAccept)
+}
+
+func TestProbeCounts(t *testing.T) {
+	t.Parallel()
+	cases := probeCases(t)
+	count := func(reject bool) int {
+		return len(slices.DeleteFunc(slices.Clone(cases), func(c probeCase) bool { return c.problem != "" || c.reject != reject }))
+	}
+	tests := []struct {
+		name string
+		got  int
+		min  int
+	}{
+		{name: "reject probes", got: count(true), min: minReject},
+		{name: "accept probes", got: count(false), min: minAccept},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if tt.got < tt.min {
+				t.Errorf("found %d %s, want at least %d", tt.got, tt.name, tt.min)
+			}
+		})
 	}
 }
 
@@ -691,6 +730,7 @@ var probeReasons = []struct {
 func checkRejectProbe(t *testing.T, name string, data []byte) {
 	t.Helper()
 	_, err := spec.ParseYAML(data)
+	name += ".yaml"
 	for _, p := range probeReasons {
 		if !strings.HasPrefix(name, p.prefix) {
 			continue
@@ -722,32 +762,62 @@ func checkAcceptProbe(t *testing.T, data, sidecar []byte) {
 func TestProbesCoverTheSafeIntegerBounds(t *testing.T) {
 	t.Parallel()
 	files := readProbes(t)
-	for name, want := range map[string]string{
-		"accept-int-max-safe.json": maxSafeText,
-		"accept-int-min-safe.json": "-" + maxSafeText,
-	} {
-		if got := string(files[name]); !strings.Contains(got, want) {
-			t.Errorf("%s = %q, want it to contain %s", name, got, want)
-		}
+	tests := []struct {
+		name string
+		file string
+		want string
+	}{
+		{name: "max", file: "accept-int-max-safe.json", want: maxSafeText},
+		{name: "min", file: "accept-int-min-safe.json", want: "-" + maxSafeText},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := string(files[tt.file]); !strings.Contains(got, tt.want) {
+				t.Errorf("%s = %q, want it to contain %s", tt.file, got, tt.want)
+			}
+		})
 	}
 }
 
+// realFiles lists the YAML files the Go loaders read in this repository.
+func realFiles(tb testing.TB) []string {
+	tb.Helper()
+	var paths []string
+	for _, root := range []string{"../../../spec/rules.yaml", "../../../spec/fixtures", "testdata/rules.yaml", "../../conformance/testdata"} {
+		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+			if err == nil && !d.IsDir() && strings.HasSuffix(path, ".yaml") {
+				paths = append(paths, path)
+			}
+			return err
+		})
+		if err != nil {
+			tb.Fatalf("walk %s: %v", root, err)
+		}
+	}
+	return paths
+}
+
 // TestRealFilesStillLoad checks that every YAML file the Go loaders read in
-// this repository satisfies the subset.
+// this repository satisfies the subset, through the loader that reads it.
 func TestRealFilesStillLoad(t *testing.T) {
 	t.Parallel()
-	roots := []string{"../../../spec/rules.yaml", "../../../spec/fixtures", "testdata/rules.yaml", "../../conformance/testdata"}
-	visited := map[string]int{}
-	for _, root := range roots {
-		err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-			if err != nil || d.IsDir() || !strings.HasSuffix(path, ".yaml") {
-				return err
-			}
-			data, err := os.ReadFile(path)
+	paths := realFiles(t)
+	tests := make([]struct{ name, path string }, 0, len(paths))
+	for _, path := range paths {
+		tests = append(tests, struct{ name, path string }{name: path, path: path})
+	}
+	if len(tests) == 0 {
+		t.Fatal("no YAML files found")
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			data, err := os.ReadFile(tt.path)
 			if err != nil {
-				return err
+				t.Fatal(err)
 			}
-			switch filepath.Base(path) {
+			switch filepath.Base(tt.path) {
 			case "rules.yaml":
 				_, err = spec.ParseRules(data)
 			case "case.yaml":
@@ -756,27 +826,61 @@ func TestRealFilesStillLoad(t *testing.T) {
 				_, err = spec.ParseYAML(data)
 			}
 			if err != nil {
-				t.Errorf("%s: %v", path, err)
+				t.Errorf("%s: %v", tt.path, err)
 			}
-			visited[filepath.Base(path)]++
-			return nil
 		})
-		if err != nil {
-			t.Fatalf("walk %s: %v", root, err)
-		}
-	}
-	for _, base := range []string{"rules.yaml", "case.yaml"} {
-		if visited[base] == 0 {
-			t.Errorf("no %s file was visited", base)
-		}
 	}
 }
 
+func TestRealFilesCoverTheLoaders(t *testing.T) {
+	t.Parallel()
+	visited := map[string]int{}
+	for _, path := range realFiles(t) {
+		visited[filepath.Base(path)]++
+	}
+	tests := []struct {
+		name string
+		base string
+	}{
+		{name: "rules", base: "rules.yaml"},
+		{name: "cases", base: "case.yaml"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if visited[tt.base] == 0 {
+				t.Errorf("no %s file was found", tt.base)
+			}
+		})
+	}
+}
+
+// fuzzSeeds are the documents the fuzzer starts from: every probe and every
+// input of the tables above.
+func fuzzSeeds(tb testing.TB) [][]byte {
+	tb.Helper()
+	probes := readProbes(tb)
+	seeds := make([][]byte, 0, len(probes)+64)
+	seeds = append(seeds, []byte("a: [1, {b: ~}]\n"))
+	for _, data := range probes {
+		seeds = append(seeds, data)
+	}
+	for _, c := range scalarCases() {
+		seeds = append(seeds, []byte("a: "+c.value+"\n"))
+	}
+	for _, c := range rejectionCases() {
+		seeds = append(seeds, []byte(c.doc))
+	}
+	for _, c := range valueCases() {
+		seeds = append(seeds, c.doc)
+	}
+	return seeds
+}
+
 func FuzzParseYAML(f *testing.F) {
-	for _, data := range readProbes(f) {
+	for _, data := range fuzzSeeds(f) {
 		f.Add(data)
 	}
-	f.Add([]byte("a: [1, {b: ~}]\n"))
 	f.Fuzz(func(t *testing.T, data []byte) {
 		v, err := spec.ParseYAML(data)
 		if err != nil {
@@ -815,30 +919,4 @@ func disallowedType(v any) string {
 		return ""
 	}
 	return fmt.Sprintf("%T", v)
-}
-
-func TestSourceRest(t *testing.T) {
-	t.Parallel()
-	const src = "a: é\nb: 日本語 x\nc"
-	tests := []struct {
-		name      string
-		line, col int
-		want      string
-	}{
-		{name: "start", line: 1, col: 1, want: src},
-		{name: "after a two-byte rune", line: 1, col: 5, want: "\nb: 日本語 x\nc"},
-		{name: "after wide runes", line: 2, col: 7, want: " x\nc"},
-		{name: "last line", line: 3, col: 1, want: "c"},
-		{name: "past the end of the line", line: 3, col: 9, want: ""},
-		{name: "line zero", line: 0, col: 1, want: ""},
-		{name: "past the last line", line: 4, col: 1, want: ""},
-	}
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			t.Parallel()
-			if got := string(spec.SourceRest([]byte(src), tt.line, tt.col)); got != tt.want {
-				t.Errorf("SourceRest(%d, %d) = %q, want %q", tt.line, tt.col, got, tt.want)
-			}
-		})
-	}
 }

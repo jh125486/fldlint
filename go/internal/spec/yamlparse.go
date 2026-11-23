@@ -6,10 +6,12 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
-// ParseYAML parses data as one document of the fldlint YAML subset and returns
-// it as plain Go values: map[string]any, []any, string, bool, int64 and nil.
-// A bare "---" returns (nil, nil). It is the test-side view of decodeDoc,
-// which the loaders use to read the document.
+// ParseYAML parses data as one document of the fldlint YAML subset (see
+// spec/contracts/validation-parity.md) and returns it as plain Go values:
+// map[string]any, []any, string, bool, int64 (within +-9007199254740991) and
+// nil. A bare "---" is a document and returns (nil, nil). Subset violations
+// are returned as a *SubsetError; input that is not well-formed YAML is
+// rejected with the error of yaml.v3.
 func ParseYAML(data []byte) (any, error) {
 	root, err := decodeDoc(data)
 	if err != nil {
@@ -46,14 +48,4 @@ func toValue(n *yaml.Node) any {
 	case kindString, kindAmbiguous, kindOutOfRange:
 	}
 	return n.Value
-}
-
-// CheckSubset exposes checkSubset so that node trees yaml.v3 cannot produce
-// (an alias that is not preceded by an anchor) can be tested.
-func CheckSubset(data []byte, doc *yaml.Node) error { return checkSubset(data, doc) }
-
-// SourceRest exposes checker.rest so that positions outside the source, which
-// yaml.v3 never reports, can be tested.
-func SourceRest(data []byte, line, col int) []byte {
-	return newChecker(data).rest(line, col)
 }

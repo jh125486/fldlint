@@ -49,12 +49,10 @@ func checkSubset(data []byte, doc *yaml.Node) error {
 	return nil
 }
 
-// rest returns the source from a 1-based line and rune column on, or nil when
-// the position is outside the source.
+// rest returns the source from a 1-based line and rune column on. The
+// position is one yaml.v3 reported for a node of src, so the line exists; a
+// column past the end of the source yields an empty result.
 func (c *checker) rest(line, col int) []byte {
-	if line < 1 || line > len(c.starts) {
-		return nil
-	}
 	i, off := 1, c.starts[line-1]
 	if c.cacheLine == line && c.cacheCol <= col {
 		i, off = c.cacheCol, c.cacheOff
@@ -93,11 +91,10 @@ func (c *checker) node(n *yaml.Node, inFlow bool, depth int) error {
 	return nil
 }
 
-// properties rejects aliases, anchors and explicit tags on any node.
+// properties rejects anchors and explicit tags on any node. Aliases need no
+// check of their own: an alias must follow its anchor in the source, and the
+// anchor is rejected first.
 func (c *checker) properties(n *yaml.Node) error {
-	if n.Kind == yaml.AliasNode {
-		return c.fail(n, ErrAlias, "*"+n.Value)
-	}
 	if n.Anchor != "" {
 		return c.fail(n, ErrAnchor, "&"+n.Anchor)
 	}
