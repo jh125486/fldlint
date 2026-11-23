@@ -256,7 +256,7 @@ Cross-reference (beyond what the schema can say):
 
 ## Fixture coverage (separate from the loaders)
 
-`npm run spec:tags` (called by `make fixture-tags`) fails, naming the rule and
+`npm run spec:tags` (called by `task spec:tags`) fails, naming the rule and
 what is missing, when coverage is not met:
 
 - `bool-variation` (the reference rule) covers the seven shape tags.
