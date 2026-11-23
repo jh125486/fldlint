@@ -53,11 +53,25 @@ when the repo goes public. If you change `spec/rules.yaml`, run
 
 ## Dependencies
 
-Only approved dependencies may be used.
+Only approved dependencies may be used. `docs/m0-contract.md` (M0.8) carries
+the same list.
 
-- JS: `eslint` 9.x, `@types/node` ^26 (latest LTS), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
-  `ajv` (+ `ajv-formats`), `yaml`, `vitest` ^5.1.1, `typescript` ~6.0 (newest line supported by typescript-eslint).
-- Go: `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not approved.
+- JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
+  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+- JS (test/build time only): `@types/node` ^26 (latest LTS; CI also typechecks
+  against 22.12.0), `typescript` ~6.0 (newest line supported by
+  typescript-eslint), `vitest` ^5.1.1,
+  `fast-check` and `esbuild` (approved by the owner; `esbuild` only as a
+  build-time devDependency of `@fldlint/codemod`).
+- Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not
+  approved.
+- Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
+  OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
+  `rewrite-maven-plugin` 6.46.1. ADR 009 is Proposed until merged.
+- Go (build time only): `github.com/golangci/plugin-module-register`, only in
+  the golangci-lint module plugin (issue #18).
+- Real-SDK compile-check modules for Go, JS and Java (test/build time only;
+  never shipped).
 
 Anything else: ask first, in an issue or on the PR, before adding it.
 

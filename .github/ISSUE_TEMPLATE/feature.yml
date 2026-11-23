@@ -1,0 +1,29 @@
+name: Feature request
+description: Suggest an improvement to fldlint
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What are you trying to do that fldlint does not support?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: dropdown
+    id: contract
+    attributes:
+      label: Does this change the shared contract (rule ids, messages, positions, fingerprint, baseline, SARIF)?
+      options: ["No", "Yes", "Not sure"]
+    validations:
+      required: true

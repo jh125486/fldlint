@@ -508,3 +508,26 @@ CI: the path-filter job is removed so required checks always report. One job
 are `check (22)`, `check (24)`, `check (26)` (and `dco`). `typescript-next`
 runs `task js:ts-next` and is never required. This supersedes the job names
 (`js-test`, `lint`, `spec-check`, `go-test`, `js-types-floor`) in M0.6.
+
+## M0.8 amendment: approved dependencies list
+
+Owner decisions (dependencies approved during M0 to M3 planning; this keeps the
+contract and `CONTRIBUTING.md` consistent, and `CONTRIBUTING.md` carries the
+same list). It replaces the "Approved dependencies" section above, which stays
+as frozen history. Anything not listed: stop and ask.
+
+- JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
+  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+- JS (test/build time only): `@types/node` (latest LTS, `^26`; CI also
+  typechecks against 22.12.0, M0.6), `typescript` ~6.0, `vitest`,
+  `fast-check`, and `esbuild` (only as a build-time devDependency of
+  `@fldlint/codemod`).
+- Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` stays not
+  approved.
+- Go (build time only): `github.com/golangci/plugin-module-register`, only in
+  the golangci-lint module plugin (issue #18); never imported by the analyzer.
+- Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
+  OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
+  `rewrite-maven-plugin` 6.46.1 (ADR 009).
+- Real-SDK compile-check modules for Go, JS and Java: test time only, kept in
+  their own modules, never shipped.
