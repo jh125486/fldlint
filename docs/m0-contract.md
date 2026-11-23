@@ -478,3 +478,33 @@ Owner decisions, 2026-11-22.
   grouped.
 - Required checks: `js-test (26)` is to be added to the repo ruleset;
   `js-types-floor` may be added; `typescript-next` must never be required.
+
+## M0.7 amendment: `task` (go-task) replaces `make`
+
+Owner decision, 2026-11-22. The Makefile is deleted; `Taskfile.yml`
+(https://taskfile.dev) is the only entry point. Locally `task check` runs all
+linting, tests and static analysis, and CI runs the same `task check`, so local
+and CI are identical. The "Make targets" section above and ADR text are frozen
+history; read every `make X` there as the `task Y` below. go-task is a
+developer tool, not a project dependency. CI installs it with
+`arduino/setup-task` (go-task pinned to 3.54.0); golangci-lint v2.15.0 runs via `go run` in both places
+(the `golangci-lint-action` exception no longer applies).
+
+| Was | Now |
+|-----|-----|
+| `make help` | `task --list` (also the default task) |
+| `make spec-check` | `task spec:check` |
+| `make spec-gen` | `task spec:gen` |
+| `make fixture-tags` | `task spec:tags` (`ALLOW_EMPTY=1`) |
+| `make js-test` | `task js:test` |
+| `make go-test` | `task go:test` |
+| `make lint` | `task lint` (`js:lint`, `go:lint`) |
+| `make lint-js` / `make lint-go` | `task js:lint` / `task go:lint` |
+| `make test` | `task test` |
+| (new) | `task check` (everything), `task js:types-floor`, `task js:ts-next` |
+
+CI: the path-filter job is removed so required checks always report. One job
+`check` runs `task check` on the Node matrix `[22, 24, 26]`; required checks
+are `check (22)`, `check (24)`, `check (26)` (and `dco`). `typescript-next`
+runs `task js:ts-next` and is never required. This supersedes the job names
+(`js-test`, `lint`, `spec-check`, `go-test`, `js-types-floor`) in M0.6.
