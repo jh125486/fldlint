@@ -1,0 +1,46 @@
+[
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "keyUtf16": [
+      97,
+      55296
+    ],
+    "keyUtf8Hex": "61eda080",
+    "occ": 0,
+    "fingerprint": "d51bead2c60751272a82a139ecfa9eb2"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "keyUtf16": [
+      97,
+      55297
+    ],
+    "keyUtf8Hex": "61eda081",
+    "occ": 0,
+    "fingerprint": "d51bead2c60751272a82a139ecfa9eb2"
+  },
+  {
+    "ruleId": "bool-variation",
+    "path": "a.ts",
+    "keyUtf16": [
+      56320
+    ],
+    "keyUtf8Hex": "edb080",
+    "occ": 0,
+    "fingerprint": "d51bead2c60751272a82a139ecfa9eb2"
+  },
+  {
+    "ruleId": "variation",
+    "path": "src/flags.ts",
+    "keyUtf16": [
+      97,
+      55296,
+      97
+    ],
+    "keyUtf8Hex": "61eda08061",
+    "occ": 0,
+    "fingerprint": "d26d22cde0620c263e4ec5fe65182062"
+  }
+]

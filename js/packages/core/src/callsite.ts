@@ -39,7 +39,10 @@ export interface CallSite {
   keyIsStatic: boolean;
   /** Verbatim source text of the key argument, quotes included (`{{key}}`). */
   keyText?: string;
-  /** Decoded string value of a static key; the fingerprint input. */
+  /**
+   * Decoded string value of a static key; the fingerprint input. Absent when the
+   * key is dynamic or not well formed (an unpaired surrogate).
+   */
   keyValue?: string;
   /** Verbatim source text of the default argument (`{{default}}`). */
   defaultText?: string;

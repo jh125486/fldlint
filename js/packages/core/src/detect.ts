@@ -5,6 +5,7 @@
 import { AST_NODE_TYPES, type TSESLint, type TSESTree } from "@typescript-eslint/utils";
 import { findRuleByMethod } from "@fldlint/spec";
 import type { CallSite, ClientBinding, ContextShape, DefaultType } from "./callsite.js";
+import { staticFingerprintKey } from "./fingerprint.js";
 
 type Scope = TSESLint.Scope.Scope;
 type Variable = TSESLint.Scope.Variable;
@@ -258,8 +259,8 @@ class Detector {
     // The legacy typings have no typed variation methods: not a recognized call.
     if (kind === "legacy" && rule.skip === undefined) return;
     // The call must match the SDK signature. A spread never does, for any rule.
-    // Exact arity is checked only where rules.yaml carries argument positions
-    // (rewriting rules); report-only rules have none and are not guessed.
+    // Exact arity is checked only for rewriting rules; report-only rules carry
+    // just keyArg (the fingerprint key) and their arity is not guessed.
     if (call.arguments.some((a) => a.type === AST_NODE_TYPES.SpreadElement)) return;
     if (rule.skip === undefined) {
       const arity = Math.max(rule.keyArg ?? -1, rule.defaultArg ?? -1, rule.contextArg ?? -1) + 1;
@@ -277,6 +278,7 @@ class Detector {
 
     const keyNode = arg(rule.keyArg);
     const key = staticKey(keyNode);
+    const fpKey = staticFingerprintKey(key);
     const defaultNode = arg(rule.defaultArg);
 
     this.sites.push({
@@ -286,7 +288,7 @@ class Detector {
       line: call.loc.start.line,
       col: call.loc.start.column + 1,
       keyIsStatic: key !== undefined && this.text(keyNode) !== undefined,
-      ...(key !== undefined && { keyValue: key }),
+      ...(fpKey !== null && { keyValue: fpKey }),
       ...(this.text(keyNode) !== undefined && { keyText: this.text(keyNode)! }),
       ...(this.text(defaultNode) !== undefined && { defaultText: this.text(defaultNode)! }),
       defaultType: defaultType(defaultNode),

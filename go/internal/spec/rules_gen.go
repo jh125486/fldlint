@@ -54,7 +54,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "int-variation", ValueType: "integer", Risk: "low",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "type-mismatch", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"IntVariation", "IntVariationCtx"},
@@ -64,7 +64,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "go-json-variation", ValueType: "object", Risk: "medium",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "type-mismatch", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"JSONVariation", "JSONVariationCtx"},
@@ -74,12 +74,12 @@ var genRules = []Rule{
 	},
 	{
 		ID: "variation", ValueType: "", Risk: "medium",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "type-mismatch", Message: "",
 	},
 	{
 		ID: "migration-variation", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "type-mismatch", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"MigrationVariation", "MigrationVariationCtx"},
@@ -89,7 +89,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "bool-variation-detail", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"BoolVariationDetail", "BoolVariationDetailCtx"},
@@ -99,7 +99,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "string-variation-detail", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"StringVariationDetail", "StringVariationDetailCtx"},
@@ -109,7 +109,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "number-variation-detail", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"Float64VariationDetail", "Float64VariationDetailCtx"},
@@ -119,7 +119,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "int-variation-detail", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"IntVariationDetail", "IntVariationDetailCtx"},
@@ -129,7 +129,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "json-variation-detail", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"JSONVariationDetail", "JSONVariationDetailCtx"},
@@ -139,7 +139,7 @@ var genRules = []Rule{
 	},
 	{
 		ID: "variation-detail", ValueType: "", Risk: "high",
-		KeyArg: -1, DefaultArg: -1, ContextArg: -1,
+		KeyArg: 0, DefaultArg: -1, ContextArg: -1,
 		Skip: "detail", Message: "",
 	},
 	{

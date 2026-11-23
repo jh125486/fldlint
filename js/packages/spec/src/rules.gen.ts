@@ -171,6 +171,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "int-variation",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -188,6 +189,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "go-json-variation",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -205,6 +207,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "variation",
+    "keyArg": 0,
     "languages": {
       "js": {
         "methods": [
@@ -217,6 +220,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "migration-variation",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -238,6 +242,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "bool-variation-detail",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -259,6 +264,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "string-variation-detail",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -280,6 +286,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "number-variation-detail",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -301,6 +308,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "int-variation-detail",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -317,6 +325,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "json-variation-detail",
+    "keyArg": 0,
     "languages": {
       "go": {
         "ctxArg": {
@@ -338,6 +347,7 @@ export const rules: readonly Rule[] = [
   },
   {
     "id": "variation-detail",
+    "keyArg": 0,
     "languages": {
       "js": {
         "methods": [
