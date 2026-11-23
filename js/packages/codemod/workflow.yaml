@@ -1,0 +1,31 @@
+version: "1"
+nodes:
+  - id: launchdarkly-to-openfeature
+    name: Rewrite LaunchDarkly server SDK calls to OpenFeature
+    type: automatic
+    steps:
+      - name: Rewrite TypeScript and JavaScript
+        js-ast-grep:
+          js_file: dist/transform.js
+          language: typescript
+          include:
+            - "**/*.ts"
+            - "**/*.mts"
+            - "**/*.cts"
+            - "**/*.js"
+            - "**/*.mjs"
+            - "**/*.cjs"
+          exclude:
+            - "**/node_modules/**"
+            - "**/dist/**"
+            - "**/*.d.ts"
+      - name: Rewrite TSX and JSX
+        js-ast-grep:
+          js_file: dist/transform.js
+          language: tsx
+          include:
+            - "**/*.tsx"
+            - "**/*.jsx"
+          exclude:
+            - "**/node_modules/**"
+            - "**/dist/**"
