@@ -43,6 +43,10 @@ export interface ValidateResult {
   errors: string[];
   missingSchemas: string[];
   casesChecked: number;
+  /** The validated rules file; set only when rules.yaml parsed and passed every check. */
+  rulesFile?: RulesFile;
+  /** Every discovered case, in path order (valid only when `errors` is empty). */
+  cases: CaseFile[];
 }
 
 export function validateSpec(specRoot: string): ValidateResult {
@@ -78,5 +82,5 @@ export function validateSpec(specRoot: string): ValidateResult {
       }
     }
   } else missingSchemas.push(FIXTURE_SCHEMA);
-  return { errors, missingSchemas, casesChecked: v.fixture ? cases.length : 0 };
+  return { errors, missingSchemas, casesChecked: v.fixture ? cases.length : 0, rulesFile, cases };
 }
