@@ -1,0 +1,3 @@
+# probe: tag on a mapping
+a: !!map
+  b: 1

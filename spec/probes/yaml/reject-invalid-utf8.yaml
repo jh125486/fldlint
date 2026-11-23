@@ -1,0 +1,2 @@
+# probe: invalid UTF-8
+a: "xÿy"

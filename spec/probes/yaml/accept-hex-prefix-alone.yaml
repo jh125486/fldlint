@@ -1,0 +1,2 @@
+# probe: 0x with no digits is a string
+a: 0x

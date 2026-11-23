@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"math"
 	"regexp"
 	"slices"
 
@@ -46,23 +45,24 @@ func deref(n *yaml.Node) *yaml.Node {
 
 // decodeDoc parses exactly one YAML document and returns its root node.
 func decodeDoc(data []byte) (*yaml.Node, error) {
+	if err := prescan(data); err != nil {
+		return nil, err
+	}
+	data = withFinalLF(data)
 	dec := yaml.NewDecoder(bytes.NewReader(data))
 	var doc yaml.Node
 	if err := dec.Decode(&doc); err != nil {
-		if errors.Is(err, io.EOF) {
-			return nil, errors.New("empty document")
-		}
-		return nil, err
+		return nil, err // never io.EOF: prescan found content, and a lone "..." is a yaml.v3 syntax error
 	}
 	var extra yaml.Node
 	if err := dec.Decode(&extra); !errors.Is(err, io.EOF) {
 		if err != nil {
 			return nil, err
 		}
-		return nil, errors.New("multiple YAML documents")
+		return nil, newSubsetError(extra.Line, extra.Column, ErrMultipleDocuments, "")
 	}
-	if len(doc.Content) == 0 {
-		return nil, errors.New("empty document")
+	if err := checkSubset(data, &doc); err != nil {
+		return nil, err
 	}
 	return deref(doc.Content[0]), nil
 }
@@ -134,22 +134,8 @@ func asEnum(n *yaml.Node, path string, allowed []string) (string, error) {
 
 func asInt(n *yaml.Node, path string, minimum int) (int, error) {
 	n = deref(n)
-	if n.Kind != yaml.ScalarNode {
-		return 0, failAt(n, path, "must be an integer")
-	}
 	var v int
-	switch n.ShortTag() {
-	case "!!int":
-		if err := n.Decode(&v); err != nil {
-			return 0, failAt(n, path, "must be an integer")
-		}
-	case "!!float": // JSON Schema "integer" also accepts 3.0
-		var f float64
-		if err := n.Decode(&f); err != nil || f != math.Trunc(f) || math.IsInf(f, 0) || math.Abs(f) > 1<<53 {
-			return 0, failAt(n, path, "must be an integer")
-		}
-		v = int(f)
-	default:
+	if n.Kind != yaml.ScalarNode || n.ShortTag() != "!!int" || n.Decode(&v) != nil {
 		return 0, failAt(n, path, "must be an integer")
 	}
 	if v < minimum {

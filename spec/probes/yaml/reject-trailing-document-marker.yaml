@@ -1,0 +1,3 @@
+# probe: trailing --- counts as a second document
+a: 1
+---

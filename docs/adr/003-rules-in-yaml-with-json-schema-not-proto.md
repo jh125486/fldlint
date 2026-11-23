@@ -2,7 +2,7 @@
 
 Date: 2026-11
 Status: Accepted
-Amended 2026-11: corrected before any release; the Go validator is hand-written, not generated from the schema, and the suites do not share probes.
+Amended 2026-11: corrected before any release; the Go validator is hand-written, not generated from the schema. YAML scalar typing is no longer a deferred divergence: the [contract](../../spec/contracts/validation-parity.md#fldlint-yaml-subset) pins a YAML subset and the suites share YAML probes, which supersedes the statements below that the suites share no probes and that typing is not fixed.
 
 ## Context
 

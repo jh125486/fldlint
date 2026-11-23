@@ -316,9 +316,8 @@ job, `actions/setup-go` runs BEFORE `github/codeql-action/init`.
   hard error, never a silent fallback to the stub. The stub fallback only applies
   when no spec root is given at all.
 - Go message regex rejects a lone `}` like the schema (`[^{}]`).
-- Known, deferred to a tracked issue (do NOT work on it now): YAML scalar typing
-  differences between ajv's YAML parser and yaml.v3 (octal/binary/underscore/1e17
-  integers, timestamps, custom tags, `%YAML 1.1`).
+- YAML scalar typing is pinned by the "fldlint YAML subset" in
+  [validation-parity.md](../spec/contracts/validation-parity.md#fldlint-yaml-subset).
 
 ### M0.2a correction (supersedes the M0.2 diagnostic/skip bullets above)
 

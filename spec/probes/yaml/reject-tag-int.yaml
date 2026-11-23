@@ -1,0 +1,2 @@
+# probe: explicit !!int tag
+a: !!int 5

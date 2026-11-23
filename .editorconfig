@@ -16,3 +16,35 @@ indent_style = tab
 
 [*.md]
 trim_trailing_whitespace = false
+
+[spec/probes/yaml/accept-bom.yaml]
+charset = utf-8-bom
+
+[spec/probes/yaml/accept-crlf.yaml]
+end_of_line = crlf
+
+# Byte-level probes: each breaks one of the rules above on purpose.
+[spec/probes/yaml/accept-no-final-newline.yaml]
+insert_final_newline = false
+
+[spec/probes/yaml/reject-empty-file.yaml]
+insert_final_newline = false
+
+[spec/probes/yaml/reject-empty-bom-only.yaml]
+charset = utf-8-bom
+insert_final_newline = false
+
+[spec/probes/yaml/reject-bom-twice.yaml]
+charset = unset
+
+[spec/probes/yaml/reject-invalid-utf8.yaml]
+charset = unset
+
+[spec/probes/yaml/reject-surrogate-utf8.yaml]
+charset = unset
+
+[spec/probes/yaml/reject-lone-cr.yaml]
+end_of_line = unset
+
+[spec/probes/yaml/reject-tab-*.yaml]
+indent_style = unset

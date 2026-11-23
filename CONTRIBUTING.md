@@ -73,8 +73,8 @@ with a new one (the pre-release amendments noted in the ADR index are the one
 exception).
 
 - The JS and Go validators must accept and reject the same inputs; add a
-  negative test to each suite with any new check (the suites keep their own;
-  they do not share probes)
+  negative test to each suite with any new check; YAML-subset (syntax and
+  scalar) probes go in `spec/probes/yaml/` and are read by every loader
   ([validation-parity.md](spec/contracts/validation-parity.md)).
 - Shape tags are mandatory for `bool-variation` only; every rewriting rule
   needs at least one rewrite case for each language that has a template

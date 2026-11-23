@@ -1,0 +1,3 @@
+# probe: literal block scalar that looks numeric
+a: |
+  017

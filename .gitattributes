@@ -1,0 +1,3 @@
+# Probe files are byte-exact (BOM, CRLF, lone CR, tabs, invalid UTF-8, no final
+# newline); never normalise them.
+spec/probes/yaml/*.yaml -text

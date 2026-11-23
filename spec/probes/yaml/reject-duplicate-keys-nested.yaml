@@ -1,0 +1,4 @@
+# probe: duplicate keys in a nested mapping
+m:
+  b: 1
+  b: 2
