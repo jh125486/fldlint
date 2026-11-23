@@ -13,6 +13,9 @@
 # literal { key } / { kind: "user", key } object; Go: ldcontext.New(x));
 # otherwise the planner reports skip=context-unproven.
 #
+# Report-only rules carry only keyArg (the fingerprint key, M0.9); all-flags-state
+# stays keyless.
+#
 # `message` (rewriting rules only) is the diagnostic text for a rewritable
 # finding; the only placeholder allowed in it is {{key}}.
 #
@@ -94,6 +97,7 @@ rules:
   - id: int-variation
     valueType: integer
     risk: low
+    keyArg: 0
     languages:
       go: {methods: [IntVariation, IntVariationCtx], ctxArg: {IntVariationCtx: 0}}
     skip: type-mismatch
@@ -102,6 +106,7 @@ rules:
   - id: go-json-variation
     valueType: object
     risk: medium
+    keyArg: 0
     languages:
       go: {methods: [JSONVariation, JSONVariationCtx], ctxArg: {JSONVariationCtx: 0}}
     skip: type-mismatch
@@ -109,6 +114,7 @@ rules:
   # chosen from the call alone.
   - id: variation
     risk: medium
+    keyArg: 0
     languages:
       js: {methods: [variation]}
     skip: type-mismatch
@@ -116,6 +122,7 @@ rules:
   # Migration flags return a stage plus an operation tracker, not a plain value.
   - id: migration-variation
     risk: high
+    keyArg: 0
     languages:
       js: {methods: [migrationVariation]}
       go: {methods: [MigrationVariation, MigrationVariationCtx], ctxArg: {MigrationVariationCtx: 0}}
@@ -124,35 +131,41 @@ rules:
   # ---- report-only: detail ----
   - id: bool-variation-detail
     risk: high
+    keyArg: 0
     languages:
       js: {methods: [boolVariationDetail]}
       go: {methods: [BoolVariationDetail, BoolVariationDetailCtx], ctxArg: {BoolVariationDetailCtx: 0}}
     skip: detail
   - id: string-variation-detail
     risk: high
+    keyArg: 0
     languages:
       js: {methods: [stringVariationDetail]}
       go: {methods: [StringVariationDetail, StringVariationDetailCtx], ctxArg: {StringVariationDetailCtx: 0}}
     skip: detail
   - id: number-variation-detail
     risk: high
+    keyArg: 0
     languages:
       js: {methods: [numberVariationDetail]}
       go: {methods: [Float64VariationDetail, Float64VariationDetailCtx], ctxArg: {Float64VariationDetailCtx: 0}}
     skip: detail
   - id: int-variation-detail
     risk: high
+    keyArg: 0
     languages:
       go: {methods: [IntVariationDetail, IntVariationDetailCtx], ctxArg: {IntVariationDetailCtx: 0}}
     skip: detail
   - id: json-variation-detail
     risk: high
+    keyArg: 0
     languages:
       js: {methods: [jsonVariationDetail]}
       go: {methods: [JSONVariationDetail, JSONVariationDetailCtx], ctxArg: {JSONVariationDetailCtx: 0}}
     skip: detail
   - id: variation-detail
     risk: high
+    keyArg: 0
     languages:
       js: {methods: [variationDetail]}
     skip: detail

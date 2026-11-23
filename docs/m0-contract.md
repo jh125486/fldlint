@@ -531,3 +531,33 @@ as frozen history. Anything not listed: stop and ask.
   `rewrite-maven-plugin` 6.46.1 (ADR 009).
 - Real-SDK compile-check modules for Go, JS and Java: test time only, kept in
   their own modules, never shipped.
+
+## M0.9 amendment: fingerprint keys for report-only rules; ill-formed keys
+
+Owner decisions (issue #40), from review of #27. They amend the fingerprint
+contract (`spec/contracts/fingerprint.md`), which carries the normative text.
+
+1. **Report-only rules have a key.** Every per-flag rule in `spec/rules.yaml`
+   (every rule except the bulk `all-flags-state`) now has `keyArg: 0`, including the report-only ones (`variation`, the
+   `*-variation-detail` rules, `migration-variation`, `int-variation`,
+   `go-json-variation`). Both engines extract argument 0 as the static key
+   exactly as for rewriting rules (a string literal, or in JS an
+   expression-free template literal, is static; anything else is dynamic).
+   `all-flags-state` stays keyless. Before this, a report-only finding had no
+   key, so its identity was its position in the file: deleting one call gave its
+   fingerprint to the next, and a baseline entry could suppress a different
+   flag. Only `keyArg` is added; `defaultArg`, `contextArg` and exact arity for
+   report-only rules remain out of scope (issue #37), so arity is still not
+   checked for them. The rules schema already allowed `keyArg` on skip rules;
+   the Go loader still requires all three positions only for rewriting rules.
+2. **A key that is not well formed is not static.** A key with an unpaired
+   surrogate (JS `!key.isWellFormed()`) or invalid UTF-8 (Go `!utf8.ValidString`)
+   is treated like a dynamic key: `kind` `-`, no key. Before, `'a\uD800'` and
+   `'a\uD801'` both hashed via U+FFFD and collided. Engines never throw on it.
+   Only the fingerprint input changes; the rewrite planner is unaffected.
+   `path` is not subject to this rule.
+
+New vectors: report-only rows in `fingerprint-vectors.json`, and
+`fingerprint-illformed-vectors.json` (keys given as UTF-16 code units and as
+UTF-8 hex). The Go engine gains `go/internal/fingerprint`, which passes the
+same vectors as the JS `fingerprint()`.

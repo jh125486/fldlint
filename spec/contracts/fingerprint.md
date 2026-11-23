@@ -13,8 +13,25 @@ Inputs for a finding:
 |----------|------------|
 | `ruleId` | The `rules.yaml` rule id (e.g. `bool-variation`). The rule, not the skip category, so fixing a skip reason does not change identity. |
 | `path`   | File path relative to the scan root, normalized (below). |
-| `key`    | The flag key if it is a static string, otherwise absent (dynamic key, or a bulk call with no key). It is the decoded string value of the literal, not its source text: JS `'a\u0041'`, Go `"a\x41"` and Go raw `` `aA` `` all give `aA`. (Contrast `{{key}}` in templates and messages, which is source text, quotes included; see [placeholders.md](placeholders.md).) |
+| `key`    | The flag key if it is a static, well-formed string, otherwise absent (dynamic key, a key that is not well formed, or a bulk call with no key). It is the decoded string value of the literal, not its source text: JS `'a\u0041'`, Go `"a\x41"` and Go raw `` `aA` `` all give `aA`. (Contrast `{{key}}` in templates and messages, which is source text, quotes included; see [placeholders.md](placeholders.md).) |
 | `occ`    | 0-based ordinal of this finding among findings in the same file with identical `(ruleId, kind, key)`, ordered by `(line, col)` ascending. |
+
+Every per-flag rule (every rule except the bulk `all-flags-state`) has a key argument (`keyArg: 0` in `rules.yaml`), report-only
+rules included (`variation`, the `*-variation-detail` rules, `migration-variation`,
+`int-variation`, `go-json-variation`). Only the bulk rule `all-flags-state` is
+keyless. Without a key, identity would depend on file position alone, and
+deleting one call would hand its fingerprint to the next one.
+
+A key is well formed when it is valid Unicode text: JS `key.isWellFormed()`
+(no unpaired surrogate), Go `utf8.ValidString`. A key that is not well formed is
+treated exactly like a dynamic key: it is absent (`kind` `-`), and the engine
+never throws. Otherwise two different keys such as JS `'a\uD800'` and
+`'a\uD801'` would both encode with U+FFFD and collide. This changes only the
+fingerprint input; whether the call is rewritten is unaffected. `occ` groups
+use the same rule, so two ill-formed keys in one file get distinct `occ`
+values. `path` is not subject to it: a path is always hashed as given after
+normalization (it cannot be dropped, and a file always has one). Engines may
+therefore disagree on a path that is not valid Unicode; no vector pins that.
 
 Steps:
 
@@ -96,6 +113,13 @@ with an independent throwaway script.
 | bool-variation | `src/a.ts` | `flag` | 0 | `f6c5f08066efd25f70ae39048ca0a679` |
 | bool-variation | `src/é.ts` | `flag` | 0 | `919507daef37bd442ae0cfe0e433e3c9` |
 | bool-variation | `src/é.ts` | `flag` | 0 | `5859735d23d412d60e7983c627a469d7` |
+| variation | `src/flags.ts` | `flag-a` | 0 | `f48a19e393bd03280279dc4db8e9e626` |
+| variation | `src/flags.ts` | `flag-b` | 0 | `c35dd90bb032cbc492fac013d93ba894` |
+| bool-variation-detail | `src/flags.ts` | `flag-a` | 0 | `59613199566bd3365f59dcd67d84a506` |
+| bool-variation-detail | `src/flags.ts` | `flag-b` | 0 | `48e72553cc9c49897bfa0fad5fe87035` |
+| migration-variation | `src/flags.ts` | `flag-a` | 0 | `aa2028418b80b56f8fa75902628d0d43` |
+| int-variation | `internal/flags/flags.go` | `flag-a` | 0 | `513987f491cfbc2743d52c75f996fbe4` |
+| int-variation | `internal/flags/flags.go` | `flag-b` | 0 | `460c42d801a686ef1c66d6af23b4a226` |
 
 Machine-readable copy: [`fingerprint-vectors.json`](fingerprint-vectors.json)
 (entries `{ruleId, path, key | null, occ, fingerprint}`; `path` is as given,
@@ -110,8 +134,20 @@ engine. Notes on the newer rows:
 - `aA` is the decoded value of JS `'a\u0041'`, Go `"a\x41"` and Go raw
   `` `aA` `` (see Inputs).
 - A static empty key (kind `s`) and an absent key (kind `-`) differ.
-- The last four rows prove no case folding and no Unicode normalization: the
+- The `Src/`, `src/` and `é` rows prove no case folding and no Unicode normalization: the
   `é` rows are NFC (U+00E9) then NFD (`e` + U+0301) and yield different values.
+
+- The last seven rows are report-only rules with a literal key. The two keys
+  of one rule give different fingerprints, both at `occ` 0, so deleting the
+  `flag-a` call leaves `flag-b` unchanged.
+
+Keys that are not well formed cannot be written in JSON, so they live in
+[`fingerprint-illformed-vectors.json`](fingerprint-illformed-vectors.json)
+(entries `{ruleId, path, keyUtf16, keyUtf8Hex, occ, fingerprint}`): `keyUtf16`
+is the key as UTF-16 code units for JS, `keyUtf8Hex` the key's bytes for Go.
+Each `fingerprint` is that of the same `(ruleId, path, occ)` with an absent
+key, e.g. `a` followed by `U+D800` gives `d51bead2c60751272a82a139ecfa9eb2`,
+the `(none)` row above. Same generator, with `--illformed`.
 
 Note: `all-flags-state` is the real bulk rule id in `spec/rules.yaml`. The
 algorithm, not the id, is what the vector pins.
