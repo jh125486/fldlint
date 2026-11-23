@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"testing"
 
 	"golang.org/x/tools/go/analysis"
@@ -49,6 +50,38 @@ var probe = &analysis.Analyzer{
 			fa := env.Site(f, call, method).Facts
 			pass.Reportf(call.Pos(), "method=%s static=%t key=%s ctx=%t eval=%s client=%s bound=%t default=%s typed=%t goctx=%s add=%v consumed=%d pure=%t local=%t",
 				method, fa.KeyStatic, fa.Key, fa.ContextProven, fa.EvalCtx, fa.Client, fa.ClientBound, fa.Default, fa.DefaultProven, fa.GoCtx, fa.AddImports, len(fa.Consumed), fa.ReceiverPure, fa.Receiver != nil)
+		})
+		return nil, nil
+	},
+}
+
+// keyProbe reports the fingerprint key (Facts.KeyValue) of every SDK call.
+var keyProbe = &analysis.Analyzer{
+	Name:     "keyprobe",
+	Doc:      "reports the fingerprint key of every sdk call",
+	Requires: []*analysis.Analyzer{inspect.Analyzer},
+	Run: func(pass *analysis.Pass) (any, error) {
+		env := &detect.Env{Fset: pass.Fset, Pkg: pass.Pkg, Info: pass.TypesInfo}
+		files := map[string]detect.File{}
+		for _, f := range pass.Files {
+			name := pass.Fset.File(f.FileStart).Name()
+			src, err := pass.ReadFile(name)
+			if err != nil {
+				return nil, err
+			}
+			files[name] = detect.File{AST: f, Src: src}
+		}
+		pass.ResultOf[inspect.Analyzer].(*inspector.Inspector).Preorder([]ast.Node{(*ast.CallExpr)(nil)}, func(n ast.Node) {
+			call := n.(*ast.CallExpr)
+			method, ok := detect.Method(pass.TypesInfo, call)
+			if !ok || method == "Close" {
+				return
+			}
+			key := "absent"
+			if kv := env.Site(files[pass.Fset.File(call.Pos()).Name()], call, method).Facts.KeyValue; kv != nil {
+				key = strconv.Quote(*kv)
+			}
+			pass.Reportf(call.Pos(), "method=%s key=%s", method, key)
 		})
 		return nil, nil
 	},
@@ -103,6 +136,9 @@ func TestMethod(t *testing.T) {
 func TestEnv_Site(t *testing.T) {
 	t.Parallel()
 	analysistest.Run(t, testdata(t), probe, "detectprobe", "detectalias")
+	// Report-only rules have a key too; the bulk rule and keys that are
+	// dynamic or not valid UTF-8 have none.
+	analysistest.Run(t, testdata(t), keyProbe, "detectkey")
 }
 
 // TestEnv_Removable checks that every reference to each named import is
