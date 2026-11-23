@@ -39,6 +39,7 @@ skipCategories:
   type-mismatch:    {severity: warning, message: "Return/default type differs between SDKs"}
   context-unproven: {severity: warning, message: "Cannot prove LD context -> EvaluationContext conversion"}
   default-type-unproven: {severity: warning, message: "Default value type not proven"}
+  receiver-unproven: {severity: warning, message: "LaunchDarkly client expression cannot be removed safely"}
 rules:
   - id: bool-variation
     valueType: boolean          # boolean | string | number | integer | object
@@ -220,8 +221,9 @@ Rewrites must leave code that compiles. Go: remove an import only if the file
 no longer references it (e.g. `ldcontext` after its only use is rewritten); a
 rewrite must not leave an unused local variable, so Go fixtures keep the LD
 client referenced elsewhere (e.g. `defer ldClient.Close()`). TypeScript
-tolerates unused locals, so JS outputs may keep the now-unused client; state
-this difference in the contracts.
+tolerates unused locals only by default (it is an error under
+`--noUnusedLocals`, TS6133; see the M0.5 amendment), so JS outputs may keep the
+now-unused client; state this difference in the contracts.
 
 ### Fixture coverage
 - The seven mandatory shape tags apply to the reference rule `bool-variation`
@@ -328,9 +330,9 @@ There are two kinds of skip. Do not conflate them:
   that the rule would normally rewrite but that is left alone because of how it
   is written or where it sits. Allowed categories: `dynamic-key`,
   `unbound-client`, `context-unproven`, `default-type-unproven` (amendment
-  M0.4). A diagnostic on a rewriting rule either
+  M0.4), `receiver-unproven` (amendment M0.5). A diagnostic on a rewriting rule either
   carries no `skip` (it is rewritten; `output: true` for that language) or
-  carries one of those four call-site categories (`output: false` for that
+  carries one of those five call-site categories (`output: false` for that
   language).
 
 Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
@@ -414,6 +416,38 @@ on rewriting rules, requires `output: false`, and is enumerated in
 `spec/rules.yaml`, both schemas, and the JS and Go validators. Fixture:
 `spec/fixtures/bool-variation/default-type-unproven`.
 
+## M0.5 amendment: `receiver-unproven` call-site skip and planner step order
+
+Owner decision. A new call-site skip category, `receiver-unproven` (severity
+warning, message "LaunchDarkly client expression cannot be removed safely"),
+becomes the fifth call-site category (M0.2a: `dynamic-key`, `context-unproven`,
+`default-type-unproven`, `unbound-client`, `receiver-unproven`). It is allowed
+only on rewriting rules, requires `output: false`, and is enumerated in
+`spec/rules.yaml`, both schemas, and the JS and Go validators.
+
+The planner step order is shared by every language and first match wins:
+rule-level skip, `dynamic-key`, `context-unproven`, `default-type-unproven`,
+`unbound-client`, `receiver-unproven`, else rewrite. A call is
+`receiver-unproven` when its receiver is not pure, or when rewriting it would
+strand a local variable (every rewritable call on that local is then skipped,
+never a subset). A default is proven by its static type (Go) or its literal kind (JS/TS);
+a default that is not proven, including a literal of the wrong kind, is
+`default-type-unproven`; rule-level `type-mismatch` stays only for
+rule-level mismatches. Rationale and details: ADR 010. The static-key and step
+order definitions are in `spec/contracts/placeholders.md`.
+
+Other points settled here:
+- The M0.1 claim that TypeScript tolerates unused locals is true only by
+  default. Under `--noUnusedLocals` (TS6133) an unused client local is a compile
+  error. JS emits `receiver-unproven` only for impure receivers (it detects only
+  identifier receivers today) and keeps the now-unused local.
+- The legacy `launchdarkly-node-server-sdk` package is report-only in JS: it is
+  detected but never rewritten.
+
+Fixtures: `stranded-local-client`, `stranded-two-calls`, `impure-receiver`,
+`field-receiver`, `skip-order-default-before-unbound`, `ldcontext-shared-import`
+under `spec/fixtures/bool-variation`.
+
 ## M0.6 amendment: toolchain policy (supersedes the M0.1 Toolchain lines for Node, TypeScript and `@types/node`)
 
 Owner decisions, 2026-11-22.
@@ -425,9 +459,11 @@ Owner decisions, 2026-11-22.
   on a single Node, the latest LTS (26). `engines.node` stays `>=22.12` until
   Node 22 reaches end of life.
 - `@types/node` tracks the latest LTS (`^26`). To guard the only real risk
-  (code using APIs newer than the floor), CI job `js-types-floor` installs
-  `@types/node@^22` with `npm install --no-save` over the locked tree and runs
-  `npm run typecheck`.
+  (code using APIs newer than the floor), CI job `js-types-floor` runs on Node
+  22.12.0 itself, installs `@types/node@22.12.0` (the only 22.12-era typings
+  release; `^22` would resolve to 22.20.x and accept later APIs such as
+  `zstdCompressSync`, @since 22.15) with `npm install --no-save` over the
+  locked tree, and runs `npm run typecheck`.
 - TypeScript: track the newest TypeScript that typescript-eslint supports.
   `@typescript-eslint/parser@8.73.0` (typescript-eslint latest) peers
   `typescript >=4.8.4 <6.1.0`, so we pin `typescript ~6.0.3` (latest 6.0.x).

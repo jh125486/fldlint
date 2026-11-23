@@ -26,6 +26,7 @@ Install it once: `brew install go-task`, or `mise use -g go-task`, or
 `go install github.com/go-task/task/v3/cmd/task@latest`. CI pins go-task 3.54.0 (bumped deliberately in `.github/workflows/ci.yml`); any recent 3.x works locally. It is a developer
 tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 
+<<<<<<< HEAD
 `task check` runs everything a good commit needs and is exactly what the required CI `check` job runs. The separate non-required `typescript-next` canary runs `task js:ts-next`, which `task check` does not include.
 
 | Task | Does |
@@ -45,6 +46,9 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task test` | `js:test` and `go:test` |
 
 CI calls only `task check` (required `check` job) and `task js:ts-next` (non-required canary). Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks against `@types/node` ^22) and
+=======
+CI calls only these targets. Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
+>>>>>>> origin/main
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
