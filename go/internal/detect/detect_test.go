@@ -78,8 +78,13 @@ var keyProbe = &analysis.Analyzer{
 				return
 			}
 			key := "absent"
-			if kv := env.Site(files[pass.Fset.File(call.Pos()).Name()], call, method).Facts.KeyValue; kv != nil {
-				key = strconv.Quote(*kv)
+			facts := env.Site(files[pass.Fset.File(call.Pos()).Name()], call, method).Facts
+			if facts.KeyValue != nil {
+				key = strconv.Quote(*facts.KeyValue)
+			} else if facts.KeyStatic {
+				// An ill-formed literal is no fingerprint key but stays a static
+				// key for the rewrite.
+				key = "absent-static"
 			}
 			pass.Reportf(call.Pos(), "method=%s key=%s", method, key)
 		})

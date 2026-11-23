@@ -12,11 +12,11 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"unicode/utf8"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/types/typeutil"
 
+	"github.com/jh125486/fldlint/go/internal/fingerprint"
 	"github.com/jh125486/fldlint/go/internal/planner"
 	"github.com/jh125486/fldlint/go/internal/spec"
 )
@@ -181,10 +181,10 @@ func (e *Env) Site(f File, call *ast.CallExpr, method string) planner.CallSite {
 	lit, isLit := arg(rule.KeyArg).(*ast.BasicLit)
 	isLit = isLit && lit.Kind == token.STRING
 	if isLit {
-		// A key that is not valid UTF-8 would hash as U+FFFD and collide with
-		// other such keys, so it is not a fingerprint key (fingerprint.md).
-		if v, err := strconv.Unquote(lit.Value); err == nil && utf8.ValidString(v) {
-			fa.KeyValue = &v
+		// A key that is not valid UTF-8 is not a fingerprint key: JS cannot
+		// represent it, so the engines would disagree (fingerprint.md).
+		if v, err := strconv.Unquote(lit.Value); err == nil {
+			fa.KeyValue = fingerprint.StaticKey(&v)
 		}
 	}
 	if rule.Skip != "" || rule.Go == nil || rule.Go.Template == "" {

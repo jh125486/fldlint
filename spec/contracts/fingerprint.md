@@ -16,7 +16,7 @@ Inputs for a finding:
 | `key`    | The flag key if it is a static, well-formed string, otherwise absent (dynamic key, a key that is not well formed, or a bulk call with no key). It is the decoded string value of the literal, not its source text: JS `'a\u0041'`, Go `"a\x41"` and Go raw `` `aA` `` all give `aA`. (Contrast `{{key}}` in templates and messages, which is source text, quotes included; see [placeholders.md](placeholders.md).) |
 | `occ`    | 0-based ordinal of this finding among findings in the same file with identical `(ruleId, kind, key)`, ordered by `(line, col)` ascending. |
 
-Every call rule has a key argument (`keyArg: 0` in `rules.yaml`), report-only
+Every per-flag rule (every rule except the bulk `all-flags-state`) has a key argument (`keyArg: 0` in `rules.yaml`), report-only
 rules included (`variation`, the `*-variation-detail` rules, `migration-variation`,
 `int-variation`, `go-json-variation`). Only the bulk rule `all-flags-state` is
 keyless. Without a key, identity would depend on file position alone, and
@@ -134,7 +134,7 @@ engine. Notes on the newer rows:
 - `aA` is the decoded value of JS `'a\u0041'`, Go `"a\x41"` and Go raw
   `` `aA` `` (see Inputs).
 - A static empty key (kind `s`) and an absent key (kind `-`) differ.
-- The last four rows prove no case folding and no Unicode normalization: the
+- The `Src/`, `src/` and `é` rows prove no case folding and no Unicode normalization: the
   `é` rows are NFC (U+00E9) then NFD (`e` + U+0301) and yield different values.
 
 - The last seven rows are report-only rules with a literal key. The two keys
