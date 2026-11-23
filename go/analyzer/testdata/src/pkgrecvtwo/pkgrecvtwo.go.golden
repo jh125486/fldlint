@@ -1,0 +1,15 @@
+package pkgrecvtwo
+
+import (
+	"context"
+
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("pkgrecvtwo")
+
+func Enabled() (bool, bool) {
+	a, _ := client.BooleanValue(context.TODO(), "a", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "a" to OpenFeature`
+	b, _ := client.BooleanValue(context.TODO(), "b", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "b" to OpenFeature`
+	return a, b
+}
