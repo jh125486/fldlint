@@ -1,0 +1,13 @@
+package overlap
+
+import (
+	"context"
+
+	ld "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+func F(c *ld.LDClient) bool {
+	v, _ := client.BooleanValue(context.TODO(), "a", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "a" to OpenFeature`
+	return v
+}

@@ -1,0 +1,17 @@
+package parenonly
+
+import (
+	"context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("parenonly")
+
+var ld *ldclient.LDClient
+
+func Enabled() bool {
+	on, _ := client.BooleanValue(context.TODO(), "paren", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "paren" to OpenFeature`
+	return on
+}

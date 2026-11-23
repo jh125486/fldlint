@@ -1,0 +1,15 @@
+package twofiles
+
+import (
+	"context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var ld *ldclient.LDClient
+
+func Enabled(userKey string) bool {
+	on, _ := client.BooleanValue(context.TODO(), "two-files", false, openfeature.NewEvaluationContext(userKey, nil)) // want `Migrate boolean flag "two-files" to OpenFeature`
+	return on
+}
