@@ -35,8 +35,12 @@ Known limitations (documented, not fixed):
     OpenFeature's argument list gives them.
   - A method expression (ldclient.LDClient.BoolVariation(c, ...)) is reported
     as dynamic-key, because the arguments shift by one.
-  - A package-level client used in its own initializer is not recognised as
-    bound.
+  - A package-level client is not used for a call that sits in its own
+    initializer or in a function or variable the initializer refers to (the
+    rewrite would be an initialization cycle): the call is unbound-client.
+  - A package-level client declared in a _test.go file, or under a different
+    //go:build constraint than the call's file, does not bind the call.
+    File-name GOOS/GOARCH suffixes are not compared.
   - go-server-sdk v6 is not handled.
   - A method value (f := c.BoolVariation; f(...)) is not reported.
   - A receiver reached through an embedded pointer (s.C.BoolVariation where s
@@ -62,7 +66,7 @@ var Analyzer = &analysis.Analyzer{
 
 func run(pass *analysis.Pass) (any, error) {
 	insp := pass.ResultOf[inspect.Analyzer].(*inspector.Inspector)
-	env := &detect.Env{Fset: pass.Fset, Pkg: pass.Pkg, Info: pass.TypesInfo}
+	env := &detect.Env{Fset: pass.Fset, Pkg: pass.Pkg, Info: pass.TypesInfo, Files: pass.Files}
 
 	files := map[*token.File]*ast.File{}
 	for _, f := range pass.Files {

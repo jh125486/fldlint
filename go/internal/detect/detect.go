@@ -6,10 +6,12 @@ package detect
 
 import (
 	"go/ast"
+	"go/build/constraint"
 	"go/token"
 	"go/types"
 	"slices"
 	"strconv"
+	"strings"
 
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/types/typeutil"
@@ -132,8 +134,13 @@ type Env struct {
 	Fset *token.FileSet
 	Pkg  *types.Package
 	Info *types.Info
+	// Files are the package's syntax trees. They enable the package-level
+	// client checks (build membership of the declaring file, initialization
+	// cycles); without them a package-level client binds as before.
+	Files []*ast.File
 
 	files map[*ast.File]*fileFacts
+	graph map[types.Object][]types.Object
 }
 
 func (e *Env) text(f File, n ast.Node) string {
@@ -408,6 +415,9 @@ func (e *Env) client(call *ast.CallExpr) (string, bool) {
 			if s != e.Pkg.Scope() && v.Pos() >= pos {
 				continue // declared after the call
 			}
+			if s == e.Pkg.Scope() && !e.sameVariant(v.Pos(), pos) {
+				continue // exists only in another build of the package
+			}
 			cands = append(cands, v)
 		}
 		if len(cands) == 0 {
@@ -420,9 +430,159 @@ func (e *Env) client(call *ast.CallExpr) (string, bool) {
 		if obj != types.Object(cands[0]) {
 			return "", false
 		}
+		if s == e.Pkg.Scope() && e.initCycle(cands[0], pos) {
+			return "", false
+		}
 		return cands[0].Name(), true
 	}
 	return "", false
+}
+
+// fileAt returns the syntax tree containing pos, or nil.
+func (e *Env) fileAt(pos token.Pos) *ast.File {
+	for _, f := range e.Files {
+		if f.FileStart <= pos && pos < f.FileEnd {
+			return f
+		}
+	}
+	return nil
+}
+
+// buildConstraint returns the //go:build expression of f ("" when none).
+func buildConstraint(f *ast.File) string {
+	if f == nil {
+		return ""
+	}
+	for _, cg := range f.Comments {
+		if cg.End() >= f.Package {
+			break
+		}
+		for _, c := range cg.List {
+			if constraint.IsGoBuild(c.Text) {
+				return strings.TrimSpace(strings.TrimPrefix(c.Text, "//go:build"))
+			}
+		}
+	}
+	return ""
+}
+
+// sameVariant reports whether a declaration at decl is present in every
+// build of the package in which the file at use is: a _test.go file exists
+// only in the test variant (so it cannot serve a non-test file), and a file
+// with a build constraint only where that constraint holds (so it must
+// carry the same constraint as the file that uses it).
+func (e *Env) sameVariant(decl, use token.Pos) bool {
+	dn, un := e.Fset.File(decl).Name(), e.Fset.File(use).Name()
+	if strings.HasSuffix(dn, "_test.go") && !strings.HasSuffix(un, "_test.go") {
+		return false
+	}
+	dc := buildConstraint(e.fileAt(decl))
+	return dc == "" || dc == buildConstraint(e.fileAt(use))
+}
+
+// initCycle reports whether rewriting the call at pos into a use of the
+// package-level variable v would create an initialization cycle: the call
+// sits in v's own initializer, or in a function or variable that v's
+// initializer transitively refers to.
+func (e *Env) initCycle(v *types.Var, pos token.Pos) bool {
+	f := e.fileAt(pos)
+	if f == nil {
+		return false
+	}
+	var from []types.Object // objects of the top-level declaration holding the call
+	for _, d := range f.Decls {
+		if d.Pos() > pos || pos >= d.End() {
+			continue
+		}
+		switch d := d.(type) {
+		case *ast.FuncDecl:
+			from = append(from, e.Info.Defs[d.Name])
+		case *ast.GenDecl:
+			for _, sp := range d.Specs {
+				if vs, ok := sp.(*ast.ValueSpec); ok && vs.Pos() <= pos && pos < vs.End() {
+					for _, n := range vs.Names {
+						from = append(from, e.Info.Defs[n])
+					}
+				}
+			}
+		}
+	}
+	if len(from) == 0 {
+		return false
+	}
+	g := e.depGraph()
+	seen := map[types.Object]bool{}
+	var visit func(o types.Object) bool
+	visit = func(o types.Object) bool {
+		if seen[o] {
+			return false
+		}
+		seen[o] = true
+		if slices.Contains(from, o) {
+			return true
+		}
+		return slices.ContainsFunc(g[o], visit)
+	}
+	return visit(v)
+}
+
+// depGraph maps each package-level function, method and variable to the
+// package-level functions, methods and variables its body or initializer
+// refers to.
+func (e *Env) depGraph() map[types.Object][]types.Object {
+	if e.graph != nil {
+		return e.graph
+	}
+	g := map[types.Object][]types.Object{}
+	refs := func(n ast.Node) []types.Object {
+		var out []types.Object
+		ast.Inspect(n, func(n ast.Node) bool {
+			id, ok := n.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			switch o := e.Info.Uses[id].(type) {
+			case *types.Func:
+				if o.Pkg() == e.Pkg {
+					out = append(out, o)
+				}
+			case *types.Var:
+				if o.Parent() == e.Pkg.Scope() {
+					out = append(out, o)
+				}
+			}
+			return true
+		})
+		return out
+	}
+	for _, f := range e.Files {
+		for _, d := range f.Decls {
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				if o := e.Info.Defs[d.Name]; o != nil {
+					g[o] = append(g[o], refs(d)...)
+				}
+			case *ast.GenDecl:
+				for _, sp := range d.Specs {
+					vs, ok := sp.(*ast.ValueSpec)
+					if !ok {
+						continue
+					}
+					var r []types.Object
+					for _, val := range vs.Values {
+						r = append(r, refs(val)...)
+					}
+					for _, n := range vs.Names {
+						if o := e.Info.Defs[n]; o != nil {
+							g[o] = append(g[o], r...)
+						}
+					}
+				}
+			}
+		}
+	}
+	e.graph = g
+	return g
 }
 
 // iclient finds openfeature.IClient among the package's imports, if loaded.
