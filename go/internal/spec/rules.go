@@ -5,7 +5,7 @@
 // files) but parsed in exactly one place, the JS loader, which validates it
 // (YAML subset, JSON Schema, semantic checks) and emits spec/generated/spec.json.
 // This package reads only that JSON; it contains no YAML code. See
-// docs/adr/009-parse-yaml-once-emit-canonical-json.md.
+// docs/adr/011-parse-yaml-once-emit-canonical-json.md.
 package spec
 
 import (
@@ -109,6 +109,19 @@ func ParseRules(data []byte) (*RulesFile, error) {
 	}
 	goMethods := map[string]string{}
 	for _, wr := range w.Rules {
+		for name, p := range map[string]*int{"keyArg": wr.KeyArg, "defaultArg": wr.DefaultArg, "contextArg": wr.ContextArg} {
+			switch {
+			case p != nil && *p < 0:
+				return nil, fmt.Errorf("parse rules: rule %q: %s must be >= 0", wr.ID, name)
+			case p == nil && wr.Skip == "":
+				return nil, fmt.Errorf("parse rules: rewriting rule %q requires %s", wr.ID, name)
+			}
+		}
+		for lang, b := range wr.Languages {
+			if b == nil {
+				return nil, fmt.Errorf("parse rules: rule %q: language %q must not be null", wr.ID, lang)
+			}
+		}
 		r := Rule{
 			ID: wr.ID, ValueType: wr.ValueType, Risk: wr.Risk,
 			KeyArg: argOr(wr.KeyArg), DefaultArg: argOr(wr.DefaultArg), ContextArg: argOr(wr.ContextArg),

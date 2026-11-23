@@ -65,6 +65,12 @@ describe("spec.json", () => {
     expect(emitSpecJson(repoSpec!)).toBe(committed);
   });
 
+  it("keeps the generated Go stub spec.json in step with its YAML stub", () => {
+    const stubRoot = join(repoSpec!, "../go/conformance/testdata");
+    const committed = readFileSync(join(repoSpec!, "../go/internal/spec/testdata/spec.json"), "utf8");
+    expect(emitSpecJson(stubRoot, repoSpec!)).toBe(committed);
+  });
+
   it("is deterministic, ends in a newline and sorts cases by path", () => {
     const out = emitSpecJson(STUB_SPEC_ROOT);
     expect(emitSpecJson(STUB_SPEC_ROOT)).toBe(out);
@@ -88,11 +94,11 @@ describe("spec.json", () => {
       ["a YAML subset violation", "id: x\nanchor: &a 1\n"],
       ["a schema violation", "id: dynamic-key\nrule: bool-variation\n"],
     ];
-    for (const [, body] of bad) {
+    for (const [label, body] of bad) {
       const dir = mkdtempSync(join(tmpdir(), "fldlint-emit-"));
       cpSync(STUB_SPEC_ROOT, dir, { recursive: true });
       writeFileSync(join(dir, "fixtures/bool-variation/dynamic-key/case.yaml"), body);
-      expect(() => emitSpecJson(dir)).toThrow(EmitError);
+      expect(() => emitSpecJson(dir), label).toThrow(EmitError);
     }
   });
 

@@ -43,16 +43,17 @@ export interface ValidateResult {
   errors: string[];
   missingSchemas: string[];
   casesChecked: number;
-  /** The validated rules file; set only when rules.yaml parsed and passed every check. */
+  /** The rules file once it parsed and passed the schema; semantic errors, if any, are in `errors`. */
   rulesFile?: RulesFile;
   /** Every discovered case, in path order (valid only when `errors` is empty). */
   cases: CaseFile[];
 }
 
-export function validateSpec(specRoot: string): ValidateResult {
+/** `schemaRoot` (default: specRoot) is where schema/*.schema.json is read from, so a stub spec can reuse the real schemas. */
+export function validateSpec(specRoot: string, schemaRoot: string = specRoot): ValidateResult {
   const errors: string[] = [];
   const missingSchemas: string[] = [];
-  const v = loadValidators(specRoot);
+  const v = loadValidators(schemaRoot);
   let rulesFile: RulesFile | undefined;
   if (v.rules) {
     try {

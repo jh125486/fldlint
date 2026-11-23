@@ -25,6 +25,8 @@ func TestParseSpec(t *testing.T) {
 	}{
 		{name: "no cases", src: mk(""), want: nil},
 		{name: "two cases", src: mk(entry("r/a") + "," + entry("r/b")), want: []string{"r/a", "r/b"}},
+		{name: "missing cases", src: "{" + okSpecRules + "}", wantErr: `missing "cases"`},
+		{name: "null cases", src: "{" + okSpecRules + `, "cases": null}`, wantErr: `missing "cases"`},
 		{name: "missing rules", src: `{"cases": []}`, wantErr: `missing "rules"`},
 		{name: "unknown top key", src: strings.Replace(mk(""), `"cases"`, `"extra": 1, "cases"`, 1), wantErr: `unknown field "extra"`},
 		{name: "path not rule/case", src: mk(entry("r")), wantErr: "not <rule>/<case>"},
@@ -88,8 +90,21 @@ func TestLoadSpec(t *testing.T) {
 
 func TestLoadedCase_Dir(t *testing.T) {
 	t.Parallel()
-	lc := spec.LoadedCase{Path: "r/c"}
-	if got, want := lc.Dir("fx"), filepath.Join("fx", "r", "c"); got != want {
-		t.Fatalf("Dir = %q, want %q", got, want)
+	tests := []struct {
+		name     string
+		path     string
+		fixtures string
+		want     string
+	}{
+		{name: "relative root", path: "r/c", fixtures: "fx", want: filepath.Join("fx", "r", "c")},
+		{name: "nested root", path: "rule-x/case-y", fixtures: filepath.Join("a", "b"), want: filepath.Join("a", "b", "rule-x", "case-y")},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := (spec.LoadedCase{Path: tt.path}).Dir(tt.fixtures); got != tt.want {
+				t.Fatalf("Dir = %q, want %q", got, tt.want)
+			}
+		})
 	}
 }

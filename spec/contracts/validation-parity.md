@@ -202,27 +202,6 @@ block scalar is a string.
   invalid is a **hard error**, never a silent fallback to the stub. The stub
   fallback applies only when no spec root is given at all.
 
-## Required checks (enforced by the JS loader)
-
-Structure (schema-level):
-
-1. Reject unknown keys at every level.
-2. Enforce enums (`valueType`, `risk`, `skip`/skip-category names, placeholder
-   names), patterns and required fields.
-3. `diagnostics[].line` and `col` are integers (1-based).
-4. `expect.<lang>.output` is a boolean.
-5. Language entries (`languages.<lang>`, `expect.<lang>`) are non-null.
-
-Cross-reference (beyond what the schema can say):
-
-6. A case's `rule`, and every `diagnostics[].ruleId`, must exist in `rules.yaml`.
-7. `ctxArg` may only name a method listed in that language's `methods`.
-8. The same method must not appear in two rules for one language.
-9. A case that promises `expect.<lang>` must have that language's input file
-   (`js/input.ts`, `go/input.go`).
-10. `output: true` requires the output file (`output.ts` / `output.go.golden`),
-    and an output file without `output: true` is rejected (and vice versa).
-
 ## Required checks (JS loader)
 
 Structure (schema-level):
@@ -240,8 +219,8 @@ Cross-reference (beyond what the schema can say):
 7. `ctxArg` may only name a method listed in that language's `methods`.
 8. The same method must not appear in two rules for one language.
 9. A case that promises `expect.<lang>` must have that language's input file
-   (`js/input.ts`, `go/input.go`).
-10. `output: true` requires the output file (`output.ts` / `output.go.golden`),
+   (`js/input.ts`, `go/input.go`, `java/Before.java`).
+10. `output: true` requires the output file (`output.ts` / `output.go.golden` / `After.java`),
     and an output file without `output: true` is rejected (and vice versa).
 
 Negative tests for these live in the JS suite. A check added here needs a

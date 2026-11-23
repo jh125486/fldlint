@@ -95,8 +95,8 @@ Port targeted algorithms only. Keep an SPDX header and a
 
 Rules, schemas, fixtures and contracts are the source of truth. Change the
 spec first, then the engines. ADRs are immutable once accepted; supersede them
-with a new one (the pre-release amendments noted in the ADR index are the one
-exception).
+with a new one, which also sets the old one's status line (the pre-release
+amendments noted in the ADR index are the one exception).
 
 - YAML is parsed and validated in one place, the JS loader; it emits
   `spec/generated/spec.json`, which Go (and later Java) read. Add a negative

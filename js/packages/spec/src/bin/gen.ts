@@ -1,4 +1,4 @@
-import { mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, writeFileSync } from "node:fs";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { EmitError, emitSpecJson } from "../emit.js";
@@ -23,3 +23,19 @@ const jsonOut = join(root, SPEC_JSON);
 mkdirSync(dirname(jsonOut), { recursive: true });
 writeFileSync(jsonOut, specJson);
 console.log(`gen: wrote ${jsonOut}`);
+
+// The Go stub spec (used only when the repo spec is absent) is generated too,
+// from a small YAML stub validated against the real schemas.
+const stubRoot = join(root, "../go/conformance/testdata");
+if (existsSync(join(stubRoot, "rules.yaml"))) {
+  const stubOut = join(root, "../go/internal/spec/testdata/spec.json");
+  try {
+    mkdirSync(dirname(stubOut), { recursive: true });
+    writeFileSync(stubOut, emitSpecJson(stubRoot, root));
+  } catch (e) {
+    if (!(e instanceof EmitError)) throw e;
+    console.error(`gen: stub spec: ${e.message}`);
+    process.exit(1);
+  }
+  console.log(`gen: wrote ${stubOut}`);
+}

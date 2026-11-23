@@ -48,7 +48,7 @@ func LoadSpec(path string) (*Spec, error) {
 }
 
 // ParseSpec decodes spec.json content. Content validation lives in the JS
-// loader (see ADR 009); beyond strict decoding this checks only the
+// loader (see ADR 011); beyond strict decoding this checks only the
 // references Go itself relies on: every case path is "<rule>/<case>", is
 // unique, and names a rule that exists and equals the case's own rule.
 func ParseSpec(data []byte) (*Spec, error) {
@@ -58,6 +58,9 @@ func ParseSpec(data []byte) (*Spec, error) {
 	}
 	if w.Rules == nil {
 		return nil, fmt.Errorf("parse spec: missing \"rules\"")
+	}
+	if w.Cases == nil {
+		return nil, fmt.Errorf("parse spec: missing \"cases\"")
 	}
 	rf, err := ParseRules(w.Rules)
 	if err != nil {

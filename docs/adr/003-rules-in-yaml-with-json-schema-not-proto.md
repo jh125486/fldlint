@@ -1,10 +1,10 @@
 # ADR 003: Rules in YAML with JSON Schema, not proto
 
 Date: 2026-11
-Status: Accepted; the YAML-typing and validation-duplication consequences are superseded by [ADR 011](011-parse-yaml-once-emit-canonical-json.md)
+Status: Accepted; superseded in part by [ADR 011](011-parse-yaml-once-emit-canonical-json.md)
 Amended 2026-11: corrected before any release; the Go validator is hand-written, not generated from the schema. YAML scalar typing is no longer a deferred divergence: the [contract](../../spec/contracts/validation-parity.md#fldlint-yaml-subset) pins a YAML subset and the suites share YAML probes, which supersedes the statements below that the suites share no probes and that typing is not fixed.
 
-> Historical: the Go YAML parsing described under Decision was removed by [ADR 011](011-parse-yaml-once-emit-canonical-json.md); only the JS loader reads YAML now.
+Superseded in part: the YAML-typing and validation-duplication consequences below no longer apply; only the JS loader reads YAML.
 
 ## Context
 
@@ -19,5 +19,5 @@ Author rules in `spec/rules.yaml`, validated by JSON Schema (draft 2020-12) in `
 - Low authoring friction and easy review of rule diffs.
 - No protoc or generated-code dependency in any language.
 - We lose proto's compile-time cross-language types; the schema, codegen and `make spec-check` drift checks stand in for them.
-- Superseded by [ADR 011](011-parse-yaml-once-emit-canonical-json.md): the JS loader is the only validator and the only YAML reader; other languages read the emitted `spec/generated/spec.json`, so there are no two implementations to drift.
-- Superseded by [ADR 011](011-parse-yaml-once-emit-canonical-json.md): YAML implicit typing is handled once, by the JS loader enforcing the YAML subset, so no second parser can disagree.
+- Two implementations of the validation can drift; each suite's own negative tests catch only what that suite thought to test, so gaps are closed in review.
+- YAML implicit typing is **not** mitigated by the schema, which validates what the parser produced. The two parsers differ on some scalars (octal/binary/underscore/large integers, timestamps, custom tags, `%YAML 1.1`; e.g. `col: 017` reads as 17 in one and 15 in the other). This is a known issue tracked as deferred; it is not fixed.

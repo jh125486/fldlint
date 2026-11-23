@@ -35,6 +35,10 @@ func TestParseRules(t *testing.T) {
 		{name: "unknown binding key", old: `"async": true`, new: `"async": true, "temlate": "x"`, wantErr: `unknown field "temlate"`},
 		{name: "wrong type", old: `"keyArg": 0`, new: `"keyArg": "0"`, wantErr: "parse rules"},
 		{name: "trailing data", suffix: " {}", wantErr: "after the JSON value"},
+		{name: "rewriting rule missing keyArg", old: `"keyArg": 0, `, new: "", wantErr: "requires keyArg"},
+		{name: "rewriting rule missing defaultArg", old: `"defaultArg": 2, `, new: "", wantErr: "requires defaultArg"},
+		{name: "negative arg", old: `"keyArg": 0`, new: `"keyArg": -1`, wantErr: "must be >= 0"},
+		{name: "null language", old: `"go": {"methods": ["B"]}`, new: `"go": null`, wantErr: "must not be null"},
 		{name: "duplicate go method", old: `"methods": ["B"]`, new: `"methods": ["A"]`, wantErr: "bound by rules"},
 	}
 	for _, tt := range tests {

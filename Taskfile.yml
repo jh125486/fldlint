@@ -5,7 +5,7 @@ version: '3'
 silent: true
 
 vars:
-  GEN_FILES: js/packages/spec/src/rules.gen.ts go/internal/spec/rules_gen.go spec/generated/spec.json
+  GEN_FILES: js/packages/spec/src/rules.gen.ts go/internal/spec/rules_gen.go spec/generated/spec.json go/internal/spec/testdata/spec.json
   # Pinned; CI and local both run this exact version via `go run`.
   GOLANGCI_LINT: github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
 

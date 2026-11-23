@@ -9,8 +9,8 @@ export class EmitError extends Error {}
  * return the canonical spec.json text. Throws EmitError, listing every
  * problem, when anything fails: invalid input never produces output.
  */
-export function emitSpecJson(specRoot: string): string {
-  const res = validateSpec(specRoot);
+export function emitSpecJson(specRoot: string, schemaRoot: string = specRoot): string {
+  const res = validateSpec(specRoot, schemaRoot);
   const problems = [...res.errors, ...res.missingSchemas.map((s) => `schema file not found: ${s}`)];
   if (problems.length > 0 || res.rulesFile === undefined) {
     throw new EmitError(`spec does not validate, nothing emitted:\n  ${problems.join("\n  ")}`);
