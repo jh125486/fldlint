@@ -3,7 +3,7 @@ import { join } from "node:path";
 import fc from "fast-check";
 import { describe, expect, it } from "vitest";
 import { resolveSpecRoot } from "@fldlint/spec";
-import { analyze, assignOccurrences, fingerprint, normalizePath, staticFingerprintKey, type FingerprintInput } from "../src/index.js";
+import { analyze, assignOccurrences, rewrite, fingerprint, normalizePath, staticFingerprintKey, type FingerprintInput } from "../src/index.js";
 
 const contracts = join(resolveSpecRoot(), "contracts");
 const vectors = JSON.parse(readFileSync(join(contracts, "fingerprint-vectors.json"), "utf8")) as (FingerprintInput & {
@@ -135,10 +135,14 @@ describe("keys that are not well formed", () => {
     expect(got.map((x) => x.occ)).toEqual([0, 1, 2]);
   });
 
-  it("leaves keyValue absent on a call site but still plans the rewrite", () => {
-    const [f] = analyze(`${LD}ld.boolVariation('a\\uD800', { key: u }, false);`);
+  it("leaves keyValue absent on a call site but still rewrites it", () => {
+    const src = `import { OpenFeature } from "@openfeature/server-sdk";\n${LD}const of = OpenFeature.getClient();\nld.boolVariation('a\\uD800', { key: u }, false);`;
+    const [f] = analyze(src);
     expect(f?.site.keyValue).toBeUndefined();
     expect(f?.site.keyIsStatic).toBe(true);
+    expect(f?.result.kind).toBe("rewrite");
+    // The edit keeps the original key literal, written as the source spelled it.
+    expect(rewrite(src)).toContain("of.getBooleanValue('a\\uD800', false, { targetingKey: u })");
   });
 });
 
