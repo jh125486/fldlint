@@ -1,0 +1,224 @@
+package fix_test
+
+import (
+	"go/ast"
+	"go/parser"
+	"go/token"
+	"slices"
+	"strconv"
+	"testing"
+
+	"github.com/jh125486/fldlint/go/internal/fix"
+)
+
+func apply(t *testing.T, src string, edits []fix.Edit, fset *token.FileSet, f *ast.File) string {
+	t.Helper()
+	tf := fset.File(f.Pos())
+	out := []byte(src)
+	sorted := slices.Clone(edits)
+	slices.SortFunc(sorted, func(a, b fix.Edit) int { return int(b.Pos) - int(a.Pos) })
+	// Drivers reject overlapping edits: sorted descending, each edit must end
+	// at or before the start of the one applied just before it.
+	for i := 1; i < len(sorted); i++ {
+		if sorted[i].End > sorted[i-1].Pos {
+			t.Fatalf("overlapping edits: [%d,%d) and [%d,%d)", sorted[i].Pos, sorted[i].End, sorted[i-1].Pos, sorted[i-1].End)
+		}
+	}
+	for _, e := range sorted {
+		out = slices.Concat(out[:tf.Offset(e.Pos)], e.NewText, out[tf.Offset(e.End):])
+	}
+	return string(out)
+}
+
+func TestImportEdits(t *testing.T) {
+	t.Parallel()
+	const ldctx = "github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+	tests := []struct {
+		name   string
+		src    string
+		add    []string
+		remove []string // import paths
+		want   string
+	}{
+		{
+			name: "add to existing std group, sorted first",
+			src:  "package p\n\nimport (\n\t\"fmt\"\n\n\t\"x.com/a\"\n)\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name: "add to existing std group, sorted last",
+			src:  "package p\n\nimport (\n\t\"bytes\"\n\n\t\"x.com/a\"\n)\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"bytes\"\n\t\"context\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name: "new std group above third party",
+			src:  "package p\n\nimport (\n\t\"x.com/a\"\n)\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name: "new third party group below std",
+			src:  "package p\n\nimport (\n\t\"fmt\"\n)\n",
+			add:  []string{"x.com/a"},
+			want: "package p\n\nimport (\n\t\"fmt\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name: "single line import becomes a group",
+			src:  "package p\n\nimport \"x.com/a\"\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name: "single line aliased import keeps alias",
+			src:  "package p\n\nimport a \"x.com/a\"\n",
+			add:  []string{"context", "x.com/b"},
+			want: "package p\n\nimport (\n\t\"context\"\n\n\ta \"x.com/a\"\n\t\"x.com/b\"\n)\n",
+		},
+		{
+			name: "no import decl",
+			src:  "package p\n\nvar x = 1\n",
+			add:  []string{"context", "x.com/a"},
+			want: "package p\n\nimport (\n\t\"context\"\n\n\t\"x.com/a\"\n)\n\nvar x = 1\n",
+		},
+		{
+			name:   "remove from a shared group",
+			src:    "package p\n\nimport (\n\t\"x.com/a\"\n\t\"" + ldctx + "\"\n)\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name:   "remove a spec alone in its group drops the blank line",
+			src:    "package p\n\nimport (\n\t\"fmt\"\n\n\t\"" + ldctx + "\"\n\n\t\"x.com/a\"\n)\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"fmt\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name:   "remove an aliased spec at the end",
+			src:    "package p\n\nimport (\n\t\"fmt\"\n\n\tld \"" + ldctx + "\"\n)\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"fmt\"\n)\n",
+		},
+		{
+			name:   "a parenthesized decl whose only spec is removed is deleted",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n)\n\nvar x = 1\n",
+			remove: []string{ldctx},
+			want:   "package p\n\n\nvar x = 1\n",
+		},
+		{
+			name:   "a lone import that is removed is deleted",
+			src:    "package p\n\nimport \"" + ldctx + "\"\n\nvar x = 1\n",
+			remove: []string{ldctx},
+			want:   "package p\n\n\nvar x = 1\n",
+		},
+		{
+			name:   "a lone import that is removed while another is added is replaced",
+			src:    "package p\n\nimport \"" + ldctx + "\"\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport \"context\"\n",
+		},
+		{
+			name:   "a lone removed import is not copied into the new group",
+			src:    "package p\n\nimport ld \"" + ldctx + "\"\nimport \"x.com/a\"\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport \"context\"\nimport \"x.com/a\"\n",
+		},
+		{
+			name:   "removed spec alone in a group followed by another group while a third-party import is added",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n\n\tld \"github.com/launchdarkly/go-server-sdk/v7\"\n)\n",
+			add:    []string{"github.com/open-feature/go-sdk/openfeature"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\tld \"github.com/launchdarkly/go-server-sdk/v7\"\n\t\"github.com/open-feature/go-sdk/openfeature\"\n)\n",
+		},
+		{
+			name:   "removed spec alone in the first group, std added into the second",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n\n\t\"fmt\"\n)\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
+		},
+		{
+			name:   "add and remove together, insertion before the removed spec",
+			src:    "package p\n\nimport (\n\t\"" + ldctx + "\"\n\t\"x.com/a\"\n)\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n\n\t\"x.com/a\"\n)\n",
+		},
+		{
+			name:   "a group that is std-only once the removed spec is gone takes the addition",
+			src:    "package p\n\nimport (\n\t\"fmt\"\n\t\"" + ldctx + "\"\n)\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
+		},
+		{
+			name: "a parenthesized import on one line is rewritten whole",
+			src:  "package p\n\nimport (\"fmt\")\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n",
+		},
+		{
+			name:   "several specs on a line: removal rewrites the decl",
+			src:    "package p\n\nimport (\"fmt\"; \"" + ldctx + "\")\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport \"fmt\"\n",
+		},
+		{
+			name: "several specs on a line: addition",
+			src:  "package p\n\nimport (\"fmt\"; \"os\")\n",
+			add:  []string{"context"},
+			want: "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\t\"os\"\n)\n",
+		},
+		{
+			name:   "a decl sharing its line is deleted with its semicolon",
+			src:    "package p\n\nimport \"" + ldctx + "\"; import \"x.com/a\"\n",
+			remove: []string{ldctx},
+			want:   "package p\n\nimport \"x.com/a\"\n",
+		},
+		{
+			name:   "comments between specs are kept or removed with their spec",
+			src:    "package p\n\nimport (\n\t\"fmt\"\n\n\t// doc for ldcontext\n\t\"" + ldctx + "\"\n\t\"x.com/a\" // trailing\n)\n",
+			add:    []string{"context"},
+			remove: []string{ldctx},
+			want:   "package p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n\n\t\"x.com/a\" // trailing\n)\n",
+		},
+		{
+			name: "CRLF files get CRLF in inserted text",
+			src:  "package p\r\n\r\nimport (\r\n\t\"fmt\"\r\n)\r\n",
+			add:  []string{"context"},
+			want: "package p\r\n\r\nimport (\r\n\t\"context\"\r\n\t\"fmt\"\r\n)\r\n",
+		},
+		{
+			name: "no changes",
+			src:  "package p\n",
+			want: "package p\n",
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			fset := token.NewFileSet()
+			f, err := parser.ParseFile(fset, "p.go", tt.src, parser.ParseComments)
+			if err != nil {
+				t.Fatal(err)
+			}
+			var rm []*ast.ImportSpec
+			for _, s := range f.Imports {
+				if p, _ := strconv.Unquote(s.Path.Value); slices.Contains(tt.remove, p) {
+					rm = append(rm, s)
+				}
+			}
+			edits := fix.ImportEdits(fset, f, []byte(tt.src), fix.ImportChange{Add: tt.add, Remove: rm})
+			got := apply(t, tt.src, edits, fset, f)
+			if got != tt.want {
+				t.Fatalf("got:\n%s\nwant:\n%s", got, tt.want)
+			}
+			if _, err := parser.ParseFile(token.NewFileSet(), "p.go", got, 0); err != nil {
+				t.Fatalf("result does not parse: %v", err)
+			}
+		})
+	}
+}
