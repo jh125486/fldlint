@@ -20,4 +20,5 @@ them short. Number sequentially.
 | [006](006-context-conversion-skipped-unless-provable.md) | Context conversion is skipped unless provable |
 | [007](007-shape-tag-coverage-reference-rule-only.md) | Mandatory shape-tag coverage applies to the reference rule only |
 | [008](008-idiomatic-per-ecosystem.md) | Idiomatic per ecosystem |
+| [009](009-java-openrewrite-recipes.md) | Java recipes are imperative OpenRewrite recipes built on frozen Maven Central versions |
 | [010](010-planner-step-order-and-receiver-removal.md) | Planner step order and receiver removal |
