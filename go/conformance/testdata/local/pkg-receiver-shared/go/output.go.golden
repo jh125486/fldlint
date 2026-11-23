@@ -1,0 +1,19 @@
+package flags
+
+import (
+	"context"
+
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("x")
+
+func Enabled() bool {
+	on, _ := client.BooleanValue(context.TODO(), "a", false, openfeature.NewEvaluationContext("u", nil))
+	return on
+}
+
+func Other() bool {
+	on, _ := client.BooleanValue(context.TODO(), "b", false, openfeature.NewEvaluationContext("u", nil))
+	return on
+}

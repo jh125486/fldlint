@@ -1,0 +1,14 @@
+package loneimport
+
+import "context"
+import "github.com/launchdarkly/go-server-sdk/v7"
+import "github.com/open-feature/go-sdk/openfeature"
+
+var client = openfeature.NewClient("lone")
+
+var ld *ldclient.LDClient
+
+func Enabled() bool {
+	on, _ := client.BooleanValue(context.TODO(), "lone", false, openfeature.NewEvaluationContext("u", nil)) // want `Migrate boolean flag "lone" to OpenFeature`
+	return on
+}
