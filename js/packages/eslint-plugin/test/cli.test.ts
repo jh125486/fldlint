@@ -20,6 +20,9 @@ export const a = ld.boolVariation("a", { key: "u" }, false);
 export const b = ld.allFlagsState({ key: "u" });
 `;
 
+// Each test spawns real ESLint processes, which can pass 5s on a loaded CI runner.
+const CLI_TIMEOUT_MS = 30_000;
+
 let dir: string;
 const configText = (rules: string) => `import fldlint from ${JSON.stringify(pluginUrl)};
 import * as parser from ${JSON.stringify(parserUrl)};
@@ -43,7 +46,7 @@ beforeAll(() => {
 });
 afterAll(() => rmSync(dir, { recursive: true, force: true }));
 
-describe("ESLint CLI exit codes", () => {
+describe("ESLint CLI exit codes", { timeout: CLI_TIMEOUT_MS }, () => {
   it("recommended warns and exits 0 by default (max-warnings -1)", () => {
     writeConfig();
     const r = cli();
@@ -90,7 +93,7 @@ describe("ESLint CLI exit codes", () => {
   });
 });
 
-describe("ESLint CLI --fix", () => {
+describe("ESLint CLI --fix", { timeout: CLI_TIMEOUT_MS }, () => {
   it("--fix-dry-run does not write; --fix writes and exits on what remains", () => {
     writeConfig();
     const dry = cli("--fix-dry-run", "-f", "json");
@@ -108,7 +111,7 @@ describe("ESLint CLI --fix", () => {
   });
 });
 
-describe("ESLint Node API", () => {
+describe("ESLint Node API", { timeout: CLI_TIMEOUT_MS }, () => {
   it("applies per-rule severity from flat config", async () => {
     writeFileSync(join(dir, "input.ts"), SOURCE);
     writeConfig(`{ "fldlint/all-flags-state": "error" }`);
