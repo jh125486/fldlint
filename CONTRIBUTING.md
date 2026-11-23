@@ -32,8 +32,8 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 |------|------|
 | `task` / `task --list` | Lists tasks |
 | `task check` | `spec:check`, `lint`, `test`, then `js:types-floor` (what the required CI `check` job runs) |
-| `task spec:check` | Validates `rules.yaml` and every `case.yaml`, runs both codegens and fails on drift, then runs `spec:tags` |
-| `task spec:gen` | Regenerates the committed JS and Go rule tables |
+| `task spec:check` | Validates `rules.yaml` and every `case.yaml` (the one YAML loader), runs the codegens including `spec/generated/spec.json`, fails on drift, then runs `spec:tags` |
+| `task spec:gen` | Validates the spec and regenerates `spec/generated/spec.json` and the committed JS and Go rule tables |
 | `task spec:tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template (`ALLOW_EMPTY=1` tolerates missing fixtures) |
 | `task js:test` | Installs and runs JS tests (`npm test` in `js/`) |
 | `task js:lint` | Typechecks the JS workspace |
@@ -63,8 +63,8 @@ the same list.
   typescript-eslint), `vitest` ^5.1.1,
   `fast-check` and `esbuild` (approved by the owner; `esbuild` only as a
   build-time devDependency of `@fldlint/codemod`).
-- Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not
-  approved.
+- Go (shipped): `golang.org/x/tools`. Go reads the generated `spec.json`, so
+  there is no YAML dependency. `testify` is not approved.
 - Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
   OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
   `rewrite-maven-plugin` 6.46.1. ADR 009 is Proposed until merged.
@@ -98,10 +98,13 @@ spec first, then the engines. ADRs are immutable once accepted; supersede them
 with a new one (the pre-release amendments noted in the ADR index are the one
 exception).
 
-- The JS and Go validators must accept and reject the same inputs; add a
-  negative test to each suite with any new check; YAML-subset (syntax and
-  scalar) probes go in `spec/probes/yaml/` and are read by every loader
-  ([validation-parity.md](spec/contracts/validation-parity.md)).
+- YAML is parsed and validated in one place, the JS loader; it emits
+  `spec/generated/spec.json`, which Go (and later Java) read. Add a negative
+  test to the JS suite with any new check; YAML-subset (syntax and scalar)
+  probes go in `spec/probes/yaml/` and are asserted by the JS suite. Never edit
+  `spec.json` by hand; edit the YAML and run `task spec:gen`
+  ([validation-parity.md](spec/contracts/validation-parity.md),
+  [ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)).
 - Shape tags are mandatory for `bool-variation` only; every rewriting rule
   needs at least one rewrite case for each language that has a template
   ([ADR 007](docs/adr/007-shape-tag-coverage-reference-rule-only.md)).

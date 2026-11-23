@@ -22,3 +22,4 @@ them short. Number sequentially.
 | [008](008-idiomatic-per-ecosystem.md) | Idiomatic per ecosystem |
 | [009](009-java-openrewrite-recipes.md) | Java recipes are imperative OpenRewrite recipes built on frozen Maven Central versions |
 | [010](010-planner-step-order-and-receiver-removal.md) | Planner step order and receiver removal |
+| [011](011-parse-yaml-once-emit-canonical-json.md) | Parse YAML in exactly one place and emit canonical JSON |

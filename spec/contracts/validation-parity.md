@@ -1,57 +1,62 @@
-# Validator parity
+# Spec validation and the YAML subset
 
-Status: planned; the loaders are part of the M0 harness work, each suite has
-its own domain-level negative tests, and the YAML-subset probes are shared.
-Nothing here is a released guarantee yet.
+Status: the single loader is part of the M0 harness; the YAML-subset probes
+are asserted by its suite. Nothing here is a released guarantee yet.
 
 This concerns the shared spec data only; it says nothing about tool exit codes
 or flags, which are per ecosystem ([exit-codes.md](exit-codes.md)).
 
-The JS and Go spec loaders must accept and reject **the same inputs** for
-`spec/rules.yaml` and every fixture `case.yaml`. A malformed spec must fail
-the same way regardless of which language's tests load it.
+## One loader, one JSON output
 
-## Who validates what
+The spec is authored as YAML (`spec/rules.yaml` and every fixture
+`case.yaml`) but **parsed in exactly one place**: the JS loader in
+`js/packages/spec`. It enforces the YAML subset below, validates against
+`spec/schema/*.schema.json` with ajv, and runs the semantic checks (the
+cross-reference and fixture-file rules below). It then emits
+**`spec/generated/spec.json`**:
 
-- **JS owns JSON-Schema validation.** It validates `rules.yaml` and each
-  `case.yaml` against `spec/schema/*.schema.json` with ajv (`npm run
-  spec:validate`).
-- **Go does not use a JSON-Schema library and does not generate its checks from
-  the schema.** It re-implements the same checks by hand in its loader.
-- Parity is therefore a requirement, not a by-product. Two kinds of negative
-  tests keep it honest:
-  - **YAML-subset probes** (syntax and scalar typing) live in
-    [`spec/probes/yaml/`](../probes/README.md) and are read and asserted by
-    **every** loader's test suite.
-  - **Domain-level negative tests** (deliberately invalid rules and fixture
-    inputs) remain separate: each suite keeps its own. A check added to one
-    side without a matching negative test on the other is a parity gap to be
-    closed in review.
+```json
+{"rules": <rules.yaml as JSON>, "cases": [{"path": "<rule>/<case>", "case": <case.yaml as JSON>}]}
+```
 
-  See [ADR 003](../../docs/adr/003-rules-in-yaml-with-json-schema-not-proto.md).
+Cases are sorted by path, key order is the source order, indent is two spaces,
+the file ends in a newline. `npm run gen -w @fldlint/spec` (called by
+`task spec:gen`) writes it and **refuses to write anything when validation
+fails**. It is committed, and `task spec:check` fails on drift.
+
+Every other language (Go today, Java later) **must read `spec.json` and needs
+no YAML code and no validator**: decode the JSON (reject unknown fields), and
+keep only the few cross-checks its own code relies on. Java reads it with
+Jackson or Gson, not SnakeYAML. Do not edit `spec.json` by hand; edit the YAML
+and regenerate.
+
+Consequences: no per-language YAML parser to keep in agreement, no hand-written
+second validator, no shared parity probes. The YAML probes are asserted by the
+JS suite only. See [ADR 011](../../docs/adr/011-parse-yaml-once-emit-canonical-json.md).
 
 ## fldlint YAML subset
 
-The `yaml` npm package (JS) and `gopkg.in/yaml.v3` (Go) type some plain scalars
-differently (`col: 017` is 17 in one and 15 in the other; `1e17` is accepted by
-one only; `0b101`, `1_0` and `!!float 5` by the other only; `%YAML 1.1`,
-custom tags and dates also differ), and the schema cannot mitigate this because
-it validates what the parser produced. So specs are written in one **fldlint
-YAML subset**, enforced at the syntax level **before any type resolution**:
-neither parser's implicit typing is trusted.
+YAML parsers type some plain scalars differently (`col: 017` is 17 in one
+parser and 15 in another; `1e17`, `0b101`, `1_0`, `!!float 5`, `%YAML 1.1`,
+custom tags and dates also differ), and the schema cannot mitigate this
+because it validates what the parser produced. So specs are written in one
+**fldlint YAML subset**, enforced at the syntax level **before any type
+resolution**: the parser's implicit typing is not trusted.
 
-This section is normative. Every loader (JS, Go, and any future one, for
-example Java) must implement it **before** schema or semantic validation, and
-must pass every probe in [`spec/probes/yaml/`](../probes/README.md).
+This section is normative. The one YAML loader (JS) enforces it **before**
+schema or semantic validation and passes every probe in
+[`spec/probes/yaml/`](../probes/README.md). Nothing else reads YAML, so no
+other language implements it; the rules stay as the single definition of what
+a spec file may contain, and anyone adding a second YAML reader would have to
+meet the same probes.
 
 ### Input text
 
-A loader reads the file as bytes and applies these rules to the raw text,
-before it hands anything to a YAML parser. They are checked in this order and
-the first violation rejects the input. They exist because the two parsers read
-the same bytes differently: `yaml.v3` treats a lone CR, NEL (U+0085), LS
-(U+2028) and PS (U+2029) as line breaks and rejects control characters, the
-`yaml` package does neither; one repairs invalid UTF-8, the other rejects it.
+The loader reads the file as bytes and applies these rules to the raw text,
+before it hands anything to the YAML parser. They are checked in this order and
+the first violation rejects the input. They exist because parsers read the
+same bytes differently (some treat a lone CR, NEL, LS or PS as a line break or
+reject control characters, some repair invalid UTF-8).
 
 1. **Encoding.** The bytes must be valid UTF-8. Invalid sequences (including
    encoded surrogates and overlong forms) are rejected, never repaired.
@@ -77,14 +82,14 @@ the same bytes differently: `yaml.v3` treats a lone CR, NEL (U+0085), LS
    document"). A bare `---` is different: it starts one document whose content
    is null, and is accepted as `null`; the loaders (and the schema) reject a null
    root later, because the root must be a mapping. A lone `...` is no document
-   either and is rejected (as empty by JS, as a syntax error by Go).
+   either and is rejected.
 6. **Directive.** If the first line that is not blank and not a comment starts
    with `%` (column 1), reject. A `%` line after a `---` or an indented `%` line
    is not a directive but is a YAML syntax error all the same.
 
 ### Document level
 
-The text is then parsed as YAML 1.2 syntax. A loader rejects the input if it is
+The text is then parsed as YAML 1.2 syntax. The loader rejects the input if it is
 not well-formed YAML, or if any of these holds (the numbers are used only to
 refer to a rule):
 
@@ -106,7 +111,7 @@ refer to a rule):
 6. **Nesting.** At most **100** levels of nested collections (mappings and
    sequences, block or flow); the root collection is level 1, so `a: [[...]]`
    with 99 pairs of brackets is accepted and with 100 is not. This bounds
-   recursion in every implementation; both parsers also fail on very deep
+   recursion; parsers also fail on very deep
    input, but at different depths.
 7. **Flow collections:** a plain scalar or key must not end with `:` (`[a:]`,
    `{a:}`, `{a:[1]}`); the parsers read `[a:]` as a pair with a null value and
@@ -171,49 +176,14 @@ strings, so the subset is not over-strict.
 Quote it: `col: "017"`, `answer: "yes"`, `when: '2001-12-14'`. Any quoted or
 block scalar is a string.
 
-### Known limits
+### Notes
 
-The subset guarantees identical **typing** (every scalar rule above) and the
-**listed rejections**. It does not make the two parsers identical: they are
-independent implementations and may still differ on malformed or exotic layout.
-These classes are known and open, each with one example; none is checked by a
-rule. Those marked *values* are the worst case: both loaders accept the text
-and load different values.
-
-- Comments glued to a token: `a: "x"#c`, `a: [1,#c`, `a: |#c`. One parser
-  accepts it, the other rejects it; the YAML spec requires white space before `#`.
-- Under-indented continuation lines and closing brackets: `a: [1,` / `2]`.
-  *values*: a quoted scalar continued at column 0 inside a block sequence
-  (`- "\"` / `- \0"`).
-- *values*: a comment less indented than the plain scalar after it
-  (`-` / `#c` / `  x` / `- z`: the `yaml` package reads the following entry as
-  a continuation line of the scalar).
-- Escapes: `"\/"` (rejected by Go only) and, *values*, an escaped line break (a
-  backslash at the end of a line, followed by a blank line).
-- Flow plain scalars: `[-]`, `[:x]`, `{a: ?b}` are accepted by one parser only;
-  *values*: `[?x]` is the string `?x` in one parser and a pair in the other.
-- Keys: an implicit key and its colon on different lines (`{a` / `: b}`), a
-  multi-line quoted key (Go rejects both). The explicit `? key` form is not
-  checked (a scalar key written that way is read like any other, but a tag-like
-  `#!` comment after one is rejected by Go only).
-- *values*: a block scalar as the document root with only comments as content
-  (`|` / `#c`).
-- More than one `...` marker (`a: 1` / `...` / `...`) and a directive or
-  content after one (`a: 1` / `...` / `%YAML 1.2`).
-
-A text that one loader accepts and the other rejects, or that they load to
-different values, should be reported and resolved by a rule here plus a probe in
-`spec/probes/yaml/`, implemented in both loaders.
-
-Other limits:
-
-- Positions are 1-based; a column counts UTF-16 code units in JS and runes in Go,
-  and a leading BOM is not counted.
+- Positions are 1-based; a column counts UTF-16 code units, and a leading BOM
+  is not counted.
 - Some rules restrict valid YAML on purpose (a tab after `-`, `|2`, `[a:]`) so
-  that the subset stays small and the same in every loader; quote or rewrite
-  the text.
+  that the subset stays small and unambiguous; quote or rewrite the text.
 
-## Fixture discovery and semantic rules (both validators)
+## Fixture discovery and semantic rules (enforced by the JS loader)
 
 - Every directory at `spec/fixtures/<rule>/<case>/` must contain `case.yaml`
   (not `case.yml`). Any other directory depth, or a directory without
@@ -228,12 +198,11 @@ Other limits:
   least one diagnostic, and the output file must differ from the input file.
 - `expect.<lang>` is only allowed when the rule binds that language
   (`languages.<lang>` exists).
-- An explicit spec root (`-spec` in Go, `--spec-root` in JS) that is missing or
+- An explicit spec root (`--spec-root` in JS, `-spec` in the Go tools) that is missing or
   invalid is a **hard error**, never a silent fallback to the stub. The stub
   fallback applies only when no spec root is given at all.
-- The Go message regex rejects a lone `}`, like the schema (`[^{}]`).
 
-## Required checks (both validators)
+## Required checks (enforced by the JS loader)
 
 Structure (schema-level):
 
@@ -253,6 +222,30 @@ Cross-reference (beyond what the schema can say):
    (`js/input.ts`, `go/input.go`).
 10. `output: true` requires the output file (`output.ts` / `output.go.golden`),
     and an output file without `output: true` is rejected (and vice versa).
+
+## Required checks (JS loader)
+
+Structure (schema-level):
+
+1. Reject unknown keys at every level.
+2. Enforce enums (`valueType`, `risk`, `skip`/skip-category names, placeholder
+   names), patterns and required fields.
+3. `diagnostics[].line` and `col` are integers (1-based).
+4. `expect.<lang>.output` is a boolean.
+5. Language entries (`languages.<lang>`, `expect.<lang>`) are non-null.
+
+Cross-reference (beyond what the schema can say):
+
+6. A case's `rule`, and every `diagnostics[].ruleId`, must exist in `rules.yaml`.
+7. `ctxArg` may only name a method listed in that language's `methods`.
+8. The same method must not appear in two rules for one language.
+9. A case that promises `expect.<lang>` must have that language's input file
+   (`js/input.ts`, `go/input.go`).
+10. `output: true` requires the output file (`output.ts` / `output.go.golden`),
+    and an output file without `output: true` is rejected (and vice versa).
+
+Negative tests for these live in the JS suite. A check added here needs a
+negative test there.
 
 ## Fixture coverage (separate from the loaders)
 
