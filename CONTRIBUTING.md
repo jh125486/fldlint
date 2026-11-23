@@ -19,33 +19,48 @@
 - Do your work on a branch (ideally a git worktree); open a PR rather than
   pushing to `main`.
 
-## Make targets
+## Tasks
 
-| Target | Does |
-|--------|------|
-| `make help` | Lists targets |
-| `make spec-check` | Validates `rules.yaml` and every `case.yaml`, runs both codegens and fails on drift, then runs `fixture-tags` |
-| `make spec-gen` | Regenerates the committed JS and Go rule tables |
-| `make fixture-tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template |
-| `make js-test` | Installs and runs JS tests (`npm test` in `js/`) |
-| `make go-test` | Go tests with the race detector (`go test ./...` in `go/`) |
-| `make lint` | `lint-go` and `lint-js` |
-| `make test` | `js-test` and `go-test` |
+Dev tasks run through [go-task](https://taskfile.dev) (`Taskfile.yml`).
+Install it once: `brew install go-task`, or `mise use -g go-task`, or
+`go install github.com/go-task/task/v3/cmd/task@latest`. CI pins go-task 3.54.0 (bumped deliberately in `.github/workflows/ci.yml`); any recent 3.x works locally. It is a developer
+tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 
-CI calls only these targets. Requires Node `>=22.12` (CI runs 22 and 24) and
+`task check` runs everything a good commit needs and is exactly what the required CI `check` job runs. The separate non-required `typescript-next` canary runs `task js:ts-next`, which `task check` does not include.
+
+| Task | Does |
+|------|------|
+| `task` / `task --list` | Lists tasks |
+| `task check` | `spec:check`, `lint`, `test`, then `js:types-floor` (what the required CI `check` job runs) |
+| `task spec:check` | Validates `rules.yaml` and every `case.yaml`, runs both codegens and fails on drift, then runs `spec:tags` |
+| `task spec:gen` | Regenerates the committed JS and Go rule tables |
+| `task spec:tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template (`ALLOW_EMPTY=1` tolerates missing fixtures) |
+| `task js:test` | Installs and runs JS tests (`npm test` in `js/`) |
+| `task js:lint` | Typechecks the JS workspace |
+| `task js:types-floor` | Typechecks against `@types/node` 22.12.0 (installed with `--no-save`, restored afterwards) |
+| `task js:ts-next` | Non-required canary: typecheck and build with `typescript@latest` |
+| `task go:test` | Go tests with the race detector (`go test -race ./...` in `go/`) |
+| `task go:lint` | `golangci-lint` v2.15.0, pinned via `go run` |
+| `task lint` | `js:lint` and `go:lint` |
+| `task test` | `js:test` and `go:test` |
+
+CI calls only `task check` (required `check` job) and `task js:ts-next` (non-required canary). Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
 when the repo goes public. If you change `spec/rules.yaml`, run
-`make spec-gen` and commit the generated files.
+`task spec:gen` and commit the generated files.
 
 ## Dependencies
 
-Only approved dependencies may be used.
+Only approved dependencies may be used. `docs/m0-contract.md` (M0.8) carries
+the same list.
 
 - JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
   `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
-- JS (test/build time only): `@types/node` ^22, `typescript`, `vitest` ^5.1.1,
+- JS (test/build time only): `@types/node` ^26 (latest LTS; CI also typechecks
+  against 22.12.0), `typescript` ~6.0 (newest line supported by
+  typescript-eslint), `vitest` ^5.1.1,
   `fast-check` and `esbuild` (approved by the owner; `esbuild` only as a
   build-time devDependency of `@fldlint/codemod`).
 - Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` is not
@@ -53,7 +68,8 @@ Only approved dependencies may be used.
 - Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
   OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
   `rewrite-maven-plugin` 6.46.1. ADR 009 is Proposed until merged.
-- Plugin-module-register (test/build time only).
+- Go (build time only): `github.com/golangci/plugin-module-register`, only in
+  the golangci-lint module plugin (issue #18).
 - Real-SDK compile-check modules for Go, JS and Java (test/build time only;
   never shipped).
 

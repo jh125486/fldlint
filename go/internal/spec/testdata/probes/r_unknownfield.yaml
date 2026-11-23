@@ -7,5 +7,6 @@ skipCategories:
   type-mismatch: {severity: warning, message: "t"}
   context-unproven: {severity: warning, message: "c"}
   default-type-unproven: {severity: warning, message: "p"}
+  receiver-unproven: {severity: warning, message: "r"}
 rules:
   - {id: a, valueType: boolean, risk: low, keyArg: 0, defaultArg: 2, contextArg: 1, languages: {go: {methods: [M], tempalte: "x", template: "{{client}}.X()"}}}

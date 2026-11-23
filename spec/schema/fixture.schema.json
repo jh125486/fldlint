@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fldlint.dev/schema/fixture.schema.json",
   "title": "fldlint fixture case.yaml",
-  "description": "A missing expect entry means the language is not applicable. skip values are the seven skipCategories names (enumerated; JSON Schema cannot cross-reference rules.yaml).",
+  "description": "A missing expect entry means the language is not applicable. skip values are the eight skipCategories names (enumerated; JSON Schema cannot cross-reference rules.yaml).",
   "type": "object",
   "additionalProperties": false,
   "required": ["id", "rule", "tags", "description", "expect"],
@@ -10,7 +10,7 @@
     "id": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" },
     "rule": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
     "tags": {
-      "description": "Mandatory shape tags for rewriting rules: quote-single quote-double typed-decl multi-declarator shadowed-client dynamic-key aliased-import (coverage is checked by make spec-check, not here).",
+      "description": "Mandatory shape tags for rewriting rules: quote-single quote-double typed-decl multi-declarator shadowed-client dynamic-key aliased-import (coverage is checked by task spec:check, not here).",
       "type": "array",
       "uniqueItems": true,
       "items": { "type": "string", "pattern": "^[a-z0-9]+(?:-[a-z0-9]+)*$" }
@@ -43,7 +43,7 @@
               "line": { "type": "integer", "minimum": 1 },
               "col": { "type": "integer", "minimum": 1 },
               "ruleId": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
-              "skip": { "enum": ["detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven", "default-type-unproven"] }
+              "skip": { "enum": ["detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven", "default-type-unproven", "receiver-unproven"] }
             }
           }
         },

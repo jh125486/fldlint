@@ -8,6 +8,7 @@ var genSkipCategories = map[string]SkipCategory{
 	"default-type-unproven": {Severity: "warning", Message: "Default value type not proven"},
 	"detail":                {Severity: "warning", Message: "Detail call; reason/variation metadata has no 1:1 rewrite"},
 	"dynamic-key":           {Severity: "warning", Message: "Flag key is not a static string"},
+	"receiver-unproven":     {Severity: "warning", Message: "LaunchDarkly client expression cannot be removed safely"},
 	"type-mismatch":         {Severity: "warning", Message: "Return/default type differs between SDKs"},
 	"unbound-client":        {Severity: "warning", Message: "OpenFeature client binding not proven in scope"},
 }
