@@ -64,14 +64,14 @@ case and reports it as pending, and CI. No detection engine, rewrite, ESLint
 rule, codemod or CLI is implemented; the contracts under `spec/contracts/` are
 plans.
 
-- Node `>=22.12` (CI tests Node 22 and 24; Node 20 is not supported).
+- Node `>=22.12` (CI tests every supported LTS line: 22, 24 and 26; Node 20 is not supported).
 - Go: the version in `go/go.mod`.
 - CodeQL and dependency review run in CI only when the repository variable
   `GHAS_ENABLED` is `'true'`; it is unset while the repo is private and is to
   be set when the repo goes public.
 
-Run `make help` for targets; `make test` runs the JS and Go tests and
-`make spec-check` validates the spec and checks generated code for drift.
+Run `task --list` for tasks; `task test` runs the JS and Go tests,
+`task check` runs everything the required CI `check` job runs (the non-required `typescript-next` canary is `task js:ts-next`), and `task spec:check` validates the spec and checks generated code for drift.
 
 ## Milestones
 

@@ -8,6 +8,18 @@ updates:
     directory: /js
     schedule:
       interval: weekly
+    ignore:
+      # Pending typescript-eslint support for TS 7 (native port; no programmatic
+      # compiler API). Remove this entry when it lands (docs/m0-contract.md M0.6).
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
+      # Types follow the latest Node LTS only; skip odd (non-LTS) majors.
+      - dependency-name: "@types/node"
+        versions: [">=25.0.0 <26.0.0", ">=27.0.0 <28.0.0", ">=29.0.0 <30.0.0"]
+    groups:
+      js-dev-minor-patch:
+        dependency-type: development
+        update-types: ["minor", "patch"]
   - package-ecosystem: gomod
     directory: /go
     schedule:

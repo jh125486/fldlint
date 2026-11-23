@@ -1,0 +1,106 @@
+# fldlint Taskfile (https://taskfile.dev). `task check` is the single entry
+# point for both local use and CI (see docs/m0-contract.md, M0.7).
+version: '3'
+
+silent: true
+
+vars:
+  GEN_FILES: js/packages/spec/src/rules.gen.ts go/internal/spec/rules_gen.go
+  # Pinned; CI and local both run this exact version via `go run`.
+  GOLANGCI_LINT: github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+
+tasks:
+  default:
+    desc: List available tasks
+    cmds:
+      - task --list
+
+  check:
+    desc: Everything a good commit needs (spec:check, lint, test, js:types-floor)
+    cmds:
+      # Serial: spec:check regenerates files and js:types-floor swaps @types/node.
+      - task: spec:check
+      - task: lint
+      - task: test
+      - task: js:types-floor
+
+  spec:check:
+    desc: Validate spec, regenerate code, fail on drift, check fixture tags
+    cmds:
+      - task: js:install
+      - cd js && npm run spec:validate
+      - task: spec:gen
+      - |
+        test -z "$(git status --porcelain -- {{.GEN_FILES}})" || {
+          echo "spec:check: generated files are out of date, run 'task spec:gen' and commit:" >&2
+          git status --porcelain -- {{.GEN_FILES}} >&2
+          exit 1
+        }
+      - task: spec:tags
+
+  spec:gen:
+    desc: Regenerate JS and Go tables from spec/rules.yaml
+    cmds:
+      - cd js && npm run gen -w @fldlint/spec
+      - cd go && go run ./internal/spec/gen
+
+  spec:tags:
+    desc: Check mandatory fixture tag coverage (ALLOW_EMPTY=1 tolerates missing fixtures)
+    cmds:
+      - cd js && npm run spec:tags --silent{{if eq .ALLOW_EMPTY "1"}} -- --allow-empty{{end}}
+
+  js:install:
+    desc: Install JS dependencies from the lockfile (npm ci)
+    run: once
+    cmds:
+      - cd js && npm ci
+
+  js:test:
+    desc: Install and run JS tests
+    deps: [js:install]
+    cmds:
+      - cd js && npm test
+
+  js:lint:
+    desc: Typecheck the JS workspace (npm run lint)
+    deps: [js:install]
+    cmds:
+      - cd js && npm run lint
+
+  js:types-floor:
+    desc: Typecheck against the @types/node 22.12.0 floor (not saved; restored afterwards)
+    cmds:
+      - task: js:install
+      - defer: cd js && npm ci
+      - cd js && npm install --no-save --workspaces --include-workspace-root '@types/node@22.12.0'
+      - |
+        cd js && node -e "const v=require('@types/node/package.json').version; if(v!=='22.12.0'){console.error('expected @types/node 22.12.0, got '+v);process.exit(1)}"
+      - cd js && npm run typecheck
+
+  js:ts-next:
+    desc: Canary, typecheck and build with typescript@latest (not saved; restored afterwards)
+    cmds:
+      - task: js:install
+      - defer: cd js && npm ci
+      - cd js && npm install --no-save typescript@latest
+      - cd js && npx tsc -v
+      - cd js && npm run typecheck
+      - cd js && npm run build
+
+  go:test:
+    desc: Run Go tests with the race detector
+    cmds:
+      - cd go && go test -race ./...
+
+  go:lint:
+    desc: Run golangci-lint (pinned v2.15.0 via go run)
+    cmds:
+      - cd go && go run {{.GOLANGCI_LINT}} run ./...
+
+  lint:
+    desc: Run all linters (JS and Go)
+    deps: [js:lint, go:lint]
+
+  test:
+    desc: Run all tests (JS and Go)
+    deps: [js:test, go:test]
