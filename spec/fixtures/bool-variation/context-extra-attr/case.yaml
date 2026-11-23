@@ -1,0 +1,6 @@
+id: context-extra-attr
+rule: bool-variation
+tags: [context-unproven]
+description: A context literal with an attribute beyond key and kind would lose that attribute, so the call is skipped as context-unproven.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation, skip: context-unproven}], output: false}

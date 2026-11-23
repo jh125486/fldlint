@@ -28,12 +28,9 @@ describe(`conformance (spec root: ${root})`, () => {
       it("references known rules and has the promised fixture files", () => {
         expect(validateCaseSemantics(loadRules(root), c)).toEqual([]);
       });
-
-      const expectMap = (c.data as { expect?: Record<string, unknown> } | undefined)?.expect ?? {};
-      if (Object.hasOwn(expectMap, "js")) {
-        // Pending until the JS detection engine lands (M1).
-        it.skip("js expectation (engine not implemented)", () => {});
-      }
+      // JS expectations (diagnostics, output, idempotency) are asserted against
+      // the real engine in packages/core/test/conformance.test.ts; spec must not
+      // depend on core.
     });
   }
 });

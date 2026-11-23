@@ -1,0 +1,6 @@
+id: require-cjs
+rule: bool-variation
+tags: [require-cjs]
+description: Clients obtained through destructured require() of the SDK packages are proven and rewritten.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
