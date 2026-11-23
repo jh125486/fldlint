@@ -1,12 +1,35 @@
 {
-  "name": "@fldlint/eslint-plugin",
+  "name": "eslint-plugin-fldlint",
   "version": "0.0.0",
   "private": true,
+  "description": "ESLint plugin that reports (and where provable, autofixes) LaunchDarkly server SDK calls that can migrate to OpenFeature.",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "exports": {
+    ".": { "types": "./dist/index.d.ts", "default": "./dist/index.js" }
+  },
+  "files": ["dist"],
+  "keywords": ["eslint", "eslintplugin", "eslint-plugin", "launchdarkly", "openfeature"],
   "scripts": {
+    "prebuild": "npm run build -w @fldlint/spec --silent && npm run build -w @fldlint/core --silent",
     "build": "tsc -p tsconfig.build.json",
-    "typecheck": "tsc -p tsconfig.json"
+    "pretypecheck": "npm run build -w @fldlint/spec --silent && npm run build -w @fldlint/core --silent",
+    "typecheck": "tsc -p tsconfig.json",
+    "pretest": "npm run build -w @fldlint/spec --silent && npm run build -w @fldlint/core --silent && npm run build --silent",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@fldlint/core": "0.0.0",
+    "@fldlint/spec": "0.0.0"
+  },
+  "peerDependencies": {
+    "eslint": "^9.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "@typescript-eslint/parser": "8.73.0",
+    "@typescript-eslint/utils": "8.73.0",
+    "eslint": "^9.0.0"
   }
 }
