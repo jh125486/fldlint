@@ -125,6 +125,9 @@ func diagnostic(fset *token.FileSet, file *ast.File, site planner.CallSite, res 
 	if res.Kind == planner.KindSkip {
 		msg += " [skip: " + res.Category + "]"
 	}
+	if res.Kind == planner.KindUnfixable {
+		msg += " [no-fix: comment]"
+	}
 	d := analysis.Diagnostic{
 		Pos:      site.Call.Pos(),
 		End:      site.Call.End(),

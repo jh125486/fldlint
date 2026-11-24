@@ -37,12 +37,23 @@ own text are copied with it. The others:
 - A `//` comment, or a block comment containing a line break, that trails an
   argument is written behind the next `,` of the template (a comma is added
   before `)` for the last one): Go would insert a semicolon at the line break
-  otherwise. Line terminators (LF or CRLF) are copied from the source.
+  otherwise. Line terminators (LF or CRLF) are copied from the source. The
+  same comma is added before `)` for own-line tail comments, block comments
+  included.
 - A comment with no home (inside the converted context literal outside the
   key expression, `ldcontext.New(...)` likewise, or a `//` or multi-line comment
   between the receiver and the `(`) makes the call a finding with no fix. It is
   not a skip category and has no `[skip: ...]` suffix: the message is the
-  rule's own. The comment is never dropped.
+  rule's own, followed by `[no-fix: comment]`
+  ([output-format.md](output-format.md)). The comment is never dropped.
+- A directive-shaped comment (`@ts-expect-error`, `@ts-ignore`, `@ts-nocheck`,
+  `eslint-disable*`, `eslint-enable`, `nolint`, `//go:`, `lint:ignore`,
+  `istanbul ignore`) outside an argument's own text has no home either: moving
+  it would change which line or argument it governs.
+- JS only: a comment inside a parenthesized callee, `(ld).boolVariation(...)`
+  or any callee whose `(` cannot be located behind trivia, is conservatively
+  unfixable. JS argument text is copied from the argument node, so parentheses
+  around an argument (`f((a), b)`) are dropped from the copy; Go copies them.
 
 A call with no comment outside its argument text rewrites exactly as before.
 

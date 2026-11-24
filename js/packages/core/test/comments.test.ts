@@ -118,6 +118,9 @@ describe("a comment with no home withholds the fix", () => {
     { name: "before the key inside the converted context literal", call: `ld.boolVariation("k", { key: /* c */ u }, false)` },
     { name: "next to kind inside the converted context literal", call: `ld.boolVariation("k", { key: u, /* c */ kind: "user" }, false)` },
     { name: "a line comment between receiver and method", call: `ld // note\n  .boolVariation("k", { key: u }, false)` },
+    { name: "a ts-expect-error directive trailing an argument", call: `ld.boolVariation("k", { key: u }, false // @ts-expect-error\n)` },
+    { name: "an eslint-disable directive before an argument", call: `ld.boolVariation(\n  /* eslint-disable-next-line x */\n  "k", { key: u }, false)` },
+    { name: "a nolint directive between arguments", call: `ld.boolVariation("k", /* nolint */ { key: u }, false)` },
     { name: "a multi-line block comment between receiver and method", call: `ld /* a\n b */ .boolVariation("k", { key: u }, false)` },
   ];
   for (const { name, call } of cases) {
@@ -133,6 +136,13 @@ describe("a comment with no home withholds the fix", () => {
   it("only the unfixable call is held back; its neighbour is still rewritten", () => {
     const src = `${PRE}const a = ld.boolVariation("a", { key: u /* x */ }, false);\nconst b = ld.boolVariation("b", { key: u }, false);\n`;
     expect(rewrite(src)).toBe(`${PRE}const a = ld.boolVariation("a", { key: u /* x */ }, false);\nconst b = c.getBooleanValue("b", false, { targetingKey: u });\n`);
+  });
+
+  it("a skip decided by an earlier step wins over a comment with no home", () => {
+    const dynamic = stmt(`ld.boolVariation(k /* c */, { key: u /* x */ }, false)`);
+    expect(analyze(dynamic).map((f) => f.result)).toEqual([{ kind: "skip", category: "dynamic-key", ruleId: "bool-variation" }]);
+    const unbound = `${PRE.replace("const c = OpenFeature.getClient();", "")}const v = ld.boolVariation("k", { key: u /* x */ }, false);\n`;
+    expect(analyze(unbound).map((f) => f.result.kind)).toEqual(["skip"]);
   });
 
   it("a call that is already skipped stays a skip, comments or not", () => {

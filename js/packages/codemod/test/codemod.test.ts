@@ -59,7 +59,7 @@ describe("comments inside a call (issue #31)", () => {
     const src = `${head}export const v = ld.boolVariation("k", { key: u /* id */ }, false);\n`;
     const out = runCodemod(src, "a.ts");
     expect(out.output).toBeNull();
-    expect(out.reports).toEqual([`a.ts:5:18  bool-variation  call left unchanged: a comment inside it has no home in the rewritten call [no-fix: comment]`]);
+    expect(out.reports).toEqual([`a.ts:5:18  bool-variation  Migrate boolean flag "k" to OpenFeature [no-fix: comment]`]);
   });
 });
 

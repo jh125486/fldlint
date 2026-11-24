@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"go/ast"
 	"go/token"
+	"sort"
 	"strings"
 
 	"github.com/jh125486/fldlint/go/internal/fix"
@@ -48,9 +49,15 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 	off := func(p token.Pos) int { return tf.Offset(p) }
 	start, end := off(call.Pos()), off(call.End())
 
+	// File comment groups are sorted: binary-search the first group that can
+	// reach the call, then stop at the first group past it.
 	var inCall []placedComment
-	for _, g := range f.AST.Comments {
-		for _, c := range g.List {
+	groups := f.AST.Comments
+	for gi := sort.Search(len(groups), func(i int) bool { return off(groups[i].End()) > start }); gi < len(groups); gi++ {
+		if off(groups[gi].Pos()) >= end {
+			break
+		}
+		for _, c := range groups[gi].List {
 			if cs := off(c.Slash); cs >= start && cs < end {
 				fc, ce := srcComment(f.Src, cs, strings.HasPrefix(c.Text, "//"))
 				inCall = append(inCall, placedComment{fc, cs, ce})
@@ -139,6 +146,11 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 			if !kept {
 				n.Unhomed = true
 			}
+			continue
+		}
+		// Moving a directive changes what it governs.
+		if fix.IsDirective(c.Text) {
+			n.Unhomed = true
 			continue
 		}
 		if c.start < lparen {

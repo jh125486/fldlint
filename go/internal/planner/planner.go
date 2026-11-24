@@ -226,6 +226,20 @@ func PlanFile(fi FileInfo, sites []CallSite) []Result {
 		results[i] = Plan(s)
 	}
 	strand(sites, results)
+	// A comment with no home must not hide a skip the call would report
+	// without it: judge each unfixable call as if it were a rewrite (its
+	// siblings keep their own outcome).
+	for i := range results {
+		if results[i].Kind != KindUnfixable {
+			continue
+		}
+		hypo := slices.Clone(results)
+		hypo[i].Kind = KindRewrite
+		strand(sites, hypo)
+		if hypo[i].Kind == KindSkip {
+			results[i] = hypo[i]
+		}
+	}
 	markNested(sites, results)
 
 	order := make([]*ast.ImportSpec, 0, len(fi.Removable))

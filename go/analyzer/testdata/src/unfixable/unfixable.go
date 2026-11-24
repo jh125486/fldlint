@@ -37,3 +37,13 @@ func Neighbour(userKey string) bool {
 	on, _ := ldClient.BoolVariation("d", ldcontext.New(userKey), false) // want `Migrate boolean flag "d" to OpenFeature`
 	return on
 }
+
+// A directive moves to a different line, so it would govern something else.
+func Directive(userKey string) bool {
+	/* want `Migrate boolean flag "e" to OpenFeature \[no-fix: comment\]` */ on, _ := ldClient.BoolVariation(
+		"e",
+		ldcontext.New(userKey),
+		false, //nolint:gosec
+	)
+	return on
+}

@@ -2,6 +2,7 @@ package fix
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
 
@@ -15,6 +16,13 @@ type Comment struct {
 	// or "\r\n"); empty for a block comment.
 	EOL string
 }
+
+var directive = regexp.MustCompile(`@ts-(?:expect-error|ignore|nocheck)|eslint-(?:disable|enable)|\bnolint\b|^//go:|lint:ignore|istanbul ignore`)
+
+// IsDirective reports whether a comment governs a line or argument (type
+// check, lint, coverage or build directive): moving it would change what it
+// governs, so it has no home outside its own argument text.
+func IsDirective(text string) bool { return directive.MatchString(text) }
 
 // Breaks reports whether more code may not follow the comment on its line: a
 // // comment, or a block comment containing a line break (Go inserts a

@@ -1,4 +1,4 @@
-import { skipCategories } from "@fldlint/spec";
+import { rules, skipCategories } from "@fldlint/spec";
 import { analyze, applyEdits, nonOverlapping } from "@fldlint/core";
 import type { Edit } from "@fldlint/spec";
 
@@ -40,7 +40,8 @@ export function runCodemod(source: string, filePath: string, maxPasses = MAX_PAS
         // Positions refer to the original file, so only the first pass reports.
         for (const { site, result } of findings) {
           if (result.kind === "unfixable") {
-            reports.push(`${filePath}:${site.line}:${site.col}  ${result.ruleId}  call left unchanged: a comment inside it has no home in the rewritten call [no-fix: comment]`);
+            const message = (rules.find((r) => r.id === result.ruleId)?.message ?? result.ruleId).replace("{{key}}", () => site.keyText ?? "");
+            reports.push(`${filePath}:${site.line}:${site.col}  ${result.ruleId}  ${message} [no-fix: comment]`);
             continue;
           }
           if (result.kind !== "skip") continue;

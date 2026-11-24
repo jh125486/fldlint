@@ -11,7 +11,7 @@ func line(text string) fix.Comment  { return fix.Comment{Text: text, Line: true,
 
 func TestExpandNotes(t *testing.T) {
 	t.Parallel()
-	vals := map[string]string{"client": "c", "key": `"k"`, "default": "false", "ctx": "{ x }"}
+	vals := map[string]string{"client": "c", "key": `"k"`, "default": "false", "ctx": "{ x }", "empty": ""}
 	const tmpl = "{{client}}.f({{key}}, {{default}}, {{ctx}})"
 	args := func(m map[string]*fix.ArgNotes) *fix.Notes { return &fix.Notes{Args: m} }
 	tests := []struct {
@@ -23,6 +23,10 @@ func TestExpandNotes(t *testing.T) {
 		// wantErr is a malformed template or a placeholder with no value.
 		wantErr bool
 	}{
+		{name: "no placeholders", tmpl: "plain()", want: "plain()", wantOK: true},
+		{name: "a placeholder may repeat", tmpl: "{{client}}.V({{key}}, {{client}})", want: `c.V("k", c)`, wantOK: true},
+		{name: "an empty value is substituted", tmpl: "a{{empty}}b", want: "ab", wantOK: true},
+		{name: "a value is not re-expanded", tmpl: "{{key}}", want: `"k"`, wantOK: true},
 		{name: "unknown placeholder is an error", tmpl: "{{nope}}", wantErr: true},
 		{name: "unterminated placeholder is an error", tmpl: "{{key", wantErr: true},
 		{name: "nil notes equal plain substitution", tmpl: tmpl, want: `c.f("k", false, { x })`, wantOK: true},
@@ -135,6 +139,35 @@ func TestComment_Breaks(t *testing.T) {
 			t.Parallel()
 			if got := tt.c.Breaks(); got != tt.want {
 				t.Fatalf("Breaks() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestIsDirective(t *testing.T) {
+	t.Parallel()
+	tests := []struct {
+		text string
+		want bool
+	}{
+		{"// @ts-expect-error", true},
+		{"/* @ts-ignore */", true},
+		{"// @ts-nocheck", true},
+		{"// eslint-disable-next-line x", true},
+		{"/* eslint-enable */", true},
+		{"// nolint:gosec", true},
+		{"//go:generate foo", true},
+		{"// lint:ignore SA1000 x", true},
+		{"/* istanbul ignore next */", true},
+		{"// the flag", false},
+		{"// see go:generate docs", false},
+		{"/* nolinting is not a directive */", false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.text, func(t *testing.T) {
+			t.Parallel()
+			if got := fix.IsDirective(tt.text); got != tt.want {
+				t.Fatalf("IsDirective(%q) = %v, want %v", tt.text, got, tt.want)
 			}
 		})
 	}

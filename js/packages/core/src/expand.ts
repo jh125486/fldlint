@@ -3,6 +3,10 @@ import type { ArgRole, CallComment, CommentNotes } from "./callsite.js";
 /** A line terminator as JS defines it; a comment holding one acts like a newline (ASI). */
 export const hasLineTerminator = (s: string): boolean => new RegExp("[\\n\\r\\u2028\\u2029]").test(s);
 
+/** A comment that governs a line or argument (type-check, lint, coverage, build directives). */
+export const isDirective = (text: string): boolean =>
+  /@ts-(?:expect-error|ignore|nocheck)|eslint-(?:disable|enable)|\bnolint\b|lint:ignore|istanbul ignore/.test(text);
+
 /** Must not be followed directly by more code on its line: `//` comments and multi-line block comments. */
 const breaks = (c: CallComment): boolean => c.line || hasLineTerminator(c.text);
 

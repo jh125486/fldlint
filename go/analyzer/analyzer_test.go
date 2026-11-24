@@ -49,6 +49,7 @@ func TestAnalyzer(t *testing.T) {
 		{name: "nested rewrites fix only the inner call", a: analyzer.Analyzer, pkg: "nested", fixes: true},
 		{name: "comments inside a call move with their arguments", a: analyzer.Analyzer, pkg: "comments", fixes: true},
 		{name: "a comment with no home withholds the fix", a: analyzer.Analyzer, pkg: "unfixable"},
+		{name: "a comment with no home does not hide receiver-unproven", a: analyzer.Analyzer, pkg: "unfixablestrand"},
 		{name: "a changed SDK signature is not a finding", a: analyzer.Analyzer, pkg: "forkuse", dir: "testdata/fork"},
 		{name: "blank and dot openfeature imports are unbound", a: analyzer.Analyzer, pkg: "badof"},
 		{name: "a shadowed or unusable context import is context-unproven", a: analyzer.Analyzer, pkg: "badctx"},
@@ -245,7 +246,7 @@ func TestAnalyzer_SuggestedFixes(t *testing.T) {
 		{name: "a package-qualified receiver import goes with its last use", pkg: "pkgrecv", removes: []string{ldctx + ",example.com/pkgrecv/clients"}},
 		{name: "a package-qualified receiver import shared by two fixes stays", pkg: "pkgrecvtwo", removes: []string{"", ""}},
 		{name: "the outer of nested rewrites has no fix", pkg: "nested", removes: []string{""}, noFix: 1},
-		{name: "a comment with no home withholds the fix and keeps the imports", pkg: "unfixable", removes: []string{""}, noFix: 3},
+		{name: "a comment with no home withholds the fix and keeps the imports", pkg: "unfixable", removes: []string{""}, noFix: 4},
 	}
 	candidates := []string{ldctx, "example.com/pkgrecv/clients", "example.com/pkgrecvtwo/clients"}
 	for _, tt := range tests {

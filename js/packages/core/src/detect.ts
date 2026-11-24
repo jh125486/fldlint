@@ -6,7 +6,7 @@ import { AST_NODE_TYPES, AST_TOKEN_TYPES, TSESLint, type TSESTree } from "@types
 import { findRuleByMethod } from "@fldlint/spec";
 import { visitorKeys as defaultVisitorKeys } from "@typescript-eslint/visitor-keys";
 import type { ArgRole, CallComment, CallSite, ClientBinding, CommentNotes, ContextShape, DefaultType } from "./callsite.js";
-import { hasLineTerminator } from "./expand.js";
+import { hasLineTerminator, isDirective } from "./expand.js";
 import { staticFingerprintKey } from "./fingerprint.js";
 
 const { DefinitionType, ScopeType } = TSESLint.Scope;
@@ -365,7 +365,18 @@ class Detector {
    */
   private commentNotes(call: TSESTree.CallExpression, rule: { keyArg?: number; defaultArg?: number; contextArg?: number }): CommentNotes | undefined {
     const [start, end] = call.range;
-    const inCall = this.comments.filter((c) => c.range[0] >= start && c.range[1] <= end);
+    // `this.comments` is sorted by start: binary-search the first one at or after the call start.
+    let lo = 0;
+    let hi = this.comments.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.comments[mid]!.range[0] < start) lo = mid + 1;
+      else hi = mid;
+    }
+    const inCall: TSESTree.Comment[] = [];
+    for (let i = lo; i < this.comments.length && this.comments[i]!.range[0] < end; i++) {
+      if (this.comments[i]!.range[1] <= end) inCall.push(this.comments[i]!);
+    }
     if (inCall.length === 0) return undefined;
     const args = call.arguments;
     const roleOf = (i: number): ArgRole | undefined =>
@@ -395,6 +406,8 @@ class Detector {
         continue;
       }
       const cc = this.comment(c);
+      // Moving a directive changes what it governs.
+      if (isDirective(cc.text)) notes.unhomed = true;
       if (cs < open) {
         notes.head.push(cc);
         continue;

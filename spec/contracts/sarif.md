@@ -70,7 +70,12 @@ the rule's `message` (with `{{key}}` substituted) for a rewritable one, the
 same strings as the `text` formatter minus its `[skip: ...]` suffix
 ([output-format.md](output-format.md)). The category key is recorded
 in `result.properties.skip` (e.g. `"dynamic-key"`). Results with no `skip`
-property are rewritable. The rule's `risk` is in `result.properties.risk`.
+property are rewritable. A rewritable result whose fix is withheld because a
+comment has no home in the rewritten call (see
+[placeholders.md](placeholders.md#comments-inside-a-call)) has no `skip`
+either; it carries the optional `result.properties.noFix` = `"comment"`, keeps
+the rule's `message` and gets no SARIF `fixes`. Not emitted by engines that
+have no SARIF output yet. The rule's `risk` is in `result.properties.risk`.
 
 ## Fingerprints and baseline
 

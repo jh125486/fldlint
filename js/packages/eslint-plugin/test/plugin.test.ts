@@ -111,7 +111,7 @@ describe("comments inside a call (issue #31)", () => {
       const src = `${prelude}const v = ld.boolVariation("k", { key: u /* id */ }, false);\n`;
       const msgs = lint(src, parser);
       expect(msgs).toHaveLength(1);
-      expect(msgs[0]?.message).toBe('Migrate boolean flag "k" to OpenFeature');
+      expect(msgs[0]?.message).toBe('Migrate boolean flag "k" to OpenFeature [no-fix: comment]');
       expect(msgs[0]?.fix).toBeUndefined();
       expect(skipOf(msgs[0]!)).toBeUndefined();
       expect(fix(src, parser).output).toBe(src);
