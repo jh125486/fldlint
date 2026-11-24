@@ -1,0 +1,7 @@
+id: comment-callee-hoist
+rule: bool-variation
+tags: [comments]
+description: Comments between the receiver, the method name and the opening paren are hoisted in front of the rewritten call.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation}], output: true}

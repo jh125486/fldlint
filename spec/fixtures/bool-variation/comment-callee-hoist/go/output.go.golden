@@ -1,0 +1,17 @@
+package flags
+
+import (
+	"context"
+
+	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("banner")
+
+var ldClient *ldclient.LDClient
+
+func BannerEnabled(userKey string) bool {
+	on, _ := /* a */ /* b */ /* p */ client.BooleanValue(context.TODO(), "promo", false, openfeature.NewEvaluationContext(userKey, nil))
+	return on
+}

@@ -1,0 +1,7 @@
+id: comment-own-line
+rule: bool-variation
+tags: [comments]
+description: An own-line comment above the first argument leads it, and one after the last argument goes before the closing paren.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation}], output: true}

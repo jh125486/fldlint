@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/jh125486/fldlint/go/internal/fix"
 	"github.com/jh125486/fldlint/go/internal/planner"
 )
 
@@ -151,6 +152,32 @@ func TestPlan(t *testing.T) {
 			facts:    with(func(f *planner.Facts) { f.Client = "" }),
 			wantKind: planner.KindSkip, wantCategory: "unbound-client", wantRule: "bool-variation",
 		},
+		{
+			name: "a comment on the context moves with it", method: "BoolVariation",
+			facts: with(func(f *planner.Facts) {
+				f.Notes = &fix.Notes{Args: map[string]*fix.ArgNotes{"evalctx": {Lead: []fix.Comment{{Text: "/* who */"}}}}}
+			}),
+			wantKind: planner.KindRewrite, wantRule: "bool-variation",
+			wantText: `client.BooleanValue(context.TODO(), "k", false, /* who */ openfeature.NewEvaluationContext("u", nil))`,
+		},
+		{
+			name: "a comment with no home reports the call without a fix", method: "BoolVariation",
+			facts:    with(func(f *planner.Facts) { f.Notes = &fix.Notes{Unhomed: true} }),
+			wantKind: planner.KindUnfixable, wantRule: "bool-variation",
+			wantMessage: `Migrate boolean flag "k" to OpenFeature`,
+		},
+		{
+			name: "a comment bound to an argument the template lacks has no home", method: "BoolVariation",
+			facts: with(func(f *planner.Facts) {
+				f.Notes = &fix.Notes{Args: map[string]*fix.ArgNotes{"nope": {Lead: []fix.Comment{{Text: "/* x */"}}}}}
+			}),
+			wantKind: planner.KindUnfixable, wantRule: "bool-variation",
+		},
+		{
+			name: "a skip still wins over a comment with no home", method: "BoolVariation",
+			facts:    with(func(f *planner.Facts) { f.KeyStatic = false; f.Notes = &fix.Notes{Unhomed: true} }),
+			wantKind: planner.KindSkip, wantCategory: "dynamic-key", wantRule: "bool-variation",
+		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -163,6 +190,15 @@ func TestPlan(t *testing.T) {
 			if tt.wantKind == planner.KindSkip {
 				if got.Edit != nil || got.Message == "" && tt.wantRule != "" {
 					t.Fatalf("skip must have no edit and a message: %+v", got)
+				}
+				return
+			}
+			if tt.wantKind == planner.KindUnfixable {
+				if got.Edit != nil || got.Imports != nil || got.Category != "" {
+					t.Fatalf("unfixable must carry no edit, imports or category: %+v", got)
+				}
+				if tt.wantMessage != "" && got.Message != tt.wantMessage {
+					t.Fatalf("message = %q, want %q", got.Message, tt.wantMessage)
 				}
 				return
 			}
