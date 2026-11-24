@@ -30,8 +30,11 @@
     <!-- Central's newest OpenRewrite (ADR 009 D1); do not bump without a new ADR. -->
     <rewrite.version>8.90.4</rewrite.version>
     <junit.version>5.14.4</junit.version>
+    <!-- Deliberately NOT the newest: slf4j 1.7.x matches the slf4j-api 1.7.36 binding that
+         rewrite-test 8.90.4 uses (slf4j 2.x bindings would not attach to it). -->
     <slf4j.version>1.7.36</slf4j.version>
-    <!-- The version rewrite-core 8.90.4 resolves (its jackson-bom import). -->
+    <!-- Deliberately NOT the newest: 2.21.6 is the jackson-bom version rewrite 8.90.4 imports;
+         a newer databind would mismatch the 2.21.x jackson-core/annotations it resolves. -->
     <jackson.version>2.21.6</jackson.version>
     <launchdarkly.version>7.18.1</launchdarkly.version>
     <openfeature.version>1.23.0</openfeature.version>
@@ -109,12 +112,12 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-compiler-plugin</artifactId>
-        <version>3.14.1</version>
+        <version>3.16.0</version>
       </plugin>
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-surefire-plugin</artifactId>
-        <version>3.5.6</version>
+        <version>3.6.1</version>
         <configuration>
           <systemPropertyVariables>
             <fldlint.specRoot>${fldlint.specRoot}</fldlint.specRoot>
@@ -124,7 +127,7 @@
       <plugin>
         <groupId>org.apache.maven.plugins</groupId>
         <artifactId>maven-jar-plugin</artifactId>
-        <version>3.4.2</version>
+        <version>3.5.1</version>
       </plugin>
     </plugins>
   </build>

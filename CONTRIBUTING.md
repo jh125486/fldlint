@@ -74,7 +74,7 @@ the same list.
 - Go (shipped): `golang.org/x/tools`. Go reads the generated `spec.json`, so
   there is no YAML dependency. `testify` is not approved.
 - Java (test/build time only; ADR 009): Maven via the script-only Maven Wrapper
-  (3.9.11, pinned `distributionSha256Sum`), JDK 21 to build, `maven.compiler.release=8`.
+  (3.9.16, pinned `distributionSha256Sum`), JDK 21 to build, `maven.compiler.release=8`.
   OpenRewrite 8.90.4: `rewrite-java` (provided), `rewrite-test` and `rewrite-java-21`
   (test), `rewrite-templating`; `rewrite-maven-plugin` 6.46.1 (consumer side, not in
   the scaffold); JUnit Jupiter 5.14.4, `slf4j-simple` 1.7.36;
@@ -82,7 +82,7 @@ the same list.
   1.23.0 (test, real SDK jars for fixture type attribution); `jackson-databind`
   2.21.6 (provided scope, so recipes can compile against it; tests use it to read `spec/generated/spec.json`; the version `rewrite-java` 8.90.4
   already resolves; no Gson, no YAML library). Maven plugins: `maven-compiler-plugin`
-  3.14.1, `maven-surefire-plugin` 3.5.6, `maven-jar-plugin` 3.4.2 (plus Maven's
+  3.16.0, `maven-surefire-plugin` 3.6.1, `maven-jar-plugin` 3.5.1 (plus Maven's
   default lifecycle plugins).
 - Go (build time only): `github.com/golangci/plugin-module-register`, only in
   the golangci-lint module plugin (issue #18).
