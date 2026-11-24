@@ -9,6 +9,12 @@ export interface Edit {
 
 export type PlanResult =
   | { kind: "rewrite"; edit: Edit }
+  /**
+   * A rewritable call whose fix is withheld because a comment inside it has no
+   * home in the rewritten call (issue #31). Not a skip category: the finding
+   * keeps the rule's own message and carries no fix.
+   */
+  | { kind: "unfixable"; ruleId: string }
   | { kind: "skip"; category: string; ruleId: string };
 
 /** A detected call site, as handed over by a language's detection engine. */

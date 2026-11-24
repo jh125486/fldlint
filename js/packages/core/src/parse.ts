@@ -21,7 +21,7 @@ export function parseSource(input: string, filePath = "input.ts"): Parsed {
     sourceType: "module",
     range: true,
     loc: true,
-    comment: false,
+    comment: true,
     tokens: false,
     filePath,
     ecmaFeatures: { jsx: /\.[jt]sx$/.test(filePath) },

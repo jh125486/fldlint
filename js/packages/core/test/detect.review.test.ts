@@ -10,7 +10,7 @@ const head = `${LD}${OF}const ld = init("x");\n`;
 const CALL = `ld.boolVariation("k", { key: u }, false)`;
 
 function outcomes(src: string): string[] {
-  return analyze(src).map((f) => (f.result.kind === "rewrite" ? "rewrite" : f.result.category));
+  return analyze(src).map((f) => (f.result.kind === "skip" ? f.result.category : f.result.kind));
 }
 
 describe("client binding: declaration position and kind", () => {

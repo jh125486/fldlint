@@ -100,6 +100,25 @@ describe("severity configuration", () => {
   });
 });
 
+describe("comments inside a call (issue #31)", () => {
+  const prelude = `import { init } from "@launchdarkly/node-server-sdk";\nimport { OpenFeature } from "@openfeature/server-sdk";\nconst ld = init("x");\nconst c = OpenFeature.getClient();\n`;
+  for (const parser of ["typescript-eslint", "espree"] as const) {
+    it(`${parser}: a comment moves with its argument under --fix`, () => {
+      const src = `${prelude}const v = ld.boolVariation("k", /* who */ { key: u }, false /* off */);\n`;
+      expect(fix(src, parser).output).toBe(`${prelude}const v = c.getBooleanValue("k", false /* off */, /* who */ { targetingKey: u });\n`);
+    });
+    it(`${parser}: a comment with no home is reported without a fix`, () => {
+      const src = `${prelude}const v = ld.boolVariation("k", { key: u /* id */ }, false);\n`;
+      const msgs = lint(src, parser);
+      expect(msgs).toHaveLength(1);
+      expect(msgs[0]?.message).toBe('Migrate boolean flag "k" to OpenFeature');
+      expect(msgs[0]?.fix).toBeUndefined();
+      expect(skipOf(msgs[0]!)).toBeUndefined();
+      expect(fix(src, parser).output).toBe(src);
+    });
+  }
+});
+
 describe("legacy package", () => {
   it("never rewrites launchdarkly-node-server-sdk calls", () => {
     const src = ts.replace("@launchdarkly/node-server-sdk", "launchdarkly-node-server-sdk");

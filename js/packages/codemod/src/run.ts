@@ -39,6 +39,10 @@ export function runCodemod(source: string, filePath: string, maxPasses = MAX_PAS
       if (pass === 0) {
         // Positions refer to the original file, so only the first pass reports.
         for (const { site, result } of findings) {
+          if (result.kind === "unfixable") {
+            reports.push(`${filePath}:${site.line}:${site.col}  ${result.ruleId}  call left unchanged: a comment inside it has no home in the rewritten call [no-fix: comment]`);
+            continue;
+          }
           if (result.kind !== "skip") continue;
           const message = skipCategories[result.category]?.message ?? result.category;
           reports.push(`${filePath}:${site.line}:${site.col}  ${result.ruleId}  ${message} [skip: ${result.category}]`);

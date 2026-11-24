@@ -12,6 +12,40 @@ export type DefaultType = "boolean" | "string" | "number" | "object" | "unknown"
 /** Facts about the context argument. `simple` means exactly `{ key, kind?: "user" }`. */
 export type ContextShape = { kind: "simple"; keyText: string } | { kind: "other" };
 
+/** One comment, verbatim (`text` includes the `//` or the slash-star delimiters). */
+export interface CallComment {
+  text: string;
+  /** A `//` comment: it must be followed by a line terminator, `eol`. */
+  line: boolean;
+  /** The line terminator that ended a `//` comment in the source (`"\n"` or `"\r\n"`); empty for a block comment. */
+  eol: string;
+}
+
+/** Template placeholders an argument can feed. */
+export type ArgRole = "key" | "default" | "context";
+
+/**
+ * Where the comments of one call go in the rewrite (issue #31). Absent from a
+ * {@link CallSite} when the call has no comment outside its copied argument text,
+ * so a comment-free call plans exactly as before.
+ *
+ * - `args[role].lead`: comments that touch the argument from before it (own
+ *   line above it, or on its line ahead of it). They move with it.
+ * - `args[role].trail`: comments that follow it on the same line. They move with it.
+ * - `head`: comments between the call start and its `(`; they go before the new call.
+ * - `tail`: comments after the last argument that sit on their own line; they go
+ *   before the closing `)`.
+ * - `unhomed`: some comment has no home (inside the converted context literal,
+ *   or a multi-line/line comment in `head`). The planner reports the call
+ *   without a fix.
+ */
+export interface CommentNotes {
+  args: Partial<Record<ArgRole, { lead: CallComment[]; trail: CallComment[] }>>;
+  head: CallComment[];
+  tail: CallComment[];
+  unhomed: boolean;
+}
+
 /**
  * A detected LaunchDarkly call with a proven receiver, as plain data (no ESTree
  * nodes), so that another front end (the ast-grep codemod) can build one and
@@ -49,6 +83,8 @@ export interface CallSite {
   defaultType: DefaultType;
   contextShape: ContextShape;
   clientBinding: ClientBinding;
+  /** Comments inside the call range that the rewrite must place; see {@link CommentNotes}. */
+  comments?: CommentNotes;
 }
 
 export type { Edit };
