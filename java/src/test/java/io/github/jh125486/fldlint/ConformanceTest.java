@@ -76,7 +76,7 @@ class ConformanceTest implements RewriteTest {
             }
             String path = testCase.get("path").asText();
             Path dir = spec.caseDir(path).resolve("java");
-            for (String file : new String[] {"Before.java", "After.java"}) {
+            for (String file : SpecJson.javaFixtureFiles(testCase)) {
                 tests.add(DynamicTest.dynamicTest(path + "/" + file + " type-attributes", () -> {
                     String source = new String(Files.readAllBytes(dir.resolve(file)), StandardCharsets.UTF_8);
                     // The default recipe is a no-op: the file must parse, attribute and print back unchanged.

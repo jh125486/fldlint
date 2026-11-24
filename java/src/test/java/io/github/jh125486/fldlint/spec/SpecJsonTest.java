@@ -4,7 +4,11 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
+import java.nio.file.NoSuchFileException;
+import java.util.Arrays;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
@@ -40,6 +44,33 @@ class SpecJsonTest {
             Files.write(dir.resolve("generated").resolve("spec.json"), content.getBytes("UTF-8"));
             assertThrows(IllegalStateException.class, () -> SpecJson.load(dir, true), content);
         }
+    }
+
+    private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private static JsonNode caseWithOutput(boolean output) throws IOException {
+        return MAPPER.readTree("{\"case\":{\"expect\":{\"java\":{\"output\":" + output + "}}}}");
+    }
+
+    @Test
+    void javaFixtureFilesDependOnOutput() throws IOException {
+        assertEquals(Arrays.asList("Before.java", "After.java"), SpecJson.javaFixtureFiles(caseWithOutput(true)));
+        assertEquals(Arrays.asList("Before.java"), SpecJson.javaFixtureFiles(caseWithOutput(false)));
+    }
+
+    @Test
+    void skipFixtureWithoutAfterPassesAndMissingRequiredAfterFails(@TempDir Path dir) throws IOException {
+        Files.write(dir.resolve("Before.java"), "class A {}".getBytes("UTF-8"));
+        // output:false and no After.java: every required file exists.
+        for (String f : SpecJson.javaFixtureFiles(caseWithOutput(false))) {
+            assertTrue(Files.isRegularFile(dir.resolve(f)), f);
+        }
+        // output:true and no After.java: reading the required files (as the harness does) fails.
+        assertThrows(NoSuchFileException.class, () -> {
+            for (String f : SpecJson.javaFixtureFiles(caseWithOutput(true))) {
+                Files.readAllBytes(dir.resolve(f));
+            }
+        });
     }
 
     @Test

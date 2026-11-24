@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -77,6 +79,19 @@ public final class SpecJson {
             }
         }
         return json;
+    }
+
+    /**
+     * The Java files of a case that must exist and type-attribute: Before.java always,
+     * After.java only when {@code expect.java.output} is true (skip fixtures omit it).
+     */
+    public static List<String> javaFixtureFiles(JsonNode testCase) {
+        List<String> files = new ArrayList<String>();
+        files.add("Before.java");
+        if (testCase.path("case").path("expect").path("java").path("output").asBoolean(false)) {
+            files.add("After.java");
+        }
+        return files;
     }
 
     /** True when the harness runs against the default spec root (no explicit -Dfldlint.specRoot). */
