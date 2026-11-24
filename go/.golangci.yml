@@ -12,6 +12,11 @@ linters:
     - unused
     - ineffassign
     - misspell
+    - gocritic
+    - gosec
+    - errorlint
+    - nilerr
+    - nolintlint
     - revive
   settings:
     revive:
@@ -27,8 +32,26 @@ linters:
         - name: errorf
         - name: empty-block
         - name: unreachable-code
+        - name: unused-parameter
+        - name: unused-receiver
+        - name: redefines-builtin-id
+        - name: superfluous-else
+        - name: time-naming
+        - name: context-as-argument
+        - name: receiver-naming
+        - name: range
+        - name: blank-imports
+    nolintlint:
+      require-specific: true
+      require-explanation: true
   exclusions:
     generated: lax
+    rules:
+      # Test fixtures are written to t.TempDir() and read from repo paths.
+      - path: _test\.go$
+        linters:
+          - gosec
+        text: "G(30[146]|122|703)"
 
 formatters:
   enable:

@@ -36,7 +36,7 @@ type wireSpec struct {
 
 // LoadSpec reads and decodes a spec.json file.
 func LoadSpec(path string) (*Spec, error) {
-	data, err := os.ReadFile(path)
+	data, err := os.ReadFile(path) //nolint:gosec // G304: path is the caller-supplied spec.json, by design
 	if err != nil {
 		return nil, fmt.Errorf("read spec: %w", err)
 	}

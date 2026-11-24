@@ -49,5 +49,5 @@ func run(args []string) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(*out, src, 0o644)
+	return os.WriteFile(*out, src, 0o644) //nolint:gosec // G306: generated source is committed and must be world-readable
 }
