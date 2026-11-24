@@ -4,6 +4,7 @@
 // Variable objects instead of identifier names.
 import { AST_NODE_TYPES, TSESLint, type TSESTree } from "@typescript-eslint/utils";
 import { findRuleByMethod } from "@fldlint/spec";
+import { visitorKeys as defaultVisitorKeys } from "@typescript-eslint/visitor-keys";
 import type { CallSite, ClientBinding, ContextShape, DefaultType } from "./callsite.js";
 import { staticFingerprintKey } from "./fingerprint.js";
 
@@ -44,7 +45,7 @@ class Detector {
     private readonly ast: TSESTree.Program,
     private readonly scopes: ScopeManager,
     private readonly source: string,
-    private readonly visitorKeys: VisitorKeys,
+    private readonly visitorKeys: VisitorKeys = defaultVisitorKeys as unknown as VisitorKeys,
   ) {
     for (const scope of scopes.scopes) for (const ref of scope.references) this.refs.set(ref.identifier, ref);
   }
@@ -115,8 +116,20 @@ class Detector {
     // to a global-scope Variable with no definitions; that is still the global.
     const resolved = this.resolve(callee);
     if (resolved !== null && !(resolved.scope.type === ScopeType.global && resolved.defs.length === 0)) return false;
+    // `require = m => ...` makes the global untrustworthy, declared or not.
+    if (this.requireIsWritten()) return false;
     const [arg] = expr.arguments;
     return expr.arguments.length === 1 && isStringLiteral(arg) && pkgs.includes(arg.value);
+  }
+
+  private requireWritten: boolean | undefined;
+
+  /** Is any global `require` (resolved to the global or unresolved) ever assigned? */
+  private requireIsWritten(): boolean {
+    this.requireWritten ??= [...this.refs.values()].some(
+      (r) => r.identifier.name === "require" && r.isWrite() && (r.resolved === null || r.resolved.scope.type === ScopeType.global),
+    );
+    return this.requireWritten;
   }
 
   /** Does `expr` evaluate to the module object of one of `pkgs`? */
@@ -383,8 +396,10 @@ function defaultType(n: Node | undefined): DefaultType {
  * Find LaunchDarkly evaluation calls whose receiver is proven (through scope
  * references, never by name) to be a client created by the LD server SDK's
  * `init`. `source` is the text `ast` was parsed from
- * (BOM already stripped, as ESLint does) and `visitorKeys` come from the parser.
+ * (BOM already stripped, as ESLint does). `visitorKeys` should be the parser's
+ * (`sourceCode.visitorKeys` in ESLint); when omitted it falls back to
+ * `@typescript-eslint/visitor-keys`.
  */
-export function detect(ast: TSESTree.Program, scopes: ScopeManager, source: string, visitorKeys: VisitorKeys): CallSite[] {
+export function detect(ast: TSESTree.Program, scopes: ScopeManager, source: string, visitorKeys?: VisitorKeys): CallSite[] {
   return new Detector(ast, scopes, source, visitorKeys).run();
 }
