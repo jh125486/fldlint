@@ -543,7 +543,9 @@ as frozen history. Anything not listed: stop and ask.
   2.21.6 (provided scope, so recipes can compile against it; tests use it to read `spec/generated/spec.json`; the version `rewrite-java` 8.90.4
   already resolves; no Gson, no YAML library). Maven plugins: `maven-compiler-plugin`
   3.16.0, `maven-surefire-plugin` 3.6.1, `maven-jar-plugin` 3.5.1 (plus Maven's
-  default lifecycle plugins).
+  default lifecycle plugins). Formatter and analyzer (ADR 012, issue #44):
+  `spotless-maven-plugin` 3.12.0 with google-java-format 2.0.0, and Error Prone
+  `error_prone_core` 2.53.0 (annotation processor path of the `lint` profile only).
 - Real-SDK compile-check modules for Go, JS and Java: test time only, kept in
   their own modules, never shipped.
 
