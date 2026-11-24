@@ -68,7 +68,7 @@ describe("spec.json", () => {
   it("keeps the generated Go stub spec.json in step with its YAML stub", () => {
     const stubRoot = join(repoSpec!, "../go/conformance/testdata");
     const committed = readFileSync(join(repoSpec!, "../go/internal/spec/testdata/spec.json"), "utf8");
-    expect(emitSpecJson(stubRoot, repoSpec!)).toBe(committed);
+    expect(emitSpecJson(stubRoot, repoSpec)).toBe(committed);
   });
 
   it("is deterministic, ends in a newline and sorts cases by path", () => {

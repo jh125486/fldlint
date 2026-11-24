@@ -62,7 +62,7 @@ tasks:
       - cd js && npm test
 
   js:lint:
-    desc: Typecheck the JS workspace (npm run lint)
+    desc: Typecheck and ESLint the JS workspace (npm run lint)
     deps: [js:install]
     cmds:
       - cd js && npm run lint

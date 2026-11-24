@@ -525,7 +525,9 @@ as frozen history. Anything not listed: stop and ask.
 - JS (test/build time only): `@types/node` (latest LTS, `^26`; CI also
   typechecks against 22.12.0, M0.6), `typescript` ~6.0, `vitest`,
   `fast-check`, and `esbuild` (only as a build-time devDependency of
-  `@fldlint/codemod`).
+  `@fldlint/codemod`). Linting our own JS/TS (issue #42): `eslint` 9.x,
+  `@eslint/js` and `typescript-eslint` (same version as
+  `@typescript-eslint/parser`), devDependencies of `js/` only.
 - Go (shipped): `golang.org/x/tools` (`gopkg.in/yaml.v3` removed by ADR 011). `testify` stays not
   approved.
 - Go (build time only): `github.com/golangci/plugin-module-register`, only in

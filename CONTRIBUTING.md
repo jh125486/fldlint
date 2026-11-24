@@ -36,7 +36,7 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task spec:gen` | Validates the spec and regenerates `spec/generated/spec.json` and the committed JS and Go rule tables |
 | `task spec:tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template (`ALLOW_EMPTY=1` tolerates missing fixtures) |
 | `task js:test` | Installs and runs JS tests (`npm test` in `js/`) |
-| `task js:lint` | Typechecks the JS workspace |
+| `task js:lint` | Typechecks the JS workspace and runs ESLint (typescript-eslint, type-checked) |
 | `task js:types-floor` | Typechecks against `@types/node` 22.12.0 (installed with `--no-save`, restored afterwards) |
 | `task js:ts-next` | Non-required canary: typecheck and build with `typescript@latest` |
 | `task go:test` | Go tests with the race detector (`go test -race ./...` in `go/`) |
@@ -62,7 +62,9 @@ the same list.
   against 22.12.0), `typescript` ~6.0 (newest line supported by
   typescript-eslint), `vitest` ^5.1.1,
   `fast-check` and `esbuild` (approved by the owner; `esbuild` only as a
-  build-time devDependency of `@fldlint/codemod`).
+  build-time devDependency of `@fldlint/codemod`). For linting our own JS/TS
+  (issue #42): `eslint` 9.x, `@eslint/js` and `typescript-eslint` (pinned to
+  the same version as `@typescript-eslint/parser`), devDependencies of `js/`.
 - Go (shipped): `golang.org/x/tools`. Go reads the generated `spec.json`, so
   there is no YAML dependency. `testify` is not approved.
 - Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,

@@ -27,8 +27,8 @@ export function parseSource(input: string, filePath = "input.ts"): Parsed {
     ecmaFeatures: { jsx: /\.[jt]sx$/.test(filePath) },
   });
   return {
-    ast: ast as TSESTree.Program,
-    scopeManager: scopeManager as unknown as ScopeManager,
+    ast,
+    scopeManager,
     visitorKeys: visitorKeys as unknown as VisitorKeys,
     source: code,
   };

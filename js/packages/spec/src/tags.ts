@@ -68,7 +68,7 @@ export function checkTags(specRoot: string, opts: { allowEmpty?: boolean } = {})
   }
   if (!rf || !Array.isArray(rf.rules)) return { errors: ["rules.yaml: no rules list"] };
   const cases: LoadedCase[] = discoverCases(specRoot).flatMap((c) =>
-    c.data && typeof c.data === "object" ? [{ data: c.data as LooseCase, dir: c.dir }] : [],
+    c.data && typeof c.data === "object" ? [{ data: c.data, dir: c.dir }] : [],
   );
   const errors: string[] = [];
   if (!rf.rules.some((r) => r.id === REFERENCE_RULE)) {
