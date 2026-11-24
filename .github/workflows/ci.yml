@@ -50,6 +50,8 @@ jobs:
         node: [22, 24, 26]
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # 22 means the engines floor itself, so js:types-floor runs on Node 22.12.0 (M0.6)
@@ -97,6 +99,8 @@ jobs:
     continue-on-error: true
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 26
@@ -107,3 +111,25 @@ jobs:
           version: 3.54.0
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: task js:ts-next
+
+  # Lints the workflows themselves (actionlint + zizmor) via the same
+  # `task workflows:lint` developers run locally. Not part of `task check`
+  # (it needs uv). Whether it is a required check is an owner decision.
+  workflows:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: astral-sh/setup-uv@1db35dd8eee11c5894872e0b383ae6c406cf738d # v10.4.0
+        with:
+          enable-cache: false
+      - uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.54.0
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - run: task workflows:lint

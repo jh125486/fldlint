@@ -43,10 +43,11 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task go:lint` | `golangci-lint` v2.15.0, pinned via `go run` |
 | `task java:test` | `cd java && ./mvnw -B verify`: compiles, runs the unit tests and the conformance harness (every case in `spec/generated/spec.json` is discovered; Java cases are pending until #10, the rest are not applicable) |
 | `task java:lint` | Compiles Java main and test code with `-Xlint:all -Werror` (Maven profile `lint`, builds into `java/target-lint`) |
+| `task workflows:lint` | actionlint v1.7.12 (`go run`) and zizmor 1.33.1 (`uvx`, needs [uv](https://docs.astral.sh/uv/)) on `.github/workflows`; run by the `workflows` CI job, not part of `task check` |
 | `task lint` | `js:lint`, `go:lint` and `java:lint` |
 | `task test` | `js:test`, `go:test` and `java:test` |
 
-CI calls `task check` (required `check` job, with `FLDLINT_SKIP_JAVA=1` because it has no JDK 21 set up), `task java:lint java:test` (the path-filtered `java` job: it runs on changes under `java/`, `spec/`, `go/internal/spec/`, `Taskfile.yml` or `ci.yml`, and always on pushes to `main`) and `task js:ts-next` (non-required canary).
+CI calls `task check` (required `check` job, with `FLDLINT_SKIP_JAVA=1` because it has no JDK 21 set up), `task workflows:lint` (`workflows` job; whether it is required is an owner decision), `task java:lint java:test` (the path-filtered `java` job: it runs on changes under `java/`, `spec/`, `go/internal/spec/`, `Taskfile.yml` or `ci.yml`, and always on pushes to `main`) and `task js:ts-next` (non-required canary).
 Java needs JDK 21 (`maven.compiler.release=8` targets Java 8 bytecode, ADR 009 D7) and `unzip` on the PATH (the wrapper uses it to unpack the pinned Maven zip; without it `mvnw` falls back to the `.tar.gz` and fails with a `distributionSha256Sum` mismatch error): `java/mvnw` downloads a pinned Maven (script-only wrapper, checksum verified). Run the harness against another spec root with `cd java && ./mvnw verify -Dfldlint.specRoot=<dir>` (the root must contain `generated/spec.json`; an explicit missing root fails). Java never parses YAML; it reads `spec/generated/spec.json` ([ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)), and `task spec:gen` also regenerates `RulesGen.java`. Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
