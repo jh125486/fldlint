@@ -22,6 +22,30 @@ other `{{...}}`. A rule's human `message` may use `{{key}}` only.
 Substitution is textual and exact: an engine never reformats the argument
 text it copies.
 
+## Comments inside a call
+
+Rewriting replaces the whole call range, so comments inside it are placed
+explicitly, identically in JS and Go (issue #31). Comments inside an argument's
+own text are copied with it. The others:
+
+- A comment touching an argument (before the separating comma, trailing it on
+  its line, or on or above its line ahead of it) moves with that argument when
+  the rewrite reorders the arguments.
+- Comments between the receiver, the method name and the `(` are hoisted, in
+  order, before the new call.
+- A comment on its own line after the last argument goes before the closing `)`.
+- A `//` comment, or a block comment containing a line break, that trails an
+  argument is written behind the next `,` of the template (a comma is added
+  before `)` for the last one): Go would insert a semicolon at the line break
+  otherwise. Line terminators (LF or CRLF) are copied from the source.
+- A comment with no home (inside the converted context literal outside the
+  key expression, `ldcontext.New(...)` likewise, or a `//` or multi-line comment
+  between the receiver and the `(`) makes the call a finding with no fix. It is
+  not a skip category and has no `[skip: ...]` suffix: the message is the
+  rule's own. The comment is never dropped.
+
+A call with no comment outside its argument text rewrites exactly as before.
+
 ## Planner step order
 
 Identical in every language; the first matching step decides the call:

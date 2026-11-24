@@ -190,7 +190,7 @@ func Plan(site CallSite) Result {
 		Kind:       KindRewrite,
 		RuleID:     rule.ID,
 		Message:    message,
-		Edit:      &Edit{Pos: site.Call.Pos(), End: site.Call.End(), NewText: []byte(text)},
+		Edit:       &Edit{Pos: site.Call.Pos(), End: site.Call.End(), NewText: []byte(text)},
 		AddImports: f.AddImports,
 		Consumed:   f.Consumed,
 	}
