@@ -1,0 +1,4 @@
+# probe: multi-line plain scalar is folded
+a: foo
+  bar
+  baz

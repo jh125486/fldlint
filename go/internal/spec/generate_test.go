@@ -15,20 +15,20 @@ func TestGenerate(t *testing.T) {
 		name string
 		path string
 	}{
-		{name: "stub spec", path: "testdata/rules.yaml"},
+		{name: "stub spec", path: "testdata/spec.json"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			rf, err := spec.LoadRules(tt.path)
+			sp, err := spec.LoadSpec(tt.path)
 			if err != nil {
 				t.Fatal(err)
 			}
-			a, err := spec.Generate(rf)
+			a, err := spec.Generate(sp.Rules)
 			if err != nil {
 				t.Fatal(err)
 			}
-			b, _ := spec.Generate(rf)
+			b, _ := spec.Generate(sp.Rules)
 			if string(a) != string(b) {
 				t.Fatal("generation is not deterministic")
 			}

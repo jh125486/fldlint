@@ -11,7 +11,7 @@ import (
 
 func TestRun(t *testing.T) {
 	t.Parallel()
-	stub, err := filepath.Abs("../testdata/rules.yaml")
+	stub, err := filepath.Abs("../testdata/spec.json")
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -21,23 +21,23 @@ func TestRun(t *testing.T) {
 	}
 	tests := []struct {
 		name    string
-		rules   string // content of <spec>/rules.yaml; empty means the spec root is missing
+		rules   string // content of <spec>/generated/spec.json; empty means the spec root is missing
 		useSpec bool   // pass -spec explicitly
 		wantErr string
 	}{
 		{name: "explicit valid", rules: string(stubBytes), useSpec: true},
 		{name: "explicit missing", useSpec: true, wantErr: "-spec"},
-		{name: "explicit invalid", rules: "version: 2\n", useSpec: true, wantErr: "rules"},
+		{name: "explicit invalid", rules: `{"rules": {"version": 2, "skipCategories": {}, "rules": []}, "cases": []}`, useSpec: true, wantErr: "unsupported version"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			root := filepath.Join(t.TempDir(), "spec")
 			if tt.rules != "" {
-				if err := os.MkdirAll(root, 0o755); err != nil {
+				if err := os.MkdirAll(filepath.Join(root, "generated"), 0o755); err != nil {
 					t.Fatal(err)
 				}
-				if err := os.WriteFile(filepath.Join(root, "rules.yaml"), []byte(tt.rules), 0o644); err != nil {
+				if err := os.WriteFile(filepath.Join(root, "generated", "spec.json"), []byte(tt.rules), 0o644); err != nil {
 					t.Fatal(err)
 				}
 			}

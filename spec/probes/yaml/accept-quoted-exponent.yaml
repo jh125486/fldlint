@@ -1,0 +1,2 @@
+# probe: single-quoted exponent
+a: '1e17'

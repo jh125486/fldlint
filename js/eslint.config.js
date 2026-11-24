@@ -2,7 +2,7 @@ import eslint from "@eslint/js";
 import tseslint from "typescript-eslint";
 
 export default tseslint.config(
-  { ignores: ["**/dist/**", "**/node_modules/**", "**/testdata/**"] },
+  { ignores: ["**/dist/**", "**/node_modules/**", "**/testdata/**", "**/.jssg-tests/**", "**/.jssg-tests-tsx/**"] },
   eslint.configs.recommended,
   tseslint.configs.recommendedTypeChecked,
   {

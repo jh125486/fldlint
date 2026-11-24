@@ -1,0 +1,3 @@
+# probe: tab before a comment
+	# c
+a: 1

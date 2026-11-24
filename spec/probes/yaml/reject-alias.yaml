@@ -1,0 +1,3 @@
+# probe: alias
+b: &x 1
+c: *x

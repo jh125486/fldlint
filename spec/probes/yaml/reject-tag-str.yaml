@@ -1,0 +1,2 @@
+# probe: explicit !!str tag
+a: !!str 5

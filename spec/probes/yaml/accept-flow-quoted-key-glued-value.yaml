@@ -1,0 +1,2 @@
+# probe: a quoted key may be followed directly by its value
+a: {"k":1}
