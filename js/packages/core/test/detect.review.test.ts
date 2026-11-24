@@ -2,6 +2,7 @@ import { Linter } from "eslint";
 import * as tsParser from "@typescript-eslint/parser";
 import { describe, expect, it } from "vitest";
 import { analyze, applyEdits, detect, rewrite, type CallSite } from "../src/index.js";
+import { parseSource } from "../src/parse.js";
 
 const LD = `import { init } from "@launchdarkly/node-server-sdk";\n`;
 const OF = `import { OpenFeature } from "@openfeature/server-sdk";\n`;
@@ -264,4 +265,81 @@ ${CALL};`;
     );
     expect(sites).toEqual([]);
   });
+});
+
+describe("issue #28 follow-ups", () => {
+  it("detect() works without visitorKeys (falls back to typescript-eslint)", () => {
+    const parsed = parseSource(`${head}${CALL};`);
+    const withKeys = detect(parsed.ast, parsed.scopeManager, parsed.source, parsed.visitorKeys);
+    const without = detect(parsed.ast, parsed.scopeManager, parsed.source);
+    expect(without).toHaveLength(1);
+    expect(without).toEqual(withKeys);
+  });
+
+  const cases: { name: string; src: string; want: number }[] = [
+    {
+      name: "reassigned undeclared global require is not trusted",
+      src: `require = (m) => ({ init: () => fake });\nconst { init } = require("@launchdarkly/node-server-sdk"); const ld = init("x"); ${CALL};`,
+      want: 0,
+    },
+    {
+      name: "require reassigned after use is not trusted",
+      src: `const { init } = require("@launchdarkly/node-server-sdk"); const ld = init("x"); ${CALL}; require = null;`,
+      want: 0,
+    },
+    {
+      name: "untouched global require is still trusted",
+      src: `const { init } = require("@launchdarkly/node-server-sdk"); const ld = init("x"); ${CALL};`,
+      want: 1,
+    },
+  ];
+  for (const c of cases) {
+    it(c.name, () => {
+      expect(analyze(c.src)).toHaveLength(c.want);
+    });
+  }
+});
+
+describe("reassigned require under ESLint (issue #28)", () => {
+  const pre = `const { init } = require("@launchdarkly/node-server-sdk"); const ld = init("x");\n`;
+  const cases: { name: string; src: string; globals: boolean; want: number }[] = [
+    { name: "declared global, reassigned", src: `${pre}${CALL}; require = null;`, globals: true, want: 0 },
+    { name: "declared global, destructuring write", src: `${pre}${CALL}; ({ require } = o);`, globals: true, want: 0 },
+    { name: "declared global, write in nested function", src: `${pre}${CALL}; function f() { require = null; }`, globals: true, want: 0 },
+    { name: "undeclared, destructuring write", src: `${pre}${CALL}; ({ require } = o);`, globals: false, want: 0 },
+    { name: "undeclared, write in nested function", src: `${pre}${CALL}; function f() { require = null; }`, globals: false, want: 0 },
+    { name: "declared global, untouched", src: `${pre}${CALL};`, globals: true, want: 1 },
+    { name: "write to local let require elsewhere", src: `${pre}${CALL}; function f() { let require; require = 1; }`, globals: true, want: 1 },
+    { name: "write to local let require elsewhere (undeclared global)", src: `${pre}${CALL}; function f() { let require; require = 1; }`, globals: false, want: 1 },
+    { name: "write to require parameter elsewhere", src: `${pre}${CALL}; function f(require) { require = 1; }`, globals: true, want: 1 },
+    { name: "write to require parameter elsewhere (undeclared global)", src: `${pre}${CALL}; function f(require) { require = 1; }`, globals: false, want: 1 },
+  ];
+  for (const c of cases) {
+    it(c.name, () => {
+      const sites: CallSite[] = [];
+      new Linter().verify(
+        c.src,
+        [
+          {
+            languageOptions: { parser: tsParser, sourceType: "commonjs", ...(c.globals ? { globals: { require: "readonly" } } : {}) },
+            plugins: {
+              t: {
+                rules: {
+                  collect: {
+                    create(ctx: { sourceCode: { ast: never; scopeManager: never; text: string; visitorKeys: never } }) {
+                      const sc = ctx.sourceCode;
+                      return { "Program:exit"() { sites.push(...detect(sc.ast, sc.scopeManager, sc.text, sc.visitorKeys)); } };
+                    },
+                  },
+                },
+              },
+            },
+            rules: { "t/collect": "error" },
+          },
+        ] as never,
+        "file.js",
+      );
+      expect(sites).toHaveLength(c.want);
+    });
+  }
 });
