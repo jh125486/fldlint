@@ -25,7 +25,7 @@ the file ends in a newline. `npm run gen -w @fldlint/spec` (called by
 fails**. It is committed, and `task spec:check` fails on drift.
 
 Every other language (Go today, Java later) **must read `spec.json` and needs
-no YAML code and no validator**: decode the JSON (reject unknown fields), and
+no YAML code and no validator**: decode the JSON (reject unknown fields and trailing data; the file is generated and drift-checked, so this is a sanity check, not a validator), and
 keep only the few cross-checks its own code relies on. Java reads it with
 Jackson or Gson, not SnakeYAML. Do not edit `spec.json` by hand; edit the YAML
 and regenerate.

@@ -35,8 +35,9 @@ and the file ends in a newline. `npm run gen -w @fldlint/spec` writes it and
 refuses to write anything when validation fails. It is committed and listed in
 `GEN_FILES`, so `task spec:check` fails on drift.
 
-Go (and later Java) read only that JSON, with strict decoding of unknown
-fields, and contain no YAML code. They re-validate nothing the JS loader
+Go (and later Java) read only that JSON, decoding with a basic structural check
+(unknown fields and trailing data are rejected; the file is generated and
+drift-checked, so it is not a hostile-input boundary), and contain no YAML code. They re-validate nothing the JS loader
 already guarantees; they keep only the few references their own code relies on
 (for example that a case's rule exists). The YAML probes in `spec/probes/yaml/`
 are asserted by the JS suite only.
