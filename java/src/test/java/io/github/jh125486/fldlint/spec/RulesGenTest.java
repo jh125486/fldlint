@@ -9,6 +9,10 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.TreeMap;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.Test;
 
 /** Cross-checks the committed RulesGen against the spec.json the JS loader emitted. */
@@ -22,8 +26,14 @@ class RulesGenTest {
         return out;
     }
 
+    /** RulesGen is generated from the default spec; other roots legitimately differ. */
+    private static void assumeDefaultSpec() {
+        Assumptions.assumeTrue(SpecJson.isDefaultRoot(), "RulesGen is generated from the default spec root");
+    }
+
     @Test
     void rulesMatchSpecJson() throws IOException {
+        assumeDefaultSpec();
         JsonNode rules = SpecJson.load().rules().get("rules");
         assertEquals(rules.size(), RulesGen.RULES.size());
         for (int i = 0; i < rules.size(); i++) {
@@ -47,13 +57,38 @@ class RulesGenTest {
                 assertEquals(e.getValue().path("template").asText(""), b.getTemplate(), id);
                 assertEquals(strings(e.getValue().path("requires")), b.getRequires(), id);
                 assertEquals(e.getValue().path("async").asBoolean(false), b.isAsync(), id);
-                assertEquals(e.getValue().path("ctxArg").size(), b.getCtxArg().size(), id);
+                Map<String, Integer> ctx = new TreeMap<String, Integer>();
+                for (Map.Entry<String, JsonNode> c : e.getValue().path("ctxArg").properties()) {
+                    ctx.put(c.getKey(), c.getValue().asInt());
+                }
+                assertEquals(ctx, new TreeMap<String, Integer>(b.getCtxArg()), id);
+                assertEquals(placeholders(b.getTemplate()), b.getTemplateArgs(), id);
             }
         }
     }
 
+    /**
+     * Independent placeholder extraction for the check above. Edge cases for #10: a
+     * placeholder name used twice is listed twice (OpenRewrite binds by order, so the
+     * recipe must handle that itself), and a Java template containing a literal
+     * double open brace would be read as a mustache placeholder by the generator.
+     */
+    private static List<String> placeholders(String template) {
+        List<String> out = new ArrayList<String>();
+        Matcher m = Pattern.compile("\\{\\{([^}]*)\\}\\}|#\\{([^}:]*)(?::[^}]*)?\\}").matcher(template);
+        while (m.find()) {
+            String name = m.group(1) != null ? m.group(1) : m.group(2);
+            if (m.group().startsWith("#{any(")) {
+                name = m.group().substring(2, m.group().length() - 1);
+            }
+            out.add(name);
+        }
+        return out;
+    }
+
     @Test
     void skipCategoriesMatchSpecJson() throws IOException {
+        assumeDefaultSpec();
         JsonNode cats = SpecJson.load().rules().get("skipCategories");
         assertEquals(cats.size(), RulesGen.SKIP_CATEGORIES.size());
         for (Map.Entry<String, JsonNode> e : cats.properties()) {

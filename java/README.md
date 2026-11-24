@@ -6,6 +6,12 @@ generator, drift-checked), a stub planner and the JUnit conformance harness exis
 (#9); the recipes themselves land in #10. Build and test with `./mvnw -B verify`
 (JDK 21) or `task java:test` from the repository root.
 
+Known gap for #10: the smoke fixture
+`spec/fixtures/bool-variation/static-key-double-quote/java/After.java` expects
+`.booleanValue()` appended (ADR 009 D8) and `LDContext.create("user")` becoming
+`new ImmutableContext("user")`. The Java template in `spec/rules.yaml` does not
+produce either yet; #10 must reconcile the template and the fixture.
+
 Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Accepted):
 
 - Imperative OpenRewrite recipes under `io.github.jh125486.fldlint`, artifact

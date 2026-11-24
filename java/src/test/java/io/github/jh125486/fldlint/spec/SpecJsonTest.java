@@ -27,6 +27,22 @@ class SpecJsonTest {
     }
 
     @Test
+    void strictDecodingRejectsBadSpecJson(@TempDir Path dir) throws IOException {
+        String ok = "{\"rules\": {\"version\": 1, \"rules\": []}, \"cases\": []}";
+        String[] bad = {
+            ok + "}",
+            ok + " garbage",
+            "{\"rules\": {\"version\": 1, \"rules\": []}, \"cases\": [], \"cases\": []}",
+            "{\"rules\": {\"version\": 1, \"rules\": []}, \"cases\": [], \"extra\": 1}",
+        };
+        Files.createDirectories(dir.resolve("generated"));
+        for (String content : bad) {
+            Files.write(dir.resolve("generated").resolve("spec.json"), content.getBytes("UTF-8"));
+            assertThrows(IllegalStateException.class, () -> SpecJson.load(dir, true), content);
+        }
+    }
+
+    @Test
     void minimalSpecJsonLoads(@TempDir Path dir) throws IOException {
         Files.createDirectories(dir.resolve("generated"));
         Files.write(

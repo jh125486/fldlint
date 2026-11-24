@@ -80,12 +80,14 @@
       <version>${slf4j.version}</version>
       <scope>test</scope>
     </dependency>
-    <!-- Reads spec/generated/spec.json. Java never parses YAML (ADR 011). -->
+    <!-- Reads spec/generated/spec.json in tests. Java never parses YAML (ADR 011).
+         "provided", like rewrite-java's own jackson: test scope would remove it from the
+         main compile classpath (recipes compile against rewrite-core types that use it). -->
     <dependency>
       <groupId>com.fasterxml.jackson.core</groupId>
       <artifactId>jackson-databind</artifactId>
       <version>${jackson.version}</version>
-      <scope>test</scope>
+      <scope>provided</scope>
     </dependency>
     <!-- Real SDK jars so fixtures get full type attribution. -->
     <dependency>
@@ -133,6 +135,8 @@
     <profile>
       <id>lint</id>
       <build>
+        <!-- Own output directory, so lint and test can run in parallel. -->
+        <directory>${project.basedir}/target-lint</directory>
         <plugins>
           <plugin>
             <groupId>org.apache.maven.plugins</groupId>

@@ -1,11 +1,16 @@
 package io.github.jh125486.fldlint.spec;
 
+import com.fasterxml.jackson.core.JsonFactory;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.StreamReadFeature;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Map;
 
 /**
  * Test-side reader of spec/generated/spec.json. Java never parses YAML (ADR 011):
@@ -46,11 +51,38 @@ public final class SpecJson {
             throw new IllegalStateException((explicit ? "-D" + SPEC_ROOT_PROPERTY + "=" : "default spec root ")
                     + root + " must contain generated/spec.json (not found: " + file + ")");
         }
-        JsonNode json = new ObjectMapper().readTree(file.toFile());
+        return new SpecJson(root, parse(file));
+    }
+
+    /**
+     * Decodes strictly, like the Go loader: no trailing data, no duplicate keys, no
+     * unknown top-level keys. A sanity check on a generated file, not a validator.
+     */
+    static JsonNode parse(Path file) throws IOException {
+        ObjectMapper mapper = new ObjectMapper(
+                        JsonFactory.builder().enable(StreamReadFeature.STRICT_DUPLICATE_DETECTION).build())
+                .enable(DeserializationFeature.FAIL_ON_TRAILING_TOKENS);
+        JsonNode json;
+        try {
+            json = mapper.readTree(file.toFile());
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(file + ": " + e.getOriginalMessage(), e);
+        }
         if (json == null || !json.path("cases").isArray() || !json.path("rules").path("rules").isArray()) {
             throw new IllegalStateException(file + ": not a spec.json (need \"rules\" and \"cases\")");
         }
-        return new SpecJson(root, json);
+        for (Map.Entry<String, JsonNode> e : json.properties()) {
+            if (!"rules".equals(e.getKey()) && !"cases".equals(e.getKey())) {
+                throw new IllegalStateException(file + ": unknown top-level key \"" + e.getKey() + "\"");
+            }
+        }
+        return json;
+    }
+
+    /** True when the harness runs against the default spec root (no explicit -Dfldlint.specRoot). */
+    public static boolean isDefaultRoot() {
+        String explicit = System.getProperty(SPEC_ROOT_PROPERTY);
+        return explicit == null || explicit.isEmpty();
     }
 
     public Path getRoot() {

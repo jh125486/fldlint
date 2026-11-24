@@ -105,11 +105,11 @@ tasks:
         cd java && ./mvnw -B verify
 
   java:lint:
-    desc: Compile Java main and test code with every javac lint as an error (-Xlint:all -Werror; FLDLINT_SKIP_JAVA=1 skips)
+    desc: Compile Java main and test code with every javac lint as an error (-Xlint:all -Werror, own build dir; FLDLINT_SKIP_JAVA=1 skips)
     cmds:
       - |
         if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:lint skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
-        cd java && ./mvnw -B -q -Plint clean test-compile
+        cd java && ./mvnw -B -q -Plint test-compile
 
   lint:
     desc: Run all linters (JS, Go and Java)

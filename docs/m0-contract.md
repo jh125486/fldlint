@@ -539,7 +539,7 @@ as frozen history. Anything not listed: stop and ask.
   the scaffold); JUnit Jupiter 5.14.4, `slf4j-simple` 1.7.36;
   `com.launchdarkly:launchdarkly-java-server-sdk` 7.18.1 and `dev.openfeature:sdk`
   1.23.0 (test, real SDK jars for fixture type attribution); `jackson-databind`
-  2.21.6 (test, reads `spec/generated/spec.json`; the version `rewrite-java` 8.90.4
+  2.21.6 (provided scope, so recipes can compile against it; tests use it to read `spec/generated/spec.json`; the version `rewrite-java` 8.90.4
   already resolves; no Gson, no YAML library). Maven plugins: `maven-compiler-plugin`
   3.14.1, `maven-surefire-plugin` 3.5.6, `maven-jar-plugin` 3.4.2 (plus Maven's
   default lifecycle plugins).
