@@ -67,8 +67,13 @@ type Result struct {
 // Facts are the call-site proofs the detector established. Text fields are
 // verbatim source copies.
 type Facts struct {
-	KeyStatic     bool
-	Key           string
+	KeyStatic bool
+	Key       string
+	// KeyValue is the decoded value of a static string-literal key, the
+	// fingerprint input. Unlike Key (source text) it is also collected for
+	// report-only rules, and is nil for a dynamic key or one that is not valid
+	// UTF-8.
+	KeyValue      *string
 	Default       string
 	DefaultProven bool
 	ContextProven bool

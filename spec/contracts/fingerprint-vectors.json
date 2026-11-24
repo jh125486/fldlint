@@ -173,5 +173,54 @@
     "key": "flag",
     "occ": 0,
     "fingerprint": "5859735d23d412d60e7983c627a469d7"
+  },
+  {
+    "ruleId": "variation",
+    "path": "src/flags.ts",
+    "key": "flag-a",
+    "occ": 0,
+    "fingerprint": "f48a19e393bd03280279dc4db8e9e626"
+  },
+  {
+    "ruleId": "variation",
+    "path": "src/flags.ts",
+    "key": "flag-b",
+    "occ": 0,
+    "fingerprint": "c35dd90bb032cbc492fac013d93ba894"
+  },
+  {
+    "ruleId": "bool-variation-detail",
+    "path": "src/flags.ts",
+    "key": "flag-a",
+    "occ": 0,
+    "fingerprint": "59613199566bd3365f59dcd67d84a506"
+  },
+  {
+    "ruleId": "bool-variation-detail",
+    "path": "src/flags.ts",
+    "key": "flag-b",
+    "occ": 0,
+    "fingerprint": "48e72553cc9c49897bfa0fad5fe87035"
+  },
+  {
+    "ruleId": "migration-variation",
+    "path": "src/flags.ts",
+    "key": "flag-a",
+    "occ": 0,
+    "fingerprint": "aa2028418b80b56f8fa75902628d0d43"
+  },
+  {
+    "ruleId": "int-variation",
+    "path": "internal/flags/flags.go",
+    "key": "flag-a",
+    "occ": 0,
+    "fingerprint": "513987f491cfbc2743d52c75f996fbe4"
+  },
+  {
+    "ruleId": "int-variation",
+    "path": "internal/flags/flags.go",
+    "key": "flag-b",
+    "occ": 0,
+    "fingerprint": "460c42d801a686ef1c66d6af23b4a226"
   }
 ]

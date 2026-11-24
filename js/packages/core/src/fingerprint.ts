@@ -5,7 +5,10 @@ export interface FingerprintInput {
   ruleId: string;
   /** Path relative to the scan root; normalized here. */
   path: string;
-  /** Decoded string value of a static flag key, or null when there is none. */
+  /**
+   * Decoded string value of a static flag key, or null when there is none. A key
+   * that is not well formed (an unpaired surrogate) counts as none.
+   */
   key: string | null;
   /** 0-based ordinal among same (ruleId, kind, key) findings in the file. */
   occ: number;
@@ -22,10 +25,19 @@ export function normalizePath(p: string): string {
   return s.replace(/\/+$/, "");
 }
 
+/**
+ * The key as a fingerprint input: the string itself when well formed, else null.
+ * An unpaired surrogate would hash as U+FFFD, so 'a\uD800' and 'a\uD801' would
+ * collide; such a key is treated as not static instead.
+ */
+export function staticFingerprintKey(key: string | null | undefined): string | null {
+  return key != null && key.isWellFormed() ? key : null;
+}
+
 /** 32 lowercase hex chars: SHA-256 of `ruleId NUL path NUL kind NUL key NUL occ` (UTF-8). */
 export function fingerprint(f: FingerprintInput): string {
-  const kind = f.key === null ? "-" : "s";
-  const preimage = [f.ruleId, normalizePath(f.path), kind, f.key ?? "", String(f.occ)].join("\0");
+  const key = staticFingerprintKey(f.key);
+  const preimage = [f.ruleId, normalizePath(f.path), key === null ? "-" : "s", key ?? "", String(f.occ)].join("\0");
   return createHash("sha256").update(preimage, "utf8").digest("hex").slice(0, 32);
 }
 
@@ -43,7 +55,8 @@ export interface Positioned {
 export function assignOccurrences<T extends Positioned>(findings: readonly T[]): (T & { occ: number })[] {
   const groups = new Map<string, number[]>();
   findings.forEach((f, i) => {
-    const id = JSON.stringify([f.ruleId, f.key === null ? "-" : "s", f.key ?? ""]);
+    const key = staticFingerprintKey(f.key);
+    const id = JSON.stringify([f.ruleId, key === null ? "-" : "s", key ?? ""]);
     const g = groups.get(id);
     if (g) g.push(i);
     else groups.set(id, [i]);

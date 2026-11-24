@@ -1,3 +1,7 @@
 # Probe files are byte-exact (BOM, CRLF, lone CR, tabs, invalid UTF-8, no final
 # newline); never normalise them.
 spec/probes/yaml/*.yaml -text
+
+# Generated canonical JSON; keep LF so the drift check is byte-exact.
+spec/generated/spec.json text eol=lf
+go/internal/spec/testdata/spec.json text eol=lf

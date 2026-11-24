@@ -37,7 +37,8 @@ output may keep an unused client.
 ## Layout
 
 ```
-spec/       rules.yaml, JSON Schemas, fixtures, contracts   (shared data)
+spec/       rules.yaml, JSON Schemas, fixtures, contracts,
+            generated/spec.json (the one JSON form Go and Java read)
 js/         npm workspaces: spec, eslint-plugin, codemod, cli
 go/         spec bindings, conformance harness, analyzer
 java/       placeholder until M3

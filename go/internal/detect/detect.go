@@ -16,6 +16,7 @@ import (
 	"golang.org/x/tools/go/ast/astutil"
 	"golang.org/x/tools/go/types/typeutil"
 
+	"github.com/jh125486/fldlint/go/internal/fingerprint"
 	"github.com/jh125486/fldlint/go/internal/planner"
 	"github.com/jh125486/fldlint/go/internal/spec"
 )
@@ -161,11 +162,12 @@ func argIndex(rule spec.Rule, method string, i int) int {
 }
 
 // Site collects the facts for one recognised call. Rule-level skips and
-// rules without a Go template carry no facts: the planner skips them first.
+// rules without a Go template carry only the fingerprint key: the planner
+// skips them first.
 func (e *Env) Site(f File, call *ast.CallExpr, method string) planner.CallSite {
 	site := planner.CallSite{Call: call, Method: method}
 	rule, ok := spec.LookupGoMethod(method)
-	if !ok || rule.Skip != "" || rule.Go == nil || rule.Go.Template == "" || call.Ellipsis.IsValid() {
+	if !ok || call.Ellipsis.IsValid() {
 		return site
 	}
 	arg := func(i int) ast.Expr {
@@ -176,7 +178,19 @@ func (e *Env) Site(f File, call *ast.CallExpr, method string) planner.CallSite {
 	}
 	fa := &site.Facts
 
-	if lit, ok := arg(rule.KeyArg).(*ast.BasicLit); ok && lit.Kind == token.STRING {
+	lit, isLit := arg(rule.KeyArg).(*ast.BasicLit)
+	isLit = isLit && lit.Kind == token.STRING
+	if isLit {
+		// A key that is not valid UTF-8 is not a fingerprint key: JS cannot
+		// represent it, so the engines would disagree (fingerprint.md).
+		if v, err := strconv.Unquote(lit.Value); err == nil {
+			fa.KeyValue = fingerprint.StaticKey(&v)
+		}
+	}
+	if rule.Skip != "" || rule.Go == nil || rule.Go.Template == "" {
+		return site
+	}
+	if isLit {
 		fa.KeyStatic, fa.Key = true, e.text(f, lit)
 	}
 	if d := arg(rule.DefaultArg); d != nil {

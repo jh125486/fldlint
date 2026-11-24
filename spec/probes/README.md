@@ -2,7 +2,8 @@
 
 Probes for the **fldlint YAML subset** (syntax and scalar typing), defined in
 [validation-parity.md](../contracts/validation-parity.md#fldlint-yaml-subset).
-They are not rules or fixture domain checks: a probe says nothing about
+They are asserted by the JS suite only: the JS loader is the one YAML reader
+([ADR 011](../../docs/adr/011-parse-yaml-once-emit-canonical-json.md)). They are not rules or fixture domain checks: a probe says nothing about
 `rules.yaml` or `case.yaml` content, only whether the loader's YAML layer
 accepts the text and what value it produces.
 
@@ -22,22 +23,22 @@ Probes where a leading comment would change what is tested are left bare.
 
 ## Rules
 
-- **Every loader's test suite (JS, Go, any future one) must read this
-  directory and assert it**: each `reject-*.yaml` fails to load for its reason, each
-  `accept-*.yaml` loads to its sidecar JSON. Run the subset check before schema
+- **The JS loader's test suite must read this directory and assert it**
+  (Go and Java read `spec/generated/spec.json` and have no YAML code; a future
+  second YAML reader would have to pass these probes too): each
+  `reject-*.yaml` fails to load for its reason, each `accept-*.yaml` loads to its sidecar JSON. Run the subset check before schema
   or semantic validation.
 - Every `accept-*.yaml` has a `.json` sidecar and vice versa; no other files.
 - Read a probe the way the loader reads a file (bytes, not a decoded string):
   some probes are not valid UTF-8 on purpose.
 - Guard against a suite silently reading nothing: there must be at least
   **102** `reject-*.yaml` and at least **62** `accept-*.yaml` files. Raise these
-  numbers here and in the suites (`MIN_REJECT` and `MIN_ACCEPT` in the JS suite,
-  `minReject` and `minAccept` in the Go suite) when adding probes.
-- Every suite asserts **why** a reject probe fails, not only that it does: the
+  numbers here and in the suite (`MIN_REJECT` and `MIN_ACCEPT` in the JS suite)
+  when adding probes.
+- The suite asserts **why** a reject probe fails, not only that it does: the
   name prefix selects the error it must fail with (first matching prefix wins),
-  using the table below. Each suite keeps the table with its own error names
-  (sentinels in Go, codes in JS); a probe that fails for another reason, for
-  example a stray tab, is a bug in the probe.
+  using the table below. The suite keeps the table with its error codes; a probe that fails
+  for another reason, for example a stray tab, is a bug in the probe.
 
 | Prefix | Reason |
 | --- | --- |
@@ -52,12 +53,6 @@ Probes where a leading comment would change what is tested are left bare.
 | `reject-duplicate-keys`, `reject-two-documents`, `reject-trailing-document-marker` | duplicate key, more than one document |
 | `reject-too-deep`, `reject-block-indicator`, `reject-flow-scalar-` | nesting, block scalar indentation indicator, flow scalar ending with a colon |
 | `reject-out-of-range-`, `reject-ambiguous-` | integer outside the safe range, ambiguous plain scalar |
-
-Where yaml.v3 or the `yaml` package reports its own syntax error for a probe
-before the subset sees it, the suite of that language lists the probe as a
-syntax error instead: `reject-empty-document-end-marker`,
-`reject-anchor-after-quoted-key` and `reject-tag-after-quoted-key` in Go (the
-JS loader reports an empty document, an anchor and a tag).
 
 ## Adding a probe
 
