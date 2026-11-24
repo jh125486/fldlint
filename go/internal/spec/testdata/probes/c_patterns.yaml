@@ -1,6 +1,0 @@
-id: Bad_ID
-rule: bool-variation
-tags: [Q Q]
-description: d
-expect:
-  go: {diagnostics: [{line: 1, col: 1, ruleId: NOPE}], output: false}

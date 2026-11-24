@@ -1,0 +1,3 @@
+# probe: mapping used as a key
+? {a: b}
+: 1

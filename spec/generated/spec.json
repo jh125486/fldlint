@@ -1,0 +1,1362 @@
+{
+  "rules": {
+    "version": 1,
+    "skipCategories": {
+      "detail": {
+        "severity": "warning",
+        "message": "Detail call; reason/variation metadata has no 1:1 rewrite"
+      },
+      "bulk": {
+        "severity": "warning",
+        "message": "Bulk evaluation; migrate manually"
+      },
+      "dynamic-key": {
+        "severity": "warning",
+        "message": "Flag key is not a static string"
+      },
+      "unbound-client": {
+        "severity": "warning",
+        "message": "OpenFeature client binding not proven in scope"
+      },
+      "type-mismatch": {
+        "severity": "warning",
+        "message": "Return/default type differs between SDKs"
+      },
+      "context-unproven": {
+        "severity": "warning",
+        "message": "Cannot prove LD context -> EvaluationContext conversion"
+      },
+      "default-type-unproven": {
+        "severity": "warning",
+        "message": "Default value type not proven"
+      },
+      "receiver-unproven": {
+        "severity": "warning",
+        "message": "LaunchDarkly client expression cannot be removed safely"
+      }
+    },
+    "rules": [
+      {
+        "id": "bool-variation",
+        "message": "Migrate boolean flag {{key}} to OpenFeature",
+        "valueType": "boolean",
+        "risk": "low",
+        "keyArg": 0,
+        "defaultArg": 2,
+        "contextArg": 1,
+        "languages": {
+          "js": {
+            "methods": [
+              "boolVariation"
+            ],
+            "async": true,
+            "template": "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})",
+            "requires": [
+              "context-unproven"
+            ]
+          },
+          "go": {
+            "methods": [
+              "BoolVariation",
+              "BoolVariationCtx"
+            ],
+            "ctxArg": {
+              "BoolVariationCtx": 0
+            },
+            "template": "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
+            "requires": [
+              "context-unproven"
+            ]
+          },
+          "java": {
+            "methods": [
+              "boolVariation"
+            ],
+            "template": "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"
+          }
+        }
+      },
+      {
+        "id": "string-variation",
+        "message": "Migrate string flag {{key}} to OpenFeature",
+        "valueType": "string",
+        "risk": "low",
+        "keyArg": 0,
+        "defaultArg": 2,
+        "contextArg": 1,
+        "languages": {
+          "js": {
+            "methods": [
+              "stringVariation"
+            ],
+            "async": true,
+            "template": "{{client}}.getStringValue({{key}}, {{default}}, {{context}})",
+            "requires": [
+              "context-unproven"
+            ]
+          },
+          "go": {
+            "methods": [
+              "StringVariation",
+              "StringVariationCtx"
+            ],
+            "ctxArg": {
+              "StringVariationCtx": 0
+            },
+            "template": "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
+            "requires": [
+              "context-unproven"
+            ]
+          }
+        }
+      },
+      {
+        "id": "number-variation",
+        "message": "Migrate number flag {{key}} to OpenFeature",
+        "valueType": "number",
+        "risk": "low",
+        "keyArg": 0,
+        "defaultArg": 2,
+        "contextArg": 1,
+        "languages": {
+          "js": {
+            "methods": [
+              "numberVariation"
+            ],
+            "async": true,
+            "template": "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})",
+            "requires": [
+              "context-unproven"
+            ]
+          },
+          "go": {
+            "methods": [
+              "Float64Variation",
+              "Float64VariationCtx"
+            ],
+            "ctxArg": {
+              "Float64VariationCtx": 0
+            },
+            "template": "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
+            "requires": [
+              "context-unproven"
+            ]
+          }
+        }
+      },
+      {
+        "id": "json-variation",
+        "message": "Migrate JSON flag {{key}} to OpenFeature",
+        "valueType": "object",
+        "risk": "medium",
+        "keyArg": 0,
+        "defaultArg": 2,
+        "contextArg": 1,
+        "languages": {
+          "js": {
+            "methods": [
+              "jsonVariation"
+            ],
+            "async": true,
+            "template": "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})",
+            "requires": [
+              "context-unproven"
+            ]
+          }
+        }
+      },
+      {
+        "id": "int-variation",
+        "valueType": "integer",
+        "risk": "low",
+        "keyArg": 0,
+        "languages": {
+          "go": {
+            "methods": [
+              "IntVariation",
+              "IntVariationCtx"
+            ],
+            "ctxArg": {
+              "IntVariationCtx": 0
+            }
+          }
+        },
+        "skip": "type-mismatch"
+      },
+      {
+        "id": "go-json-variation",
+        "valueType": "object",
+        "risk": "medium",
+        "keyArg": 0,
+        "languages": {
+          "go": {
+            "methods": [
+              "JSONVariation",
+              "JSONVariationCtx"
+            ],
+            "ctxArg": {
+              "JSONVariationCtx": 0
+            }
+          }
+        },
+        "skip": "type-mismatch"
+      },
+      {
+        "id": "variation",
+        "risk": "medium",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "variation"
+            ]
+          }
+        },
+        "skip": "type-mismatch"
+      },
+      {
+        "id": "migration-variation",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "migrationVariation"
+            ]
+          },
+          "go": {
+            "methods": [
+              "MigrationVariation",
+              "MigrationVariationCtx"
+            ],
+            "ctxArg": {
+              "MigrationVariationCtx": 0
+            }
+          }
+        },
+        "skip": "type-mismatch"
+      },
+      {
+        "id": "bool-variation-detail",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "boolVariationDetail"
+            ]
+          },
+          "go": {
+            "methods": [
+              "BoolVariationDetail",
+              "BoolVariationDetailCtx"
+            ],
+            "ctxArg": {
+              "BoolVariationDetailCtx": 0
+            }
+          }
+        },
+        "skip": "detail"
+      },
+      {
+        "id": "string-variation-detail",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "stringVariationDetail"
+            ]
+          },
+          "go": {
+            "methods": [
+              "StringVariationDetail",
+              "StringVariationDetailCtx"
+            ],
+            "ctxArg": {
+              "StringVariationDetailCtx": 0
+            }
+          }
+        },
+        "skip": "detail"
+      },
+      {
+        "id": "number-variation-detail",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "numberVariationDetail"
+            ]
+          },
+          "go": {
+            "methods": [
+              "Float64VariationDetail",
+              "Float64VariationDetailCtx"
+            ],
+            "ctxArg": {
+              "Float64VariationDetailCtx": 0
+            }
+          }
+        },
+        "skip": "detail"
+      },
+      {
+        "id": "int-variation-detail",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "go": {
+            "methods": [
+              "IntVariationDetail",
+              "IntVariationDetailCtx"
+            ],
+            "ctxArg": {
+              "IntVariationDetailCtx": 0
+            }
+          }
+        },
+        "skip": "detail"
+      },
+      {
+        "id": "json-variation-detail",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "jsonVariationDetail"
+            ]
+          },
+          "go": {
+            "methods": [
+              "JSONVariationDetail",
+              "JSONVariationDetailCtx"
+            ],
+            "ctxArg": {
+              "JSONVariationDetailCtx": 0
+            }
+          }
+        },
+        "skip": "detail"
+      },
+      {
+        "id": "variation-detail",
+        "risk": "high",
+        "keyArg": 0,
+        "languages": {
+          "js": {
+            "methods": [
+              "variationDetail"
+            ]
+          }
+        },
+        "skip": "detail"
+      },
+      {
+        "id": "all-flags-state",
+        "risk": "high",
+        "languages": {
+          "js": {
+            "methods": [
+              "allFlagsState"
+            ]
+          },
+          "go": {
+            "methods": [
+              "AllFlagsState"
+            ]
+          }
+        },
+        "skip": "bulk"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "path": "all-flags-state/bulk-call",
+      "case": {
+        "id": "bulk-call",
+        "rule": "all-flags-state",
+        "tags": [],
+        "description": "A bulk all-flags-state evaluation is reported as skipped with the bulk category.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 23,
+                "ruleId": "all-flags-state",
+                "skip": "bulk"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "all-flags-state",
+                "skip": "bulk"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation-detail/detail-call",
+      "case": {
+        "id": "detail-call",
+        "rule": "bool-variation-detail",
+        "tags": [],
+        "description": "A detail call has no one-to-one rewrite and is reported as skipped with the detail category.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 24,
+                "ruleId": "bool-variation-detail",
+                "skip": "detail"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 18,
+                "ruleId": "bool-variation-detail",
+                "skip": "detail"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/aliased-import",
+      "case": {
+        "id": "aliased-import",
+        "rule": "bool-variation",
+        "tags": [
+          "aliased-import"
+        ],
+        "description": "A call through an aliased SDK import is recognised and rewritten.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 21,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/ambiguous-client",
+      "case": {
+        "id": "ambiguous-client",
+        "rule": "bool-variation",
+        "tags": [
+          "ambiguous-client"
+        ],
+        "description": "Two OpenFeature client bindings are visible in the same scope, so the proof is ambiguous and the call is skipped as unbound-client.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 9,
+                "col": 20,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/complex-context",
+      "case": {
+        "id": "complex-context",
+        "rule": "bool-variation",
+        "tags": [
+          "context-unproven"
+        ],
+        "description": "A multi-kind or builder-made LD context cannot be converted to an EvaluationContext and is skipped as context-unproven in both languages.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 13,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 15,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/context-extra-attr",
+      "case": {
+        "id": "context-extra-attr",
+        "rule": "bool-variation",
+        "tags": [
+          "context-unproven"
+        ],
+        "description": "A context literal with an attribute beyond key and kind would lose that attribute, so the call is skipped as context-unproven.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/default-type-unproven",
+      "case": {
+        "id": "default-type-unproven",
+        "rule": "bool-variation",
+        "tags": [
+          "default-type-unproven"
+        ],
+        "description": "A default value whose type cannot be proven to match the rule's value type (a variable of unknown type) is not rewritten and is reported as default-type-unproven.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/dynamic-key",
+      "case": {
+        "id": "dynamic-key",
+        "rule": "bool-variation",
+        "tags": [
+          "dynamic-key"
+        ],
+        "description": "A flag key computed at runtime cannot be rewritten and is reported as dynamic-key.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "dynamic-key"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "dynamic-key"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/field-receiver",
+      "case": {
+        "id": "field-receiver",
+        "rule": "bool-variation",
+        "tags": [
+          "field-receiver"
+        ],
+        "description": "A receiver that is a selector chain through a struct field is pure and never stranded (the field keeps its declaration), so the call is rewritten.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 17,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/goctx-param",
+      "case": {
+        "id": "goctx-param",
+        "rule": "bool-variation",
+        "tags": [
+          "goctx"
+        ],
+        "description": "A plain BoolVariation inside a function with exactly one context.Context parameter reuses that parameter as the OpenFeature context.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 16,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/goctx-shadowed-context",
+      "case": {
+        "id": "goctx-shadowed-context",
+        "rule": "bool-variation",
+        "tags": [
+          "goctx",
+          "context-unproven"
+        ],
+        "description": "A parameter named context shadows the context package, so inserting context.TODO() is unsafe and the call is skipped as context-unproven.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/goctx-todo",
+      "case": {
+        "id": "goctx-todo",
+        "rule": "bool-variation",
+        "tags": [
+          "goctx"
+        ],
+        "description": "A plain BoolVariation in a function without a context.Context parameter uses context.TODO() and adds the context import.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/goctx-variant",
+      "case": {
+        "id": "goctx-variant",
+        "rule": "bool-variation",
+        "tags": [
+          "goctx"
+        ],
+        "description": "A BoolVariationCtx call reuses its own first argument as the OpenFeature context and adds no import.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 16,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/impure-receiver",
+      "case": {
+        "id": "impure-receiver",
+        "rule": "bool-variation",
+        "tags": [
+          "impure-receiver"
+        ],
+        "description": "A receiver that is a call expression is not pure, so removing it could drop side effects; the call is skipped as receiver-unproven.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 18,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "receiver-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/ldcontext-shared-import",
+      "case": {
+        "id": "ldcontext-shared-import",
+        "rule": "bool-variation",
+        "tags": [
+          "shared-import"
+        ],
+        "description": "Two rewritable calls share the ldcontext import; each fix alone leaves the import in use by the other call, and only the last remaining use removes it (batch drivers clean the rest).",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 15,
+                "col": 11,
+                "ruleId": "bool-variation"
+              },
+              {
+                "line": 20,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/multi-declarator",
+      "case": {
+        "id": "multi-declarator",
+        "rule": "bool-variation",
+        "tags": [
+          "multi-declarator"
+        ],
+        "description": "A client declared alongside other bindings in a single declaration is recognised and rewritten.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 9,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 20,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/namespace-import",
+      "case": {
+        "id": "namespace-import",
+        "rule": "bool-variation",
+        "tags": [
+          "namespace-import"
+        ],
+        "description": "Namespace imports of both SDKs (ld.init, of.OpenFeature.getClient) are proven and rewritten.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/nested-scope-client",
+      "case": {
+        "id": "nested-scope-client",
+        "rule": "bool-variation",
+        "tags": [
+          "nested-scope-client"
+        ],
+        "description": "The only OpenFeature client is declared in a function that does not enclose the call, so no binding is visible and the call is skipped as unbound-client.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/non-ascii-prefix",
+      "case": {
+        "id": "non-ascii-prefix",
+        "rule": "bool-variation",
+        "tags": [
+          "non-ascii"
+        ],
+        "description": "Multi-byte characters (an accented letter and an astral emoji) precede the call on the same line, so byte offsets and UTF-16 columns differ and the reported column must count UTF-16 code units.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 44,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 20,
+                "col": 32,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/require-cjs",
+      "case": {
+        "id": "require-cjs",
+        "rule": "bool-variation",
+        "tags": [
+          "require-cjs"
+        ],
+        "description": "Clients obtained through destructured require() of the SDK packages are proven and rewritten.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/shadowed-client",
+      "case": {
+        "id": "shadowed-client",
+        "rule": "bool-variation",
+        "tags": [
+          "shadowed-client"
+        ],
+        "description": "An inner-scope binding shadows the OpenFeature client name, so the rewrite is skipped as unbound-client.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 9,
+                "col": 20,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 21,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/skip-order-default-before-unbound",
+      "case": {
+        "id": "skip-order-default-before-unbound",
+        "rule": "bool-variation",
+        "tags": [
+          "skip-order"
+        ],
+        "description": "When a call has both an unproven default and no OpenFeature client in scope, the earlier planner step wins (default-type-unproven comes before unbound-client).",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 6,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/static-key-double-quote",
+      "case": {
+        "id": "static-key-double-quote",
+        "rule": "bool-variation",
+        "tags": [
+          "quote-double"
+        ],
+        "description": "A double-quoted static flag key is rewritten to getBooleanValue with the OpenFeature client.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 25,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 20,
+                "col": 18,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/static-key-single-quote",
+      "case": {
+        "id": "static-key-single-quote",
+        "rule": "bool-variation",
+        "tags": [
+          "quote-single"
+        ],
+        "description": "A single-quoted static flag key is rewritten, keeping the surrounding await and the quote style; the SDK import is left untouched.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/stranded-local-client",
+      "case": {
+        "id": "stranded-local-client",
+        "rule": "bool-variation",
+        "tags": [
+          "stranded-local-client"
+        ],
+        "description": "A function-local LaunchDarkly client whose only use is the rewritten call would be left unused, which Go rejects; the call is skipped as receiver-unproven. JS tolerates the unused local and rewrites.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 18,
+                "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "receiver-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/stranded-two-calls",
+      "case": {
+        "id": "stranded-two-calls",
+        "rule": "bool-variation",
+        "tags": [
+          "stranded-two-calls"
+        ],
+        "description": "Two rewritable calls on one function-local client: rewriting both would strand the local, so the planner skips every call on it, never a subset. JS rewrites both.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 26,
+                "ruleId": "bool-variation"
+              },
+              {
+                "line": 9,
+                "col": 24,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 18,
+                "col": 17,
+                "ruleId": "bool-variation",
+                "skip": "receiver-unproven"
+              },
+              {
+                "line": 19,
+                "col": 15,
+                "ruleId": "bool-variation",
+                "skip": "receiver-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/template-literal-key",
+      "case": {
+        "id": "template-literal-key",
+        "rule": "bool-variation",
+        "tags": [
+          "template-literal-key"
+        ],
+        "description": "A template literal without expressions is a static key and is rewritten, keeping the backticks.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/typed-decl",
+      "case": {
+        "id": "typed-decl",
+        "rule": "bool-variation",
+        "tags": [
+          "typed-decl"
+        ],
+        "description": "A client declared with an explicit LDClient type annotation is still recognised and rewritten.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 16,
+                "col": 13,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "go-json-variation/go-json-type-mismatch",
+      "case": {
+        "id": "go-json-type-mismatch",
+        "rule": "go-json-variation",
+        "tags": [],
+        "description": "Go JSONVariation takes and returns ldvalue.Value while OpenFeature ObjectValue uses any, so the call is skipped as type-mismatch.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 15,
+                "col": 12,
+                "ruleId": "go-json-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "int-variation/int-type-mismatch",
+      "case": {
+        "id": "int-type-mismatch",
+        "rule": "int-variation",
+        "tags": [],
+        "description": "Go IntVariation returns int while OpenFeature IntValue returns int64, so the call is skipped as type-mismatch.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 10,
+                "ruleId": "int-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "json-variation/json-static-key",
+      "case": {
+        "id": "json-static-key",
+        "rule": "json-variation",
+        "tags": [],
+        "description": "A static JSON flag is rewritten to getObjectValue in JS; Go JSONVariation is a separate skipped rule.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "json-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "migration-variation/migration-type-mismatch",
+      "case": {
+        "id": "migration-type-mismatch",
+        "rule": "migration-variation",
+        "tags": [],
+        "description": "A migration flag returns a stage and operation tracker rather than a plain value, so MigrationVariation(Ctx) is skipped as type-mismatch.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 27,
+                "ruleId": "migration-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 17,
+                "col": 17,
+                "ruleId": "migration-variation",
+                "skip": "type-mismatch"
+              },
+              {
+                "line": 19,
+                "col": 17,
+                "ruleId": "migration-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "number-variation/number-static-key",
+      "case": {
+        "id": "number-static-key",
+        "rule": "number-variation",
+        "tags": [],
+        "description": "A static number flag is rewritten to getNumberValue (JS) and Go Float64Variation to FloatValue.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "number-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 13,
+                "ruleId": "number-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "string-variation/string-static-key",
+      "case": {
+        "id": "string-static-key",
+        "rule": "string-variation",
+        "tags": [],
+        "description": "A static string flag is rewritten to getStringValue (JS) and StringValue (Go).",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "string-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 16,
+                "col": 15,
+                "ruleId": "string-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    }
+  ]
+}
