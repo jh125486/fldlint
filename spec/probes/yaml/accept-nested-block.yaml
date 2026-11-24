@@ -1,0 +1,7 @@
+# probe: nested block mappings and sequences
+a:
+  b:
+    - 1
+    - two
+    - c: true
+      d: ~

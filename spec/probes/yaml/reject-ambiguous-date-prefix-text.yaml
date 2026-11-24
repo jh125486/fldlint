@@ -1,0 +1,2 @@
+# probe: date prefix check (deliberately over-strict)
+a: 2001-12-14 is a date

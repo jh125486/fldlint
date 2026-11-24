@@ -1,10 +1,11 @@
 import { lstatSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { join, relative } from "node:path";
-import { parse } from "yaml";
 import type { RulesFile } from "./types.js";
+import { decodeUtf8, parseSubset } from "./yamlSubset.js";
 
+/** Read a spec YAML file, enforcing the fldlint YAML subset; throws YamlSubsetError on a violation. */
 export function loadYaml(path: string): unknown {
-  return parse(readFileSync(path, "utf8"));
+  return parseSubset(decodeUtf8(readFileSync(path)));
 }
 
 export function loadRules(specRoot: string): RulesFile {
@@ -18,7 +19,7 @@ export interface CaseFile {
   dir: string;
   /** Parsed YAML (unvalidated), or undefined when parsing failed. */
   data: unknown;
-  /** YAML parse error message, if any. */
+  /** YAML parse or subset error message (`line L, col C: ...`), if any. */
   parseError?: string;
 }
 

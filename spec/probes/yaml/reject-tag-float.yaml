@@ -1,0 +1,2 @@
+# probe: explicit !!float tag
+a: !!float 5

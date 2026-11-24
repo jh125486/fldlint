@@ -1,0 +1,3 @@
+# probe: merge key
+d:
+  <<: {a: 1}

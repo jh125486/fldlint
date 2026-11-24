@@ -2,10 +2,13 @@
 // Receiver proof is derived from flaglint-js src/scanner/index.ts @b85599f
 // (collectLDClients), MIT, see NOTICE. The port keys on scope-manager
 // Variable objects instead of identifier names.
-import { AST_NODE_TYPES, type TSESLint, type TSESTree } from "@typescript-eslint/utils";
+import { AST_NODE_TYPES, TSESLint, type TSESTree } from "@typescript-eslint/utils";
 import { findRuleByMethod } from "@fldlint/spec";
+import { visitorKeys as defaultVisitorKeys } from "@typescript-eslint/visitor-keys";
 import type { CallSite, ClientBinding, ContextShape, DefaultType } from "./callsite.js";
 import { staticFingerprintKey } from "./fingerprint.js";
+
+const { DefinitionType, ScopeType } = TSESLint.Scope;
 
 type Scope = TSESLint.Scope.Scope;
 type Variable = TSESLint.Scope.Variable;
@@ -42,7 +45,7 @@ class Detector {
     private readonly ast: TSESTree.Program,
     private readonly scopes: ScopeManager,
     private readonly source: string,
-    private readonly visitorKeys: VisitorKeys,
+    private readonly visitorKeys: VisitorKeys = defaultVisitorKeys as unknown as VisitorKeys,
   ) {
     for (const scope of scopes.scopes) for (const ref of scope.references) this.refs.set(ref.identifier, ref);
   }
@@ -112,9 +115,21 @@ class Detector {
     // ESLint resolves configured globals (globals.node, `globals: { require }`)
     // to a global-scope Variable with no definitions; that is still the global.
     const resolved = this.resolve(callee);
-    if (resolved !== null && !(resolved.scope.type === "global" && resolved.defs.length === 0)) return false;
+    if (resolved !== null && !(resolved.scope.type === ScopeType.global && resolved.defs.length === 0)) return false;
+    // `require = m => ...` makes the global untrustworthy, declared or not.
+    if (this.requireIsWritten()) return false;
     const [arg] = expr.arguments;
     return expr.arguments.length === 1 && isStringLiteral(arg) && pkgs.includes(arg.value);
+  }
+
+  private requireWritten: boolean | undefined;
+
+  /** Is any global `require` (resolved to the global or unresolved) ever assigned? */
+  private requireIsWritten(): boolean {
+    this.requireWritten ??= [...this.refs.values()].some(
+      (r) => r.identifier.name === "require" && r.isWrite() && (r.resolved === null || r.resolved.scope.type === ScopeType.global),
+    );
+    return this.requireWritten;
   }
 
   /** Does `expr` evaluate to the module object of one of `pkgs`? */
@@ -124,13 +139,13 @@ class Detector {
     const v = this.resolve(expr);
     const def = Detector.singleDef(v);
     if (!def || !v) return false;
-    if (def.type === "ImportBinding") {
+    if (def.type === DefinitionType.ImportBinding) {
       const spec = def.node;
       if (isTypeOnlyImport(def)) return false;
       const fromPkg = def.parent?.type === AST_NODE_TYPES.ImportDeclaration && pkgs.includes(def.parent.source.value);
       return fromPkg && (spec.type === AST_NODE_TYPES.ImportNamespaceSpecifier || spec.type === AST_NODE_TYPES.ImportDefaultSpecifier);
     }
-    if (def.type === "Variable") {
+    if (def.type === DefinitionType.Variable) {
       const decl = def.node;
       return decl.id === def.name && Detector.neverReassigned(v) && this.isRequireOf(decl.init, pkgs);
     }
@@ -152,13 +167,13 @@ class Detector {
     const v = this.resolve(expr);
     const def = Detector.singleDef(v);
     if (!def || !v) return false;
-    if (def.type === "ImportBinding") {
+    if (def.type === DefinitionType.ImportBinding) {
       const spec = def.node;
       if (spec.type !== AST_NODE_TYPES.ImportSpecifier || isTypeOnlyImport(def)) return false;
       if (def.parent?.type !== AST_NODE_TYPES.ImportDeclaration || !pkgs.includes(def.parent.source.value)) return false;
       return propName(spec.imported) === exportName;
     }
-    if (def.type === "Variable") {
+    if (def.type === DefinitionType.Variable) {
       // const { init } = require(pkg)  /  const { init: ldInit } = require(pkg)
       const decl = def.node;
       if (decl.id.type !== AST_NODE_TYPES.ObjectPattern || !this.isRequireOf(decl.init, pkgs)) return false;
@@ -175,7 +190,7 @@ class Detector {
   /** The variable's only definition is `const x = <init>`; returns that init. */
   private simpleInit(v: Variable | null): Expr | undefined {
     const def = Detector.singleDef(v);
-    if (!v || !def || def.type !== "Variable") return undefined;
+    if (!v || !def || def.type !== DefinitionType.Variable) return undefined;
     const decl = def.node;
     if (decl.id !== def.name || !decl.init || !Detector.neverReassigned(v)) return undefined;
     return decl.init;
@@ -210,7 +225,7 @@ class Detector {
    */
   private declaredBefore(v: Variable, pos: number): boolean {
     const def = v.defs[0];
-    if (def?.type !== "Variable") return false;
+    if (def?.type !== DefinitionType.Variable) return false;
     const declaration = def.parent;
     // `var` hoists (use before the initializer runs sees undefined); only
     // block-scoped declarations have a position-based proof.
@@ -381,8 +396,10 @@ function defaultType(n: Node | undefined): DefaultType {
  * Find LaunchDarkly evaluation calls whose receiver is proven (through scope
  * references, never by name) to be a client created by the LD server SDK's
  * `init`. `source` is the text `ast` was parsed from
- * (BOM already stripped, as ESLint does) and `visitorKeys` come from the parser.
+ * (BOM already stripped, as ESLint does). `visitorKeys` should be the parser's
+ * (`sourceCode.visitorKeys` in ESLint); when omitted it falls back to
+ * `@typescript-eslint/visitor-keys`.
  */
-export function detect(ast: TSESTree.Program, scopes: ScopeManager, source: string, visitorKeys: VisitorKeys): CallSite[] {
+export function detect(ast: TSESTree.Program, scopes: ScopeManager, source: string, visitorKeys?: VisitorKeys): CallSite[] {
   return new Detector(ast, scopes, source, visitorKeys).run();
 }

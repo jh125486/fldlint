@@ -4,7 +4,6 @@ import type { Edit } from "@fldlint/spec";
 
 /** Safety cap on passes; nesting depth N needs N passes, so this is far beyond real code. */
 const MAX_PASSES = 100;
-const BOM = "﻿";
 
 export interface RunResult {
   /** New source, or `null` when nothing was rewritten (file stays untouched). */

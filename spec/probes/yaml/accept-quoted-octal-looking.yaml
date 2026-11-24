@@ -1,0 +1,2 @@
+# probe: single-quoted leading-zero
+a: '017'

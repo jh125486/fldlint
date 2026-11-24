@@ -5,7 +5,7 @@ const LD = `import { init } from "@launchdarkly/node-server-sdk";\n`;
 const OF = `import { OpenFeature } from "@openfeature/server-sdk";\n`;
 const CALL = `ld.boolVariation("k", { key: u }, false)`;
 
-function outcomes(src: string): (string | "rewrite")[] {
+function outcomes(src: string): string[] {
   return analyze(src).map((f) => (f.result.kind === "rewrite" ? "rewrite" : f.result.category));
 }
 
