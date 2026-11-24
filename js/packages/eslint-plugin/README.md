@@ -125,7 +125,7 @@ fldlint's `fldlint-baseline.json` belongs to the standalone CLI and is never rea
 by this plugin. To adopt gradually, set the fldlint rules to `"error"` and use
 ESLint's bulk suppressions (`eslint --suppress-all`, `--prune-suppressions`).
 ESLint applies suppressions only to rules at `error`. Bulk suppressions need
-ESLint 9.24 or newer (the plugin itself works with any ESLint 9).
+ESLint 9.24 or newer (the plugin itself works with any ESLint 9 or 10).
 
 ## Development
 

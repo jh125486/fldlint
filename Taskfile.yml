@@ -77,6 +77,16 @@ tasks:
         cd js && node -e "const v=require('@types/node/package.json').version; if(v!=='22.13.0'){console.error('expected @types/node 22.13.0, got '+v);process.exit(1)}"
       - cd js && npm run typecheck
 
+  js:test-eslint9:
+    desc: Run the eslint-plugin tests against ESLint 9.39.5, the peer range floor (not saved; restored afterwards)
+    cmds:
+      - task: js:install
+      - defer: cd js && npm ci
+      - cd js && npm install --no-save --workspaces --include-workspace-root eslint@9.39.5 @eslint/js@9.39.5
+      - |
+        cd js && node -e "const v=require('eslint/package.json').version; if(v!=='9.39.5'){console.error('expected eslint 9.39.5, got '+v);process.exit(1)}"
+      - cd js && npm test -w eslint-plugin-fldlint
+
   js:ts-next:
     desc: Canary, typecheck and build with typescript@latest (not saved; restored afterwards)
     cmds:

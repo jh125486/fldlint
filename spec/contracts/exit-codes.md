@@ -27,7 +27,7 @@ flag contract.
 
 - `--max-warnings` defaults to `-1` (unlimited), exactly like ESLint. With the
   default, warnings never fail a run. (An earlier default of 0 is withdrawn.)
-- Severity is per rule through ESLint flat config (ESLint 9): `off`, `warn` or
+- Severity is per rule through ESLint flat config (ESLint 9 or 10): `off`, `warn` or
   `error`. The `recommended` preset sets every fldlint rule to `warn`.
 - To gate CI, a team either sets rules to `error`, or passes `--max-warnings 0`.
 - `--quiet` is ESLint's: report errors only. It does not change the exit code.

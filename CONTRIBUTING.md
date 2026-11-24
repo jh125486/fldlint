@@ -37,6 +37,7 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task spec:tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template (`ALLOW_EMPTY=1` tolerates missing fixtures) |
 | `task js:test` | Installs and runs JS tests (`npm test` in `js/`) |
 | `task js:lint` | Typechecks the JS workspace and runs ESLint (typescript-eslint, type-checked) |
+| `task js:test-eslint9` | Runs the eslint-plugin tests against ESLint 9.39.5 (installed with `--no-save`, restored afterwards) |
 | `task js:types-floor` | Typechecks against `@types/node` 22.13.0 (installed with `--no-save`, restored afterwards) |
 | `task js:ts-next` | Non-required canary: typecheck and build with `typescript@latest` |
 | `task go:test` | Go tests with the race detector (`go test -race ./...` in `go/`) |
@@ -44,7 +45,7 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task lint` | `js:lint` and `go:lint` |
 | `task test` | `js:test` and `go:test` |
 
-CI calls only `task check` (required `check` job) and `task js:ts-next` (non-required canary). Requires Node `>=22.13` (CI runs 22, 24 and 26; also typechecks on Node 22.13.0 against `@types/node` 22.13.0) and
+CI calls only `task check` (required `check` job) `task js:test-eslint9` (ESLint 9 coverage for the plugin's peer range) and `task js:ts-next` (non-required canary). Requires Node `>=22.13` (CI runs 22, 24 and 26; also typechecks on Node 22.13.0 against `@types/node` 22.13.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
@@ -56,8 +57,9 @@ when the repo goes public. If you change `spec/rules.yaml`, run
 Only approved dependencies may be used. `docs/m0-contract.md` (M0.8) carries
 the same list.
 
-- JS (shipped): `eslint` 10.x, `@typescript-eslint/parser`,
-  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+- JS (shipped): `eslint` 10.x (peer range 9.39.5 or 10), `@typescript-eslint/parser`,
+  `@typescript-eslint/utils`, `@typescript-eslint/visitor-keys`, `ajv`
+  (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` ^26 (latest LTS; CI also typechecks
   against 22.13.0), `typescript` ~6.0 (newest line supported by
   typescript-eslint), `vitest` ^5.1.1,

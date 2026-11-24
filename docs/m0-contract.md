@@ -157,7 +157,7 @@ edits to the file.
 
 ## Approved dependencies
 
-- JS: `eslint` (10.x), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
+- JS: `eslint` (9.x), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
   `ajv` (+`ajv-formats` if needed), `yaml`, `vitest`, `typescript`.
 - Go: `golang.org/x/tools` (no YAML library: Go reads `spec/generated/spec.json`, ADR 011). Go tests use stdlib `testing`
   plus `testing/synctest` where timing matters; `testify` is NOT approved.
@@ -195,7 +195,7 @@ Decided after the first integration review. Authors working on the fix round
 must follow these.
 
 ### Toolchain
-- SUPERSEDED by M0.6 (Node/TypeScript/@types/node lines): Node `>=22.13`; CI matrix `[22, 24]`; `@types/node ^22`.
+- SUPERSEDED by M0.6 (Node/TypeScript/@types/node lines): Node `>=22.12`; CI matrix `[22, 24]`; `@types/node ^22`.
 - `vitest ^5.1.1` (approved) still stands.
 - Node 20 is dropped (end of life).
 
@@ -377,7 +377,7 @@ help text. Do not copy one ecosystem's conventions into another.
   - `--max-warnings` defaults to `-1` (unlimited), exactly like ESLint. The
     prior default of 0 is withdrawn.
   - Severity is per rule via ESLint configuration (`off`/`warn`/`error`,
-    flat config, ESLint 9). The preset `recommended` sets every fldlint rule to
+    flat config, ESLint 9 or 10). The preset `recommended` sets every fldlint rule to
     `warn`; a team gates CI with `error` severity or `--max-warnings 0`.
   - `--quiet` is ESLint's: report errors only; it does not change the exit code.
   - `--fix`, `--fix-dry-run`, `-f/--format` (including json and sarif),
@@ -520,12 +520,13 @@ contract and `CONTRIBUTING.md` consistent, and `CONTRIBUTING.md` carries the
 same list). It replaces the "Approved dependencies" section above, which stays
 as frozen history. Anything not listed: stop and ask.
 
-- JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
-  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+- JS (shipped): `eslint` 10.x (peer range 9.39.5 or 10), `@typescript-eslint/parser`,
+  `@typescript-eslint/utils`, `@typescript-eslint/visitor-keys`, `ajv`
+  (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` (latest LTS, `^26`; CI also
   typechecks against 22.13.0, M0.6), `typescript` ~6.0, `vitest`,
   `fast-check`, and `esbuild` (only as a build-time devDependency of
-  `@fldlint/codemod`). Linting our own JS/TS (issue #42): `eslint` 9.x,
+  `@fldlint/codemod`). Linting our own JS/TS (issue #42): `eslint` 10.x,
   `@eslint/js` and `typescript-eslint` (same version as
   `@typescript-eslint/parser`), devDependencies of `js/` only.
 - Go (shipped): `golang.org/x/tools` (`gopkg.in/yaml.v3` removed by ADR 011). `testify` stays not
