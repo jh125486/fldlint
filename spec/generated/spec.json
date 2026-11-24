@@ -1030,6 +1030,16 @@
               }
             ],
             "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 27,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
           }
         }
       }
