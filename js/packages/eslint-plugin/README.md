@@ -6,7 +6,7 @@ Behaviour follows ESLint exactly ([ADR 008](../../../docs/adr/008-idiomatic-per-
 severity, `--max-warnings`, `--quiet`, `--fix`, `--fix-dry-run`, formatters and
 inline suppression are all ESLint's. fldlint adds no formatter or flag.
 
-Requires ESLint 9 (flat config) and Node 22.12 or newer. ESLint 10 is not yet supported.
+Requires ESLint 9 or 10 (flat config) and Node 22.13 or newer.
 
 ## Install
 
@@ -125,7 +125,7 @@ fldlint's `fldlint-baseline.json` belongs to the standalone CLI and is never rea
 by this plugin. To adopt gradually, set the fldlint rules to `"error"` and use
 ESLint's bulk suppressions (`eslint --suppress-all`, `--prune-suppressions`).
 ESLint applies suppressions only to rules at `error`. Bulk suppressions need
-ESLint 9.24 or newer (the plugin itself works with any ESLint 9).
+ESLint 9.24 or newer (the plugin itself works with any ESLint 9 or 10).
 
 ## Development
 

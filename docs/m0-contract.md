@@ -377,7 +377,7 @@ help text. Do not copy one ecosystem's conventions into another.
   - `--max-warnings` defaults to `-1` (unlimited), exactly like ESLint. The
     prior default of 0 is withdrawn.
   - Severity is per rule via ESLint configuration (`off`/`warn`/`error`,
-    flat config, ESLint 9). The preset `recommended` sets every fldlint rule to
+    flat config, ESLint 9 or 10). The preset `recommended` sets every fldlint rule to
     `warn`; a team gates CI with `error` severity or `--max-warnings 0`.
   - `--quiet` is ESLint's: report errors only; it does not change the exit code.
   - `--fix`, `--fix-dry-run`, `-f/--format` (including json and sarif),
@@ -460,11 +460,11 @@ Owner decisions, 2026-11-22.
   "Lithium" is LTS (since 2026-10-28); 24 "Krypton" and 22 "Jod" are in
   maintenance (22 ends 2027-04-30). CI runs the JS test matrix on every
   supported LTS line: `[22, 24, 26]` (`js-test`). `lint` and `spec-check` run
-  on a single Node, the latest LTS (26). `engines.node` stays `>=22.12` until
+  on a single Node, the latest LTS (26). `engines.node` stays `>=22.13` until
   Node 22 reaches end of life.
 - `@types/node` tracks the latest LTS (`^26`). To guard the only real risk
   (code using APIs newer than the floor), CI job `js-types-floor` runs on Node
-  22.12.0 itself, installs `@types/node@22.12.0` (the only 22.12-era typings
+  22.13.0 itself, installs `@types/node@22.13.0` (the only 22.13-era typings
   release; `^22` would resolve to 22.20.x and accept later APIs such as
   `zstdCompressSync`, @since 22.15) with `npm install --no-save` over the
   locked tree, and runs `npm run typecheck`.
@@ -520,13 +520,13 @@ contract and `CONTRIBUTING.md` consistent, and `CONTRIBUTING.md` carries the
 same list). It replaces the "Approved dependencies" section above, which stays
 as frozen history. Anything not listed: stop and ask.
 
-- JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
+- JS (shipped): `eslint` 10.x (peer range 9.39.5 or 10), `@typescript-eslint/parser`,
   `@typescript-eslint/utils`, `@typescript-eslint/visitor-keys`, `ajv`
   (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` (latest LTS, `^26`; CI also
-  typechecks against 22.12.0, M0.6), `typescript` ~6.0, `vitest`,
+  typechecks against 22.13.0, M0.6), `typescript` ~6.0, `vitest`,
   `fast-check`, and `esbuild` (only as a build-time devDependency of
-  `@fldlint/codemod`). Linting our own JS/TS (issue #42): `eslint` 9.x,
+  `@fldlint/codemod`). Linting our own JS/TS (issue #42): `eslint` 10.x,
   `@eslint/js` and `typescript-eslint` (same version as
   `@typescript-eslint/parser`), devDependencies of `js/` only.
 - Go (shipped): `golang.org/x/tools` (`gopkg.in/yaml.v3` removed by ADR 011). `testify` stays not
