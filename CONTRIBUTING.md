@@ -60,7 +60,8 @@ Only approved dependencies may be used. `docs/m0-contract.md` (M0.8) carries
 the same list.
 
 - JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
-  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+  `@typescript-eslint/utils`, `@typescript-eslint/visitor-keys`, `ajv`
+  (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` ^26 (latest LTS; CI also typechecks
   against 22.12.0), `typescript` ~6.0 (newest line supported by
   typescript-eslint), `vitest` ^5.1.1,

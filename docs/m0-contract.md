@@ -521,7 +521,8 @@ same list). It replaces the "Approved dependencies" section above, which stays
 as frozen history. Anything not listed: stop and ask.
 
 - JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
-  `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
+  `@typescript-eslint/utils`, `@typescript-eslint/visitor-keys`, `ajv`
+  (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` (latest LTS, `^26`; CI also
   typechecks against 22.12.0, M0.6), `typescript` ~6.0, `vitest`,
   `fast-check`, and `esbuild` (only as a build-time devDependency of
