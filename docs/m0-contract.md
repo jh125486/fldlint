@@ -533,9 +533,17 @@ as frozen history. Anything not listed: stop and ask.
   approved.
 - Go (build time only): `github.com/golangci/plugin-module-register`, only in
   the golangci-lint module plugin (issue #18); never imported by the analyzer.
-- Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
-  OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
-  `rewrite-maven-plugin` 6.46.1 (ADR 009).
+- Java (test/build time only; ADR 009, issue #9): Maven via the script-only Maven Wrapper
+  (3.9.16, pinned `distributionSha256Sum`), JDK 21 to build, `maven.compiler.release=8`.
+  OpenRewrite 8.90.4: `rewrite-java` (provided), `rewrite-test` and `rewrite-java-21`
+  (test), `rewrite-templating`; `rewrite-maven-plugin` 6.46.1 (consumer side, not in
+  the scaffold); JUnit Jupiter 5.14.4, `slf4j-simple` 1.7.36;
+  `com.launchdarkly:launchdarkly-java-server-sdk` 7.18.1 and `dev.openfeature:sdk`
+  1.23.0 (test, real SDK jars for fixture type attribution); `jackson-databind`
+  2.21.6 (provided scope, so recipes can compile against it; tests use it to read `spec/generated/spec.json`; the version `rewrite-java` 8.90.4
+  already resolves; no Gson, no YAML library). Maven plugins: `maven-compiler-plugin`
+  3.16.0, `maven-surefire-plugin` 3.6.1, `maven-jar-plugin` 3.5.1 (plus Maven's
+  default lifecycle plugins).
 - Real-SDK compile-check modules for Go, JS and Java: test time only, kept in
   their own modules, never shipped.
 

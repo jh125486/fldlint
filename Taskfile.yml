@@ -5,7 +5,7 @@ version: '3'
 silent: true
 
 vars:
-  GEN_FILES: js/packages/spec/src/rules.gen.ts go/internal/spec/rules_gen.go spec/generated/spec.json go/internal/spec/testdata/spec.json
+  GEN_FILES: js/packages/spec/src/rules.gen.ts go/internal/spec/rules_gen.go spec/generated/spec.json go/internal/spec/testdata/spec.json java/src/main/java/io/github/jh125486/fldlint/spec/RulesGen.java
   # Pinned; CI and local both run this exact version via `go run`.
   GOLANGCI_LINT: github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
   # Pinned workflow linters; CI and local both run these exact versions.
@@ -42,7 +42,7 @@ tasks:
       - task: spec:tags
 
   spec:gen:
-    desc: Validate the spec and regenerate spec/generated/spec.json plus the JS and Go tables
+    desc: Validate the spec and regenerate spec/generated/spec.json plus the JS, Go and Java rule tables
     cmds:
       - cd js && npm run gen -w @fldlint/spec
       - cd go && go run ./internal/spec/gen
@@ -110,6 +110,20 @@ tasks:
     cmds:
       - cd go && go run {{.GOLANGCI_LINT}} run ./...
 
+  java:test:
+    desc: Run the Java build and tests (JDK 21; ./mvnw verify, includes the conformance harness; FLDLINT_SKIP_JAVA=1 skips)
+    cmds:
+      - |
+        if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:test skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
+        cd java && ./mvnw -B verify
+
+  java:lint:
+    desc: Compile Java main and test code with every javac lint as an error (-Xlint:all -Werror, own build dir; FLDLINT_SKIP_JAVA=1 skips)
+    cmds:
+      - |
+        if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:lint skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
+        cd java && ./mvnw -B -q -Plint test-compile
+
   workflows:lint:
     desc: Lint .github/workflows with actionlint (go run) and zizmor (uvx, needs uv)
     cmds:
@@ -117,9 +131,9 @@ tasks:
       - uvx {{.ZIZMOR}} --persona=regular .github/workflows
 
   lint:
-    desc: Run all linters (JS and Go)
-    deps: [js:lint, go:lint]
+    desc: Run all linters (JS, Go and Java)
+    deps: [js:lint, go:lint, java:lint]
 
   test:
-    desc: Run all tests (JS and Go)
-    deps: [js:test, go:test]
+    desc: Run all tests (JS, Go and Java)
+    deps: [js:test, go:test, java:test]

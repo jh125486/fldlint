@@ -1,0 +1,159 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Java build for fldlint (ADR 009 D6/D7). JDK 21 builds; main code targets Java 8.
+     Only dependencies approved in CONTRIBUTING.md may be added here. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.jh125486</groupId>
+  <artifactId>fldlint-rewrite</artifactId>
+  <version>0.1.0-SNAPSHOT</version>
+  <packaging>jar</packaging>
+
+  <name>fldlint-rewrite</name>
+  <description>OpenRewrite recipes that migrate LaunchDarkly Java SDK flag calls to OpenFeature.</description>
+  <url>https://github.com/jh125486/fldlint</url>
+
+  <licenses>
+    <license>
+      <name>Apache-2.0</name>
+      <url>https://www.apache.org/licenses/LICENSE-2.0.txt</url>
+    </license>
+  </licenses>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <!-- ADR 009 D7: build on JDK 21, emit Java 8 bytecode for consumers. -->
+    <maven.compiler.release>8</maven.compiler.release>
+
+    <!-- Central's newest OpenRewrite (ADR 009 D1); do not bump without a new ADR. -->
+    <rewrite.version>8.90.4</rewrite.version>
+    <junit.version>5.14.4</junit.version>
+    <!-- Deliberately NOT the newest: slf4j 1.7.x matches the slf4j-api 1.7.36 binding that
+         rewrite-test 8.90.4 uses (slf4j 2.x bindings would not attach to it). -->
+    <slf4j.version>1.7.36</slf4j.version>
+    <!-- Deliberately NOT the newest: 2.21.6 is the jackson-bom version rewrite 8.90.4 imports;
+         a newer databind would mismatch the 2.21.x jackson-core/annotations it resolves. -->
+    <jackson.version>2.21.6</jackson.version>
+    <launchdarkly.version>7.18.1</launchdarkly.version>
+    <openfeature.version>1.23.0</openfeature.version>
+
+    <!-- Spec root holding generated/spec.json. Override with -Dfldlint.specRoot=<dir>;
+         an explicit root without generated/spec.json is a hard error. -->
+    <fldlint.specRoot />
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>org.openrewrite</groupId>
+      <artifactId>rewrite-java</artifactId>
+      <version>${rewrite.version}</version>
+      <scope>provided</scope>
+    </dependency>
+
+    <dependency>
+      <groupId>org.openrewrite</groupId>
+      <artifactId>rewrite-test</artifactId>
+      <version>${rewrite.version}</version>
+      <scope>test</scope>
+      <exclusions>
+        <!-- rewrite-test ships a runtime slf4j-nop that would win over slf4j-simple. -->
+        <exclusion>
+          <groupId>org.slf4j</groupId>
+          <artifactId>slf4j-nop</artifactId>
+        </exclusion>
+      </exclusions>
+    </dependency>
+    <dependency>
+      <groupId>org.openrewrite</groupId>
+      <artifactId>rewrite-java-21</artifactId>
+      <version>${rewrite.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>${slf4j.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <!-- Reads spec/generated/spec.json in tests. Java never parses YAML (ADR 011).
+         "provided", like rewrite-java's own jackson: test scope would remove it from the
+         main compile classpath (recipes compile against rewrite-core types that use it). -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+      <scope>provided</scope>
+    </dependency>
+    <!-- Real SDK jars so fixtures get full type attribution. -->
+    <dependency>
+      <groupId>com.launchdarkly</groupId>
+      <artifactId>launchdarkly-java-server-sdk</artifactId>
+      <version>${launchdarkly.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>dev.openfeature</groupId>
+      <artifactId>sdk</artifactId>
+      <version>${openfeature.version}</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-compiler-plugin</artifactId>
+        <version>3.16.0</version>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>3.6.1</version>
+        <configuration>
+          <systemPropertyVariables>
+            <fldlint.specRoot>${fldlint.specRoot}</fldlint.specRoot>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-jar-plugin</artifactId>
+        <version>3.5.1</version>
+      </plugin>
+    </plugins>
+  </build>
+
+  <profiles>
+    <!-- task java:lint: compile main and test with every javac lint as an error.
+         "-options" is excluded because JDK 21 warns that release 8 is obsolete, "-processing" because no annotation processor is used. -->
+    <profile>
+      <id>lint</id>
+      <build>
+        <!-- Own output directory, so lint and test can run in parallel. -->
+        <directory>${project.basedir}/target-lint</directory>
+        <plugins>
+          <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <configuration>
+              <showWarnings>true</showWarnings>
+              <compilerArgs>
+                <arg>-Xlint:all,-options,-processing</arg>
+                <arg>-Werror</arg>
+              </compilerArgs>
+            </configuration>
+          </plugin>
+        </plugins>
+      </build>
+    </profile>
+  </profiles>
+</project>

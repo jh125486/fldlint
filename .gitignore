@@ -15,3 +15,5 @@ coverage/
 tmp/
 scratch/
 *.log
+java/target/
+java/target-lint/

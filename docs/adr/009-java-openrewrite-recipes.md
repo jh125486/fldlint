@@ -1,11 +1,8 @@
 # ADR 009: Java recipes are imperative OpenRewrite recipes built on frozen Maven Central versions
 
 Date: 2026-11
-Status: Proposed
+Status: Accepted (the Java toolchain dependency group is now listed in CONTRIBUTING.md and docs/m0-contract.md M0.8, issue #9)
 
-Status stays Proposed: the owner approved the Java toolchain dependency group
-(Maven, JUnit, OpenRewrite test libraries), but CONTRIBUTING.md does not list it
-yet. The orchestrator records it there (issue #8); then this becomes Accepted.
 Evidence (VERIFIED/UNVERIFIED): [java/spike-findings.md](../../java/spike-findings.md).
 
 ## Context
