@@ -42,10 +42,11 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task js:ts-next` | Non-required canary: typecheck and build with `typescript@latest` |
 | `task go:test` | Go tests with the race detector (`go test -race ./...` in `go/`) |
 | `task go:lint` | `golangci-lint` v2.15.0, pinned via `go run` |
+| `task workflows:lint` | actionlint v1.7.12 (`go run`) and zizmor 1.33.1 (`uvx`, needs [uv](https://docs.astral.sh/uv/)) on `.github/workflows`; run by the `workflows` CI job, not part of `task check` |
 | `task lint` | `js:lint` and `go:lint` |
 | `task test` | `js:test` and `go:test` |
 
-CI calls only `task check` (required `check` job) `task js:test-eslint9` (ESLint 9 coverage for the plugin's peer range) and `task js:ts-next` (non-required canary). Requires Node `>=22.13` (CI runs 22, 24 and 26; also typechecks on Node 22.13.0 against `@types/node` 22.13.0) and
+CI calls `task check` (required `check` job), `task workflows:lint` (`workflows` job; whether it is required is an owner decision), `task js:test-eslint9` (`eslint-9` job: ESLint 9 coverage for the plugin's peer range) and `task js:ts-next` (non-required canary). Requires Node `>=22.13` (CI runs 22, 24 and 26; also typechecks on Node 22.13.0 against `@types/node` 22.13.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
