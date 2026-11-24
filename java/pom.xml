@@ -35,7 +35,7 @@
     <slf4j.version>1.7.36</slf4j.version>
     <!-- Deliberately NOT the newest: 2.21.6 is the jackson-bom version rewrite 8.90.4 imports;
          a newer databind would mismatch the 2.21.x jackson-core/annotations it resolves. -->
-    <jackson.version>2.21.6</jackson.version>
+    <jackson.version>2.21.7</jackson.version>
     <!-- Central's newest stable at the time of adding (issue #44). -->
     <spotless.version>3.12.0</spotless.version>
     <googlejavaformat.version>2.0.0</googlejavaformat.version>
