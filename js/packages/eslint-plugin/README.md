@@ -6,7 +6,7 @@ Behaviour follows ESLint exactly ([ADR 008](../../../docs/adr/008-idiomatic-per-
 severity, `--max-warnings`, `--quiet`, `--fix`, `--fix-dry-run`, formatters and
 inline suppression are all ESLint's. fldlint adds no formatter or flag.
 
-Requires ESLint 9 (flat config) and Node 22.12 or newer. ESLint 10 is not yet supported.
+Requires ESLint 9 or 10 (flat config) and Node 22.13 or newer.
 
 ## Install
 

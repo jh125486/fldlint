@@ -157,7 +157,7 @@ edits to the file.
 
 ## Approved dependencies
 
-- JS: `eslint` (9.x), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
+- JS: `eslint` (10.x), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
   `ajv` (+`ajv-formats` if needed), `yaml`, `vitest`, `typescript`.
 - Go: `golang.org/x/tools` (no YAML library: Go reads `spec/generated/spec.json`, ADR 011). Go tests use stdlib `testing`
   plus `testing/synctest` where timing matters; `testify` is NOT approved.
@@ -195,7 +195,7 @@ Decided after the first integration review. Authors working on the fix round
 must follow these.
 
 ### Toolchain
-- SUPERSEDED by M0.6 (Node/TypeScript/@types/node lines): Node `>=22.12`; CI matrix `[22, 24]`; `@types/node ^22`.
+- SUPERSEDED by M0.6 (Node/TypeScript/@types/node lines): Node `>=22.13`; CI matrix `[22, 24]`; `@types/node ^22`.
 - `vitest ^5.1.1` (approved) still stands.
 - Node 20 is dropped (end of life).
 
@@ -460,11 +460,11 @@ Owner decisions, 2026-11-22.
   "Lithium" is LTS (since 2026-10-28); 24 "Krypton" and 22 "Jod" are in
   maintenance (22 ends 2027-04-30). CI runs the JS test matrix on every
   supported LTS line: `[22, 24, 26]` (`js-test`). `lint` and `spec-check` run
-  on a single Node, the latest LTS (26). `engines.node` stays `>=22.12` until
+  on a single Node, the latest LTS (26). `engines.node` stays `>=22.13` until
   Node 22 reaches end of life.
 - `@types/node` tracks the latest LTS (`^26`). To guard the only real risk
   (code using APIs newer than the floor), CI job `js-types-floor` runs on Node
-  22.12.0 itself, installs `@types/node@22.12.0` (the only 22.12-era typings
+  22.13.0 itself, installs `@types/node@22.13.0` (the only 22.13-era typings
   release; `^22` would resolve to 22.20.x and accept later APIs such as
   `zstdCompressSync`, @since 22.15) with `npm install --no-save` over the
   locked tree, and runs `npm run typecheck`.
@@ -523,7 +523,7 @@ as frozen history. Anything not listed: stop and ask.
 - JS (shipped): `eslint` 9.x, `@typescript-eslint/parser`,
   `@typescript-eslint/utils`, `ajv` (+ `ajv-formats`), `yaml`.
 - JS (test/build time only): `@types/node` (latest LTS, `^26`; CI also
-  typechecks against 22.12.0, M0.6), `typescript` ~6.0, `vitest`,
+  typechecks against 22.13.0, M0.6), `typescript` ~6.0, `vitest`,
   `fast-check`, and `esbuild` (only as a build-time devDependency of
   `@fldlint/codemod`). Linting our own JS/TS (issue #42): `eslint` 9.x,
   `@eslint/js` and `typescript-eslint` (same version as

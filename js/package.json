@@ -2,7 +2,7 @@
   "name": "fldlint-js",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=22.12" },
+  "engines": { "node": ">=22.13" },
   "workspaces": ["packages/*"],
   "scripts": {
     "build": "npm run build --workspaces --if-present",
@@ -15,9 +15,9 @@
     "spec:tags": "npm run build -w @fldlint/spec --silent && node packages/spec/dist/bin/tags.js"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.5",
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.0.0",
-    "eslint": "^9.39.5",
+    "eslint": "^10.15.0",
     "typescript": "~6.0.3",
     "typescript-eslint": "8.73.0",
     "vitest": "^5.1.1"
