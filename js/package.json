@@ -8,14 +8,18 @@
     "build": "npm run build --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
     "typecheck": "npm run typecheck --workspaces --if-present",
-    "lint": "npm run typecheck",
+    "lint:eslint": "npm run build --silent && eslint .",
+    "lint": "npm run typecheck && npm run lint:eslint",
     "gen": "npm run gen -w @fldlint/spec",
     "spec:validate": "npm run build -w @fldlint/spec --silent && node packages/spec/dist/bin/validate.js",
     "spec:tags": "npm run build -w @fldlint/spec --silent && node packages/spec/dist/bin/tags.js"
   },
   "devDependencies": {
+    "@eslint/js": "^9.39.5",
     "@types/node": "^26.0.0",
+    "eslint": "^9.39.5",
     "typescript": "~6.0.3",
+    "typescript-eslint": "8.73.0",
     "vitest": "^5.1.1"
   }
 }

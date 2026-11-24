@@ -87,7 +87,7 @@ describe("ESLint CLI exit codes", { timeout: CLI_TIMEOUT_MS }, () => {
 
   it("--format json reports positions and severity", () => {
     writeConfig();
-    const out = JSON.parse(cli("-f", "json").stdout)[0];
+    const [out] = JSON.parse(cli("-f", "json").stdout) as [{ warningCount: number; messages: unknown[] }];
     expect(out.warningCount).toBe(2);
     expect(out.messages[0]).toMatchObject({ ruleId: "fldlint/bool-variation", severity: 1, line: 5, column: 18 });
   });
@@ -97,7 +97,7 @@ describe("ESLint CLI --fix", { timeout: CLI_TIMEOUT_MS }, () => {
   it("--fix-dry-run does not write; --fix writes and exits on what remains", () => {
     writeConfig();
     const dry = cli("--fix-dry-run", "-f", "json");
-    const result = JSON.parse(dry.stdout)[0];
+    const [result] = JSON.parse(dry.stdout) as [{ output: string }];
     expect(result.output).toContain("client.getBooleanValue");
     expect(readFileSync(join(dir, "input.ts"), "utf8")).toBe(SOURCE);
 

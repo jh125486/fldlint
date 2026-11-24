@@ -32,7 +32,7 @@ describe("plan step order", () => {
       want: "detail",
     },
     { name: "dynamic-key beats context, default and client", site: { ...good, ...bad.dynamicKey, ...bad.context, ...bad.defaultType, ...bad.unbound }, want: "dynamic-key" },
-    { name: "missing keyText counts as dynamic", site: { ...good, keyText: undefined as never, ...bad.context, ...bad.unbound }, want: "dynamic-key" },
+    { name: "missing keyText counts as dynamic", site: { ...good, keyText: undefined, ...bad.context, ...bad.unbound }, want: "dynamic-key" },
     { name: "context-unproven beats default and client", site: { ...good, ...bad.context, ...bad.defaultType, ...bad.unbound }, want: "context-unproven" },
     { name: "default-type-unproven beats an unbound client", site: { ...good, ...bad.defaultType, ...bad.unbound }, want: "default-type-unproven" },
     { name: "default-type-unproven beats an ambiguous client", site: { ...good, ...bad.defaultType, clientBinding: { kind: "ambiguous" } }, want: "default-type-unproven" },

@@ -12,8 +12,8 @@ export function config(parser: ParserName, rules?: L.RulesRecord): L.Config[] {
   return [
     {
       files: ["**/*.ts"],
-      plugins: { fldlint: plugin as never },
-      languageOptions: parser === "espree" ? { sourceType: "module" } : { parser: tsParser as never, sourceType: "module" },
+      plugins: { fldlint: plugin },
+      languageOptions: parser === "espree" ? { sourceType: "module" } : { parser: tsParser, sourceType: "module" },
       rules: rules ?? (plugin.configs as { recommended: { rules: L.RulesRecord } }).recommended.rules,
     },
   ];
