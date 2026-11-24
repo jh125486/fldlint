@@ -8,6 +8,9 @@ vars:
   GEN_FILES: js/packages/spec/src/rules.gen.ts go/internal/spec/rules_gen.go
   # Pinned; CI and local both run this exact version via `go run`.
   GOLANGCI_LINT: github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.0
+  # Pinned workflow linters; CI and local both run these exact versions.
+  ACTIONLINT: github.com/rhysd/actionlint/cmd/actionlint@v1.7.12
+  ZIZMOR: zizmor@1.33.1
 
 tasks:
   default:
@@ -96,6 +99,12 @@ tasks:
     desc: Run golangci-lint (pinned v2.15.0 via go run)
     cmds:
       - cd go && go run {{.GOLANGCI_LINT}} run ./...
+
+  workflows:lint:
+    desc: Lint .github/workflows with actionlint (go run) and zizmor (uvx, needs uv)
+    cmds:
+      - cd go && go run {{.ACTIONLINT}} -color ../.github/workflows/*.yml
+      - uvx {{.ZIZMOR}} --persona=regular .github/workflows
 
   lint:
     desc: Run all linters (JS and Go)
