@@ -1,0 +1,6 @@
+# probe: comments in several positions
+a: 1  # trailing
+# between
+b:
+  # inside
+  - x

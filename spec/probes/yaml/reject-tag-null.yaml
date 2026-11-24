@@ -1,0 +1,2 @@
+# probe: explicit !!null tag
+a: !!null

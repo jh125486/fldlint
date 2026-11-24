@@ -1,6 +1,0 @@
-id: x
-rule: bool-variation
-tags: []
-description: d
-expect:
-  go: {diagnostics: [], output: yes}

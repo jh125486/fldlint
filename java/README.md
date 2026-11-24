@@ -15,5 +15,8 @@ Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Propose
   `.doubleValue()` (ADR 009 D8); fixtures in [fixtures/](fixtures/).
 - `FindLaunchDarklyUsage` is `dryRun`-only (`run` writes markers into source); pass
   `-DfailOnDryRunResults=true` to fail on any finding.
+- Spec input: read `spec/generated/spec.json` with Jackson or Gson. Java never
+  parses YAML (no SnakeYAML); the JS loader is the one YAML reader
+  ([ADR 011](../docs/adr/011-parse-yaml-once-emit-canonical-json.md)).
 - Spec changes: [proposed-rules.patch.md](proposed-rules.patch.md). Evidence:
   [spike-findings.md](spike-findings.md).

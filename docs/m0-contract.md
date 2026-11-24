@@ -112,7 +112,13 @@ In M0 only the types and a stub implementation exist.
 Each language generates a typed table from `spec/rules.yaml`. Generated files
 are committed and CI fails on any `git diff` after regenerating.
 
-- Go: `go/internal/spec/rules_gen.go` via `go run ./internal/spec/gen` (run from `go/`).
+YAML is parsed in one place only (the JS loader, ADR 011). It validates the
+spec and emits `spec/generated/spec.json` (rules plus every case as JSON);
+Go and Java read that file and contain no YAML code.
+
+- `spec/generated/spec.json` via `npm run gen -w @fldlint/spec` (run from `js/`).
+
+- Go: `go/internal/spec/rules_gen.go` via `go run ./internal/spec/gen` (run from `go/`), reading `spec.json`.
 - JS: `js/packages/spec/src/rules.gen.ts` via `npm run gen -w @fldlint/spec` (run from `js/`).
 
 ## Make targets (the ONLY entry points CI calls; owned by WP6)
@@ -153,7 +159,7 @@ edits to the file.
 
 - JS: `eslint` (9.x), `@typescript-eslint/parser`, `@typescript-eslint/utils`,
   `ajv` (+`ajv-formats` if needed), `yaml`, `vitest`, `typescript`.
-- Go: `golang.org/x/tools`, `gopkg.in/yaml.v3`. Go tests use stdlib `testing`
+- Go: `golang.org/x/tools` (no YAML library: Go reads `spec/generated/spec.json`, ADR 011). Go tests use stdlib `testing`
   plus `testing/synctest` where timing matters; `testify` is NOT approved.
 - Anything else: stop and ask.
 
@@ -241,8 +247,8 @@ now-unused client; state this difference in the contracts.
   Drop JS `allFlags` and `isFeatureEnabled` only if verified absent from the
   current LD Node SDK typings; otherwise keep them and say where they exist.
 
-### Validator parity (JS and Go must accept and reject the same inputs)
-Both loaders: reject unknown keys, enforce enums/patterns/required fields,
+### Validation (superseded by ADR 011: the JS loader is the only validator)
+The JS loader must: reject unknown keys, enforce enums/patterns/required fields,
 integer `line`/`col`, `output` boolean, non-null language entries; reject a
 case whose `rule` or any `diagnostics[].ruleId` is not in `rules.yaml`; reject
 `ctxArg` for a method not in `methods`; reject the same method appearing in two
@@ -266,7 +272,7 @@ and give `go/` a `.golangci.yml`. Use `BASE...HEAD` for path filters and
 
 ## M0.2 amendments (second review round; override anything above that conflicts)
 
-### Fixture discovery and semantics (JS and Go validators must both enforce)
+### Fixture discovery and semantics (enforced by the JS loader)
 - Every directory under `spec/fixtures/<rule>/<case>/` must contain `case.yaml`
   (not `case.yml`); any other directory depth, or a directory without
   `case.yaml`, is an error. Case ids are unique across the whole spec.
@@ -315,10 +321,8 @@ job, `actions/setup-go` runs BEFORE `github/codeql-action/init`.
 - An explicit `-spec` (Go) / `--spec-root` (JS) that is missing or invalid is a
   hard error, never a silent fallback to the stub. The stub fallback only applies
   when no spec root is given at all.
-- Go message regex rejects a lone `}` like the schema (`[^{}]`).
-- Known, deferred to a tracked issue (do NOT work on it now): YAML scalar typing
-  differences between ajv's YAML parser and yaml.v3 (octal/binary/underscore/1e17
-  integers, timestamps, custom tags, `%YAML 1.1`).
+- YAML scalar typing is pinned by the "fldlint YAML subset" in
+  [validation-parity.md](../spec/contracts/validation-parity.md#fldlint-yaml-subset).
 
 ### M0.2a correction (supersedes the M0.2 diagnostic/skip bullets above)
 
@@ -522,7 +526,7 @@ as frozen history. Anything not listed: stop and ask.
   typechecks against 22.12.0, M0.6), `typescript` ~6.0, `vitest`,
   `fast-check`, and `esbuild` (only as a build-time devDependency of
   `@fldlint/codemod`).
-- Go (shipped): `golang.org/x/tools`, `gopkg.in/yaml.v3`. `testify` stays not
+- Go (shipped): `golang.org/x/tools` (`gopkg.in/yaml.v3` removed by ADR 011). `testify` stays not
   approved.
 - Go (build time only): `github.com/golangci/plugin-module-register`, only in
   the golangci-lint module plugin (issue #18); never imported by the analyzer.

@@ -5,7 +5,8 @@ accepted: do not edit one to change the decision. (Exception: ADRs 001-008
 were never released; ADRs 001, 003 and 004 were corrected in place, marked
 "Amended 2026-11".) To change course, add a new
 ADR that supersedes it and set the old one's status to
-`Superseded by NNN` (that status line is the only permitted edit).
+`Superseded by NNN` or `superseded in part by NNN` (that status line, plus a one-line note
+beside it saying what no longer applies, is the only permitted edit).
 
 Format: title, `Date`, `Status`, then Context, Decision, Consequences. Keep
 them short. Number sequentially.
@@ -22,3 +23,4 @@ them short. Number sequentially.
 | [008](008-idiomatic-per-ecosystem.md) | Idiomatic per ecosystem |
 | [009](009-java-openrewrite-recipes.md) | Java recipes are imperative OpenRewrite recipes built on frozen Maven Central versions |
 | [010](010-planner-step-order-and-receiver-removal.md) | Planner step order and receiver removal |
+| [011](011-parse-yaml-once-emit-canonical-json.md) | Parse YAML in exactly one place and emit canonical JSON |

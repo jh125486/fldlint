@@ -1,0 +1,4 @@
+# probe: more than one document
+a: 1
+---
+b: 2
