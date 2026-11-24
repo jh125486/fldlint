@@ -42,7 +42,8 @@ func TestRun(t *testing.T) {
 				}
 			}
 			out := filepath.Join(t.TempDir(), "gen.go")
-			args := []string{"-out", out}
+			javaOut := filepath.Join(t.TempDir(), "RulesGen.java")
+			args := []string{"-out", out, "-java-out", javaOut}
 			if tt.useSpec {
 				args = append(args, "-spec", root)
 			}
@@ -51,16 +52,20 @@ func TestRun(t *testing.T) {
 				if err == nil || !strings.Contains(err.Error(), tt.wantErr) {
 					t.Fatalf("err = %v, want containing %q", err, tt.wantErr)
 				}
-				if _, statErr := os.Stat(out); statErr == nil {
-					t.Fatal("output written despite error")
+				for _, f := range []string{out, javaOut} {
+					if _, statErr := os.Stat(f); statErr == nil {
+						t.Fatalf("%s written despite error", f)
+					}
 				}
 				return
 			}
 			if err != nil {
 				t.Fatal(err)
 			}
-			if _, err := os.Stat(out); err != nil {
-				t.Fatal(err)
+			for _, f := range []string{out, javaOut} {
+				if _, err := os.Stat(f); err != nil {
+					t.Fatal(err)
+				}
 			}
 		})
 	}
