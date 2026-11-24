@@ -1,9 +1,12 @@
 # Java
 
-Java support is planned for milestone M3. Nothing is implemented yet; this
-directory holds documentation and draft fixtures until #9 scaffolds the build.
+Java support is milestone M3. The Maven build, the generated rules table
+(`src/main/java/io/github/jh125486/fldlint/spec/RulesGen.java`, written by the Go
+generator, drift-checked), a stub planner and the JUnit conformance harness exist
+(#9); the recipes themselves land in #10. Build and test with `./mvnw -B verify`
+(JDK 21) or `task java:test` from the repository root.
 
-Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Proposed):
+Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Accepted):
 
 - Imperative OpenRewrite recipes under `io.github.jh125486.fldlint`, artifact
   `io.github.jh125486:fldlint-rewrite`, built with Maven against the last Maven
@@ -15,7 +18,7 @@ Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Propose
   `.doubleValue()` (ADR 009 D8); fixtures in [fixtures/](fixtures/).
 - `FindLaunchDarklyUsage` is `dryRun`-only (`run` writes markers into source); pass
   `-DfailOnDryRunResults=true` to fail on any finding.
-- Spec input: read `spec/generated/spec.json` with Jackson or Gson. Java never
+- Spec input: read `spec/generated/spec.json` with Jackson (test scope; `-Dfldlint.specRoot=<dir>` selects another root). Java never
   parses YAML (no SnakeYAML); the JS loader is the one YAML reader
   ([ADR 011](../docs/adr/011-parse-yaml-once-emit-canonical-json.md)).
 - Spec changes: [proposed-rules.patch.md](proposed-rules.patch.md). Evidence:

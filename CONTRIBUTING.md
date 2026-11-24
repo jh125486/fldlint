@@ -41,10 +41,13 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task js:ts-next` | Non-required canary: typecheck and build with `typescript@latest` |
 | `task go:test` | Go tests with the race detector (`go test -race ./...` in `go/`) |
 | `task go:lint` | `golangci-lint` v2.15.0, pinned via `go run` |
-| `task lint` | `js:lint` and `go:lint` |
-| `task test` | `js:test` and `go:test` |
+| `task java:test` | `cd java && ./mvnw -B verify`: compiles, runs the unit tests and the conformance harness (every case in `spec/generated/spec.json` is discovered; Java cases are pending until #10, the rest are not applicable) |
+| `task java:lint` | Compiles Java main and test code with `-Xlint:all -Werror` (Maven profile `lint`) |
+| `task lint` | `js:lint`, `go:lint` and `java:lint` |
+| `task test` | `js:test`, `go:test` and `java:test` |
 
-CI calls only `task check` (required `check` job) and `task js:ts-next` (non-required canary). Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
+CI calls `task check` (required `check` job, with `FLDLINT_SKIP_JAVA=1` because it has no JDK), `task java:lint java:test` (the path-filtered `java` job: it runs on changes under `java/`, `spec/`, `go/internal/spec/`, `Taskfile.yml` or `ci.yml`, and always on pushes to `main`) and `task js:ts-next` (non-required canary).
+Java needs JDK 21 (`maven.compiler.release=8` targets Java 8 bytecode, ADR 009 D7) and nothing else: `java/mvnw` downloads a pinned Maven (script-only wrapper, checksum verified). Run the harness against another spec root with `cd java && ./mvnw verify -Dfldlint.specRoot=<dir>` (the root must contain `generated/spec.json`; an explicit missing root fails). Java never parses YAML; it reads `spec/generated/spec.json` ([ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)), and `task spec:gen` also regenerates `RulesGen.java`. Requires Node `>=22.12` (CI runs 22, 24 and 26; also typechecks on Node 22.12.0 against `@types/node` 22.12.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
 a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
@@ -67,9 +70,17 @@ the same list.
   the same version as `@typescript-eslint/parser`), devDependencies of `js/`.
 - Go (shipped): `golang.org/x/tools`. Go reads the generated `spec.json`, so
   there is no YAML dependency. `testify` is not approved.
-- Java (test/build time only): Maven and the Maven wrapper, JUnit 5.14.4,
-  OpenRewrite 8.90.4 (`rewrite-java`, `rewrite-test`, `rewrite-templating`) and
-  `rewrite-maven-plugin` 6.46.1. ADR 009 is Proposed until merged.
+- Java (test/build time only; ADR 009): Maven via the script-only Maven Wrapper
+  (3.9.11, pinned `distributionSha256Sum`), JDK 21 to build, `maven.compiler.release=8`.
+  OpenRewrite 8.90.4: `rewrite-java` (provided), `rewrite-test` and `rewrite-java-21`
+  (test), `rewrite-templating`; `rewrite-maven-plugin` 6.46.1 (consumer side, not in
+  the scaffold); JUnit Jupiter 5.14.4, `slf4j-simple` 1.7.36;
+  `com.launchdarkly:launchdarkly-java-server-sdk` 7.18.1 and `dev.openfeature:sdk`
+  1.23.0 (test, real SDK jars for fixture type attribution); `jackson-databind`
+  2.21.6 (test, reads `spec/generated/spec.json`; the version `rewrite-java` 8.90.4
+  already resolves; no Gson, no YAML library). Maven plugins: `maven-compiler-plugin`
+  3.14.1, `maven-surefire-plugin` 3.5.6, `maven-jar-plugin` 3.4.2 (plus Maven's
+  default lifecycle plugins).
 - Go (build time only): `github.com/golangci/plugin-module-register`, only in
   the golangci-lint module plugin (issue #18).
 - Real-SDK compile-check modules for Go, JS and Java (test/build time only;

@@ -24,10 +24,11 @@ the file ends in a newline. `npm run gen -w @fldlint/spec` (called by
 `task spec:gen`) writes it and **refuses to write anything when validation
 fails**. It is committed, and `task spec:check` fails on drift.
 
-Every other language (Go today, Java later) **must read `spec.json` and needs
+Every other language (Go and Java) **must read `spec.json` and needs
 no YAML code and no validator**: decode the JSON (reject unknown fields and trailing data; the file is generated and drift-checked, so this is a sanity check, not a validator), and
-keep only the few cross-checks its own code relies on. Java reads it with
-Jackson or Gson, not SnakeYAML. Do not edit `spec.json` by hand; edit the YAML
+keep only the few cross-checks its own code relies on. Java (the `java/` conformance
+harness, test scope) reads it with Jackson, not SnakeYAML, and does not validate
+against the JSON Schema. Do not edit `spec.json` by hand; edit the YAML
 and regenerate.
 
 Consequences: no per-language YAML parser to keep in agreement, no hand-written
@@ -198,7 +199,7 @@ block scalar is a string.
   least one diagnostic, and the output file must differ from the input file.
 - `expect.<lang>` is only allowed when the rule binds that language
   (`languages.<lang>` exists).
-- An explicit spec root (`--spec-root` in JS, `-spec` in the Go tools) that is missing or
+- An explicit spec root (`--spec-root` in JS, `-spec` in the Go tools, `-Dfldlint.specRoot` in the Java harness) that is missing or
   invalid is a **hard error**, never a silent fallback to the stub. The stub
   fallback applies only when no spec root is given at all.
 
