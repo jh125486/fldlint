@@ -11,7 +11,9 @@ package spec
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io"
 	"sort"
 )
 
@@ -85,7 +87,9 @@ func decodeStrict(data []byte, v any) error {
 	if err := dec.Decode(v); err != nil {
 		return err
 	}
-	if dec.More() {
+	// A second Decode must hit EOF; Decoder.More is not an EOF check (a stray
+	// closing bracket makes it report false).
+	if err := dec.Decode(&struct{}{}); !errors.Is(err, io.EOF) {
 		return fmt.Errorf("unexpected data after the JSON value")
 	}
 	return nil
