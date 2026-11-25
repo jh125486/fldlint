@@ -795,6 +795,30 @@
       }
     },
     {
+      "path": "bool-variation/context-non-user-kind",
+      "case": {
+        "id": "context-non-user-kind",
+        "rule": "bool-variation",
+        "tags": [
+          "context-unproven"
+        ],
+        "description": "A context literal whose kind is not \"user\" would be reinterpreted as a user, so the call is skipped as context-unproven.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
       "path": "bool-variation/default-type-unproven",
       "case": {
         "id": "default-type-unproven",
@@ -949,6 +973,29 @@
             "diagnostics": [
               {
                 "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/goctx-two-params",
+      "case": {
+        "id": "goctx-two-params",
+        "rule": "bool-variation",
+        "tags": [
+          "goctx"
+        ],
+        "description": "With two context.Context parameters in scope none is provably the right one, so a plain BoolVariation falls back to context.TODO().",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 16,
                 "col": 11,
                 "ruleId": "bool-variation"
               }

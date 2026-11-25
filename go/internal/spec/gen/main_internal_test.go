@@ -3,6 +3,7 @@ package main
 // Whitebox: run and main live in package main and cannot be imported.
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -66,6 +67,31 @@ func TestRun(t *testing.T) {
 				if _, err := os.Stat(f); err != nil {
 					t.Fatal(err)
 				}
+			}
+		})
+	}
+}
+
+func TestExitCode(t *testing.T) {
+	t.Parallel()
+	missing := filepath.Join(t.TempDir(), "missing")
+	out := filepath.Join(t.TempDir(), "g.go")
+	tests := []struct {
+		name string
+		err  error
+		want int
+	}{
+		{name: "no error", err: nil, want: 0},
+		{name: "help", err: run([]string{"-h", "-out", out}), want: 0},
+		{name: "plain failure", err: errors.New("write failed"), want: 1},
+		{name: "explicit missing spec", err: run([]string{"-spec", missing, "-out", out, "-java-out", ""}), want: 2},
+		{name: "unknown flag", err: run([]string{"-bogus"}), want: 2},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := exitCode(tt.err); got != tt.want {
+				t.Fatalf("exitCode(%v) = %d, want %d", tt.err, got, tt.want)
 			}
 		})
 	}

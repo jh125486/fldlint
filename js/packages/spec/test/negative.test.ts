@@ -344,10 +344,14 @@ describe("bins: --spec-root handling", () => {
   beforeAll(() => {
     execFileSync(process.execPath, [tsc, "-p", join(pkg, "tsconfig.build.json")], { cwd: pkg });
   }, 120_000);
-  const run = (bin: string, args: string[]): { status: number | null; stderr: string; stdout: string } => {
+  const run = (
+    bin: string,
+    args: string[],
+    specRootEnv = "",
+  ): { status: number | null; stderr: string; stdout: string } => {
     const r = spawnSync(process.execPath, [join(pkg, "dist/bin", `${bin}.js`), ...args], {
       encoding: "utf8",
-      env: { ...process.env, FLDLINT_SPEC_ROOT: "" },
+      env: { ...process.env, FLDLINT_SPEC_ROOT: specRootEnv },
     });
     return { status: r.status, stderr: r.stderr, stdout: r.stdout };
   };
@@ -383,6 +387,13 @@ describe("bins: --spec-root handling", () => {
     expect(m).not.toBeNull();
     expect(m![1]).toBe(resolve(pkg, "../../../spec"));
     expect(Number(m![2])).toBeGreaterThanOrEqual(21);
+  });
+
+  it("gen: an invalid FLDLINT_SPEC_ROOT exits 2 and writes nothing", () => {
+    const r = run("gen", [], "/no/such/root");
+    expect(r.status).toBe(2);
+    expect(r.stderr).toContain("missing or invalid");
+    expect(r.stdout).not.toContain("wrote");
   });
 
   it("validate: a valid explicit root passes", () => {
