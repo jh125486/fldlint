@@ -1,0 +1,7 @@
+id: detail-arg-count
+rule: bool-variation-detail
+tags: []
+description: A report-only call is recognized only with an argument count inside the rule's argCount range. JS boolVariationDetail takes exactly three, so two, four and a spread are unrecognized and silent. Go BoolVariationDetail takes three and the Ctx variant four (argCount plus the leading context.Context); a wrong Go count does not compile, so only the correct counts are pinned here (forked signatures are covered by the Go analyzer tests).
+expect:
+  js: {diagnostics: [{line: 10, col: 9, ruleId: bool-variation-detail, skip: detail}], output: false}
+  go: {diagnostics: [{line: 16, col: 12, ruleId: bool-variation-detail, skip: detail}, {line: 17, col: 12, ruleId: bool-variation-detail, skip: detail}], output: false}

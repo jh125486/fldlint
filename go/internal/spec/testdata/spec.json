@@ -74,12 +74,20 @@
           "js": {
             "methods": [
               "boolVariationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
               "BoolVariationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           }
         },
         "skip": "detail"

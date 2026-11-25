@@ -219,6 +219,10 @@ Cross-reference (beyond what the schema can say):
 6. A case's `rule`, and every `diagnostics[].ruleId`, must exist in `rules.yaml`.
 7. `ctxArg` may only name a method listed in that language's `methods`.
 8. The same method must not appear in two rules for one language.
+8a. `argCount` (required on every binding of a report-only rule, forbidden on
+    rewriting rules, by the schema) must satisfy `min >= 1`, `min <= max` when
+    `max` is present, and `min > keyArg` when the rule has a `keyArg`. Go
+    consumes it unvalidated (ADR 011).
 9. A case that promises `expect.<lang>` must have that language's input file
    (`js/input.ts`, `go/input.go`, `java/Before.java`).
 10. `output: true` requires the output file (`output.ts` / `output.go.golden` / `After.java`),

@@ -46,6 +46,9 @@ func Generate(rf *RulesFile) ([]byte, error) {
 				}
 				b.WriteString("},\n")
 			}
+			if a := g.ArgCount; a != nil {
+				fmt.Fprintf(&b, "\t\t\tArgCount: &ArgCount{Min: %d, Max: %d},\n", a.Min, a.Max)
+			}
 			fmt.Fprintf(&b, "\t\t\tTemplate: %q,\n", g.Template)
 			if len(g.Requires) > 0 {
 				fmt.Fprintf(&b, "\t\t\tRequires: %s,\n", strSlice(g.Requires))

@@ -23,10 +23,26 @@ type SkipCategory struct {
 	Message  string `json:"message"`
 }
 
+// ArgCount is the inclusive argument-count range of an SDK method's
+// non-Ctx form (rules.yaml argCount). Max is 0 for a variadic method (no upper
+// bound); the schema makes 0 unrepresentable otherwise (minimum 1).
+type ArgCount struct {
+	Min int `json:"min"`
+	Max int `json:"max,omitempty"`
+}
+
+// Accepts reports whether n call arguments are inside the range. shift is
+// added to both bounds: 1 for a Go method listed in the binding's ctxArg (its
+// leading context.Context), else 0.
+func (a ArgCount) Accepts(n, shift int) bool {
+	return n >= a.Min+shift && (a.Max == 0 || n <= a.Max+shift)
+}
+
 // Binding is the per-language part of a rule.
 type Binding struct {
 	Methods  []string       `json:"methods"`
 	CtxArg   map[string]int `json:"ctxArg,omitempty"`
+	ArgCount *ArgCount      `json:"argCount,omitempty"`
 	Template string         `json:"template,omitempty"`
 	Requires []string       `json:"requires,omitempty"`
 	Async    bool           `json:"async,omitempty"`

@@ -38,6 +38,11 @@ func (client *LDClient) BoolVariationDetail(key string, context ldcontext.Contex
 	return defaultVal, ldreason.EvaluationDetail{}, nil
 }
 
+// BoolVariationDetailCtx evaluates a boolean flag with detail and a Go context.
+func (client *LDClient) BoolVariationDetailCtx(ctx context.Context, key string, context ldcontext.Context, defaultVal bool) (bool, ldreason.EvaluationDetail, error) {
+	return defaultVal, ldreason.EvaluationDetail{}, nil
+}
+
 // StringVariation evaluates a string flag.
 func (client *LDClient) StringVariation(key string, context ldcontext.Context, defaultVal string) (string, error) {
 	return defaultVal, nil

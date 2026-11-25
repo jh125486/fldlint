@@ -58,12 +58,23 @@ rules:
   - id: bool-variation-detail
     risk: high
     languages:
-      js: {methods: [boolVariationDetail]}
-      go: {methods: [BoolVariationDetail]}
+      js: {methods: [boolVariationDetail], argCount: {min: 3, max: 3}}
+      go: {methods: [BoolVariationDetail, BoolVariationDetailCtx], ctxArg: {BoolVariationDetailCtx: 0},
+           argCount: {min: 3, max: 3}}
     skip: detail                # report-only; a rule has `skip` XOR per-language `template`
 ```
 
 - Placeholders are an enum: `client key default context goctx evalctx`.
+- `argCount: {min, max}` (inclusive; `max` omitted only for a variadic method) is
+  required on every language binding of a report-only (`skip`) rule and forbidden
+  on rewriting rules, whose arity comes from `keyArg`/`defaultArg`/`contextArg`.
+  It is the number of call arguments the SDK method accepts in its non-Ctx form
+  (a JS method with an optional trailing callback has `max` one higher); a Go
+  method listed in the binding's `ctxArg` takes one more, the leading
+  `context.Context`. A call whose argument count is outside the range (shifted
+  for `ctxArg` methods), or that has a spread argument, is not a recognized SDK
+  call: no diagnostic, exactly like a rewriting rule with the wrong arity. See
+  the M0.10 amendment at the end of this file.
 - Schemas: `spec/schema/rules.schema.json` and `spec/schema/fixture.schema.json`
   (JSON Schema draft 2020-12).
 - `rules.yaml` must cover every method of the LaunchDarkly Node server SDK and
@@ -564,9 +575,9 @@ contract (`spec/contracts/fingerprint.md`), which carries the normative text.
    `all-flags-state` stays keyless. Before this, a report-only finding had no
    key, so its identity was its position in the file: deleting one call gave its
    fingerprint to the next, and a baseline entry could suppress a different
-   flag. Only `keyArg` is added; `defaultArg`, `contextArg` and exact arity for
-   report-only rules remain out of scope (issue #37), so arity is still not
-   checked for them. The rules schema already allowed `keyArg` on skip rules;
+   flag. Only `keyArg` is added; `defaultArg` and `contextArg` for report-only
+   rules remain out of scope (arity is covered by `argCount`, M0.10 below).
+   The rules schema already allowed `keyArg` on skip rules;
    the Go loader still requires all three positions only for rewriting rules.
 2. **A key that is not well formed is not static.** A key with an unpaired
    surrogate (JS `!key.isWellFormed()`) or invalid UTF-8 (Go `!utf8.ValidString`)
@@ -579,3 +590,37 @@ New vectors: report-only rows in `fingerprint-vectors.json`, and
 `fingerprint-illformed-vectors.json` (keys given as UTF-16 code units and as
 UTF-8 hex). The Go engine gains `go/internal/fingerprint`, which passes the
 same vectors as the JS `fingerprint()`.
+
+## M0.10 amendment: argument count (`argCount`) for report-only rules
+
+Issue #37. Report-only rules had only `keyArg`, so a call such as
+`ld.variation("k")` or a forked `IntVariationDetail("k", ctx)` was reported
+although it is not the SDK method. Each language binding of a report-only rule
+now carries `argCount: {min, max}`.
+
+- Schema (`spec/schema/rules.schema.json`): required on every binding of a rule
+  with `skip`, forbidden on rewriting rules; `min` and `max` are integers >= 1;
+  `max` is omitted only for a variadic method (Go `AllFlagsState`).
+- Semantic checks (JS loader): `min <= max`, `min > keyArg` when the rule has a
+  `keyArg` (the key must be present), `min >= 1`.
+- Meaning: the accepted number of call arguments for the non-Ctx form. A Go
+  method named in that binding's `ctxArg` accepts `min + 1` to `max + 1`.
+- Enforcement (JS and Go engines, identical): a call outside the range is an
+  unrecognized call, with no diagnostic. A spread argument (`...xs` in JS,
+  `xs...` in Go) is unrecognized for every rule, except that Go accepts a spread
+  into a variadic report-only method (no `max`) when the arguments before it
+  reach `min` (the spread may be empty). In Go the check reads the call
+  site (`len(call.Args)`, a single multi-value argument counts as its values), so a
+  forked signature is not a finding; a wrong count in the user's own Go code
+  does not type-check, so shared Go fixtures can only pin correct counts and
+  the wrong-count behaviour is covered by the analyzer's `fork` tests.
+  Go `AllFlagsState(ctx, opts...)` is still reported as `bulk`; JS
+  `allFlagsState(ctx, ...opts)` stays unrecognized because the count may exceed `max`.
+- Java: only the generated table carries it (`Binding.getArgCountMin/Max`);
+  the Java engine is issue #10. No report-only rule has a Java binding yet.
+- Values (verified): JS `@launchdarkly/js-server-sdk-common` 2.26.8
+  `LDClient.d.ts`: typed variation and detail methods and `migrationVariation`
+  3..3; `variation` and `variationDetail` 3..4 (optional callback);
+  `allFlagsState` 1..3 (context, options?, callback?). Go go-server-sdk v7.23.0
+  `ldclient.go`: every variation/detail/migration method 3, its `*Ctx` form 4;
+  `AllFlagsState(context, options ...flagstate.Option)` 1 or more.

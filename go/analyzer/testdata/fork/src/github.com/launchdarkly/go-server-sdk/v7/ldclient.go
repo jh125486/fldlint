@@ -73,6 +73,28 @@ func (client *LDClient) AllFlagsState(context ldcontext.Context, options ...flag
 	return flagstate.AllFlags{}
 }
 
+// IntVariationDetail is forked: the default argument is gone, so two arguments
+// are below the SDK's argCount.
+func (client *LDClient) IntVariationDetail(key string, context ldcontext.Context) (int, ldreason.EvaluationDetail, error) {
+	return 0, ldreason.EvaluationDetail{}, nil
+}
+
+// StringVariationDetail is forked: a fourth argument is above the SDK's argCount.
+func (client *LDClient) StringVariationDetail(key string, context ldcontext.Context, defaultVal string, extra int) (string, ldreason.EvaluationDetail, error) {
+	return defaultVal, ldreason.EvaluationDetail{}, nil
+}
+
+// IntVariationCtx is forked: three arguments would match the non-Ctx count, but
+// a Ctx method takes the leading context.Context as a fourth.
+func (client *LDClient) IntVariationCtx(key string, context ldcontext.Context, defaultVal int) (int, error) {
+	return defaultVal, nil
+}
+
+// BoolVariationDetailCtx is forked: five arguments, one above the shifted maximum.
+func (client *LDClient) BoolVariationDetailCtx(ctx context.Context, key string, context ldcontext.Context, defaultVal bool, extra int) (bool, ldreason.EvaluationDetail, error) {
+	return defaultVal, ldreason.EvaluationDetail{}, nil
+}
+
 // Identify identifies a context.
 func (client *LDClient) Identify(context ldcontext.Context) error { return nil }
 
