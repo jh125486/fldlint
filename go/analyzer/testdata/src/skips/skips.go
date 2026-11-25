@@ -25,11 +25,11 @@ func RuleLevel(userKey string) {
 	_, _, _ = ld.MigrationVariation("mig", ldcontext.New(userKey), ldmigration.Off) // want `Return/default type differs between SDKs \[skip: type-mismatch\]`
 }
 
-// A spread argument never matches an SDK signature, whatever the rule: no
-// finding, like the JS engine. Plain variadic options are reported.
+// A spread into a variadic report-only method is still reported; the spread
+// may be empty, so only the arguments before it must reach the minimum.
 func Variadic(userKey string, opts ...flagstate.Option) {
 	c := ldcontext.New(userKey)
-	_ = ld.AllFlagsState(c, opts...)
+	_ = ld.AllFlagsState(c, opts...) // want `Bulk evaluation; migrate manually \[skip: bulk\]`
 	_ = ld.AllFlagsState(c, flagstate.Option(nil), flagstate.Option(nil)) // want `Bulk evaluation; migrate manually \[skip: bulk\]`
 }
 

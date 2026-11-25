@@ -606,13 +606,15 @@ now carries `argCount: {min, max}`.
   method named in that binding's `ctxArg` accepts `min + 1` to `max + 1`.
 - Enforcement (JS and Go engines, identical): a call outside the range is an
   unrecognized call, with no diagnostic. A spread argument (`...xs` in JS,
-  `xs...` in Go) is unrecognized for every rule. In Go the check reads the call
+  `xs...` in Go) is unrecognized for every rule, except that Go accepts a spread
+  into a variadic report-only method (no `max`) when the arguments before it
+  reach `min` (the spread may be empty). In Go the check reads the call
   site (`len(call.Args)`, a single multi-value argument counts as its values), so a
   forked signature is not a finding; a wrong count in the user's own Go code
   does not type-check, so shared Go fixtures can only pin correct counts and
   the wrong-count behaviour is covered by the analyzer's `fork` tests.
-  Behaviour change: Go `AllFlagsState(ctx, opts...)` used to be reported as
-  `bulk`; it is now unrecognized, as JS `allFlagsState(ctx, ...opts)` always was.
+  Go `AllFlagsState(ctx, opts...)` is still reported as `bulk`; JS
+  `allFlagsState(ctx, ...opts)` stays unrecognized because the count may exceed `max`.
 - Java: only the generated table carries it (`Binding.getArgCountMin/Max`);
   the Java engine is issue #10. No report-only rule has a Java binding yet.
 - Values (verified): JS `@launchdarkly/js-server-sdk-common` 2.26.8

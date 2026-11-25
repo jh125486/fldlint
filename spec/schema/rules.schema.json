@@ -216,7 +216,7 @@
         ]
       },
       "then": {
-        "description": "skip rules are report-only: no `message` (the skipCategories message is used) and no language block may carry a template.",
+        "description": "skip rules are report-only: no `message` (the skipCategories message is used) and no language block may carry a template, and every language block must carry `argCount`.",
         "properties": {
           "message": false,
           "languages": {
@@ -240,7 +240,7 @@
         }
       },
       "else": {
-        "description": "rewriting rules need a message, arg positions and a template for every language block.",
+        "description": "rewriting rules need a message, arg positions and a template for every language block; `argCount` is not allowed.",
         "required": [
           "message",
           "valueType",
