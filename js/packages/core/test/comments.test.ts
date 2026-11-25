@@ -69,6 +69,26 @@ describe("rewrite keeps comments inside the call", () => {
       want: `c.getBooleanValue("k", /* a\n b */ false, { targetingKey: u })`,
     },
     {
+      name: "trailing comments keep source order: multi-line block then single-line block",
+      call: `ld.boolVariation("k" /* first\n second */ /* third */, { key: u }, false)`,
+      want: `c.getBooleanValue("k", /* first\n second */ /* third */ false, { targetingKey: u })`,
+    },
+    {
+      name: "trailing comments keep source order: line comment then block",
+      call: `ld.boolVariation("k" // a\n /* b */, { key: u }, false)`,
+      want: `c.getBooleanValue("k", // a\n /* b */ false, { targetingKey: u })`,
+    },
+    {
+      name: "trailing comments keep source order: block then line comment",
+      call: `ld.boolVariation("k" /* a */ // b\n, { key: u }, false)`,
+      want: `c.getBooleanValue("k" /* a */, // b\n false, { targetingKey: u })`,
+    },
+    {
+      name: "trailing comments keep source order: multi-line block then multi-line block",
+      call: `ld.boolVariation("k" /* a\n */ /* b\n */, { key: u }, false)`,
+      want: `c.getBooleanValue("k", /* a\n */ /* b\n */ false, { targetingKey: u })`,
+    },
+    {
       name: "comment inside the key expression of the context is copied with it",
       call: `ld.boolVariation("k", { key: f(/* c */ u) }, false)`,
       want: `c.getBooleanValue("k", false, { targetingKey: f(/* c */ u) })`,

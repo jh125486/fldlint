@@ -71,8 +71,13 @@ export function expand(template: string, values: Readonly<Record<string, string>
     const trail = a?.trail ?? [];
     out += (a?.lead ?? []).map((c) => (c.line ? `${c.text}${c.eol}` : `${c.text} `)).join("");
     out += values[t.name];
-    out += trail.filter((c) => !breaks(c)).map((c) => ` ${c.text}`).join("");
-    pending.push(...trail.filter(breaks));
+    // Source order: once one trailing comment must wait for the comma, every later one waits too.
+    let waiting = false;
+    for (const c of trail) {
+      waiting ||= breaks(c);
+      if (waiting) pending.push(c);
+      else out += ` ${c.text}`;
+    }
     if (i === lastPlaceholder) pending.push(...(notes?.tail ?? []));
   }
   if (pending.length > 0) return undefined;

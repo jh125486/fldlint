@@ -159,8 +159,11 @@ func ExpandNotes(tmpl string, vals map[string]string, notes *Notes) (text string
 			}
 		}
 		b.WriteString(vals[t.name])
+		// Source order: once one trailing comment must wait for the comma, every later one waits too.
+		waiting := false
 		for _, c := range a.Trail {
-			if c.Breaks() {
+			waiting = waiting || c.Breaks()
+			if waiting {
 				pending = append(pending, c)
 			} else {
 				b.WriteString(" " + c.Text)
