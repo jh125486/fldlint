@@ -29,3 +29,11 @@ Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Accepte
   ([ADR 011](../docs/adr/011-parse-yaml-once-emit-canonical-json.md)).
 - Spec changes: [proposed-rules.patch.md](proposed-rules.patch.md). Evidence:
   [spike-findings.md](spike-findings.md).
+
+Argument counts: report-only rules carry `argCount` (`min`, and `max` unless variadic) on
+each language binding, exposed as `Binding.getArgCountMin()` / `getArgCountMax()`
+(null when absent). The Java engine does not exist yet (#10), so nothing enforces
+them here; the table only carries the values. No report-only rule has a Java
+binding today, so every Java `argCount` is currently null. When one is added,
+the recipe must treat a call whose argument count is outside the range as an
+unrecognized call (no finding), as the JS and Go engines do.

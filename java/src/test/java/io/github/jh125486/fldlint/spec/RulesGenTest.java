@@ -63,6 +63,11 @@ class RulesGenTest {
           ctx.put(c.getKey(), c.getValue().asInt());
         }
         assertEquals(ctx, new TreeMap<String, Integer>(b.getCtxArg()), id);
+        JsonNode argCount = e.getValue().path("argCount");
+        assertEquals(
+            argCount.has("min") ? argCount.get("min").asInt() : null, b.getArgCountMin(), id);
+        assertEquals(
+            argCount.has("max") ? argCount.get("max").asInt() : null, b.getArgCountMax(), id);
         assertEquals(placeholders(b.getTemplate()), b.getTemplateArgs(), id);
       }
     }

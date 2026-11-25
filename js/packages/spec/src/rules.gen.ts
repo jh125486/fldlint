@@ -174,6 +174,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "IntVariationCtx": 0
         },
@@ -192,6 +196,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "JSONVariationCtx": 0
         },
@@ -210,6 +218,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "js": {
+        "argCount": {
+          "max": 4,
+          "min": 3
+        },
         "methods": [
           "variation"
         ]
@@ -223,6 +235,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "MigrationVariationCtx": 0
         },
@@ -232,6 +248,10 @@ export const rules: readonly Rule[] = [
         ]
       },
       "js": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "methods": [
           "migrationVariation"
         ]
@@ -245,6 +265,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "BoolVariationDetailCtx": 0
         },
@@ -254,6 +278,10 @@ export const rules: readonly Rule[] = [
         ]
       },
       "js": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "methods": [
           "boolVariationDetail"
         ]
@@ -267,6 +295,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "StringVariationDetailCtx": 0
         },
@@ -276,6 +308,10 @@ export const rules: readonly Rule[] = [
         ]
       },
       "js": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "methods": [
           "stringVariationDetail"
         ]
@@ -289,6 +325,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "Float64VariationDetailCtx": 0
         },
@@ -298,6 +338,10 @@ export const rules: readonly Rule[] = [
         ]
       },
       "js": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "methods": [
           "numberVariationDetail"
         ]
@@ -311,6 +355,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "IntVariationDetailCtx": 0
         },
@@ -328,6 +376,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "go": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "ctxArg": {
           "JSONVariationDetailCtx": 0
         },
@@ -337,6 +389,10 @@ export const rules: readonly Rule[] = [
         ]
       },
       "js": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
         "methods": [
           "jsonVariationDetail"
         ]
@@ -350,6 +406,10 @@ export const rules: readonly Rule[] = [
     "keyArg": 0,
     "languages": {
       "js": {
+        "argCount": {
+          "max": 4,
+          "min": 3
+        },
         "methods": [
           "variationDetail"
         ]
@@ -362,11 +422,18 @@ export const rules: readonly Rule[] = [
     "id": "all-flags-state",
     "languages": {
       "go": {
+        "argCount": {
+          "min": 1
+        },
         "methods": [
           "AllFlagsState"
         ]
       },
       "js": {
+        "argCount": {
+          "max": 3,
+          "min": 1
+        },
         "methods": [
           "allFlagsState"
         ]

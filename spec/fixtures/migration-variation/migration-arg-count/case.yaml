@@ -1,0 +1,6 @@
+id: migration-arg-count
+rule: migration-variation
+tags: []
+description: JS migrationVariation takes exactly three arguments (no callback), so two and four arguments are unrecognized and silent; only the three-argument call is reported.
+expect:
+  js: {diagnostics: [{line: 10, col: 9, ruleId: migration-variation, skip: type-mismatch}], output: false}

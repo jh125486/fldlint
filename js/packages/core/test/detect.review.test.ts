@@ -81,6 +81,32 @@ describe("LD receiver binding: declared before use", () => {
   for (const { name, src, want } of cases) it(name, () => expect(outcomes(src)).toEqual(want));
 });
 
+describe("report-only rules recognize only argCount-conforming calls", () => {
+  const cases: { call: string; want: string[] }[] = [
+    // exactly three: the typed and detail methods and migrationVariation
+    ...["boolVariationDetail", "stringVariationDetail", "numberVariationDetail", "jsonVariationDetail", "migrationVariation"].flatMap((m) => [
+      { call: `ld.${m}("k", ctx)`, want: [] },
+      { call: `ld.${m}("k", ctx, d)`, want: [m === "migrationVariation" ? "type-mismatch" : "detail"] },
+      { call: `ld.${m}("k", ctx, d, cb)`, want: [] },
+      { call: `ld.${m}()`, want: [] },
+    ]),
+    // three plus an optional trailing callback
+    ...["variation", "variationDetail"].flatMap((m) => [
+      { call: `ld.${m}("k", ctx)`, want: [] },
+      { call: `ld.${m}("k", ctx, d)`, want: [m === "variation" ? "type-mismatch" : "detail"] },
+      { call: `ld.${m}("k", ctx, d, cb)`, want: [m === "variation" ? "type-mismatch" : "detail"] },
+      { call: `ld.${m}("k", ctx, d, cb, extra)`, want: [] },
+    ]),
+    // allFlagsState(context, options?, callback?)
+    { call: `ld.allFlagsState()`, want: [] },
+    { call: `ld.allFlagsState(ctx)`, want: ["bulk"] },
+    { call: `ld.allFlagsState(ctx, opts)`, want: ["bulk"] },
+    { call: `ld.allFlagsState(ctx, opts, cb)`, want: ["bulk"] },
+    { call: `ld.allFlagsState(ctx, opts, cb, extra)`, want: [] },
+  ];
+  for (const { call, want } of cases) it(call, () => expect(outcomes(`${head}${call};`)).toEqual(want));
+});
+
 describe("spread and arity apply to report-only rules too", () => {
   const cases: { call: string; want: string[] }[] = [
     { call: `ld.variation(...args)`, want: [] },

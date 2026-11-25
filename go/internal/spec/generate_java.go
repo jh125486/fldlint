@@ -82,6 +82,7 @@ func GenerateJava(rf *RulesFile) []byte {
 			bd := r.Langs[l]
 			fmt.Fprintf(&b, "\n                        %s, new Binding(%s,\n", jstr(l), jlist(bd.Methods))
 			fmt.Fprintf(&b, "                                %s,\n", jctx(bd.CtxArg))
+			fmt.Fprintf(&b, "                                %s,\n", jArgCount(bd.ArgCount))
 			fmt.Fprintf(&b, "                                %s, %s,\n", jstr(bd.Template), jlist(TemplateArgs(bd.Template)))
 			fmt.Fprintf(&b, "                                %s, %t)", jlist(bd.Requires), bd.Async)
 		}
@@ -162,4 +163,16 @@ func jctx(m map[string]int) string {
 		parts = append(parts, jstr(k), strconv.Itoa(m[k]))
 	}
 	return "ctxArg(" + strings.Join(parts, ", ") + ")"
+}
+
+// jArgCount renders a Binding's argument-count range as its two nullable
+// bounds; an absent argCount gives (null, null) and a variadic one (min, null).
+func jArgCount(a *ArgCount) string {
+	if a == nil {
+		return "null, null"
+	}
+	if a.Max == 0 {
+		return strconv.Itoa(a.Min) + ", null"
+	}
+	return strconv.Itoa(a.Min) + ", " + strconv.Itoa(a.Max)
 }

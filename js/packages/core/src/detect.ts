@@ -277,12 +277,17 @@ class Detector {
     // The legacy typings have no typed variation methods: not a recognized call.
     if (kind === "legacy" && rule.skip === undefined) return;
     // The call must match the SDK signature. A spread never does, for any rule.
-    // Exact arity is checked only for rewriting rules; report-only rules carry
-    // just keyArg (the fingerprint key) and their arity is not guessed.
+    // Rewriting rules need exactly the arity implied by keyArg/defaultArg/
+    // contextArg; report-only rules need an argument count inside their
+    // argCount range (rules.yaml).
     if (call.arguments.some((a) => a.type === AST_NODE_TYPES.SpreadElement)) return;
+    const count = call.arguments.length;
     if (rule.skip === undefined) {
       const arity = Math.max(rule.keyArg ?? -1, rule.defaultArg ?? -1, rule.contextArg ?? -1) + 1;
-      if (call.arguments.length !== arity) return;
+      if (count !== arity) return;
+    } else {
+      const { argCount } = match.language;
+      if (argCount && (count < argCount.min || (argCount.max !== undefined && count > argCount.max))) return;
     }
     // A rewriting rule with no JS template is not a JS finding (see
     // validation-parity.md); the planner has nothing to say about it.

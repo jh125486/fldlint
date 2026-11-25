@@ -30,6 +30,6 @@ rules:
   - id: bool-variation-detail
     risk: high
     languages:
-      js: {methods: [boolVariationDetail]}
-      go: {methods: [BoolVariationDetail]}
+      js: {methods: [boolVariationDetail], argCount: {min: 3, max: 3}}
+      go: {methods: [BoolVariationDetail], argCount: {min: 3, max: 3}}
     skip: detail

@@ -39,14 +39,17 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("BoolVariation", "BoolVariationCtx"),
                                 ctxArg("BoolVariationCtx", 0),
+                                null, null,
                                 "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})", list("client", "goctx", "key", "default", "evalctx"),
                                 list("context-unproven"), false),
                         "java", new Binding(list("boolVariation"),
                                 ctxArg(),
+                                null, null,
                                 "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})", list("any(dev.openfeature.sdk.Client)", "key", "default", "context"),
                                 list(), false),
                         "js", new Binding(list("boolVariation"),
                                 ctxArg(),
+                                null, null,
                                 "{{client}}.getBooleanValue({{key}}, {{default}}, {{context}})", list("client", "key", "default", "context"),
                                 list("context-unproven"), true))));
         rules.add(new Rule("string-variation", "string", "low",
@@ -55,10 +58,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("StringVariation", "StringVariationCtx"),
                                 ctxArg("StringVariationCtx", 0),
+                                null, null,
                                 "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})", list("client", "goctx", "key", "default", "evalctx"),
                                 list("context-unproven"), false),
                         "js", new Binding(list("stringVariation"),
                                 ctxArg(),
+                                null, null,
                                 "{{client}}.getStringValue({{key}}, {{default}}, {{context}})", list("client", "key", "default", "context"),
                                 list("context-unproven"), true))));
         rules.add(new Rule("number-variation", "number", "low",
@@ -67,10 +72,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("Float64Variation", "Float64VariationCtx"),
                                 ctxArg("Float64VariationCtx", 0),
+                                null, null,
                                 "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})", list("client", "goctx", "key", "default", "evalctx"),
                                 list("context-unproven"), false),
                         "js", new Binding(list("numberVariation"),
                                 ctxArg(),
+                                null, null,
                                 "{{client}}.getNumberValue({{key}}, {{default}}, {{context}})", list("client", "key", "default", "context"),
                                 list("context-unproven"), true))));
         rules.add(new Rule("json-variation", "object", "medium",
@@ -79,6 +86,7 @@ public final class RulesGen {
                 bindings(
                         "js", new Binding(list("jsonVariation"),
                                 ctxArg(),
+                                null, null,
                                 "{{client}}.getObjectValue({{key}}, {{default}}, {{context}})", list("client", "key", "default", "context"),
                                 list("context-unproven"), true))));
         rules.add(new Rule("int-variation", "integer", "low",
@@ -87,6 +95,7 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("IntVariation", "IntVariationCtx"),
                                 ctxArg("IntVariationCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("go-json-variation", "object", "medium",
@@ -95,6 +104,7 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("JSONVariation", "JSONVariationCtx"),
                                 ctxArg("JSONVariationCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("variation", "", "medium",
@@ -103,6 +113,7 @@ public final class RulesGen {
                 bindings(
                         "js", new Binding(list("variation"),
                                 ctxArg(),
+                                3, 4,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("migration-variation", "", "high",
@@ -111,10 +122,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("MigrationVariation", "MigrationVariationCtx"),
                                 ctxArg("MigrationVariationCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false),
                         "js", new Binding(list("migrationVariation"),
                                 ctxArg(),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("bool-variation-detail", "", "high",
@@ -123,10 +136,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("BoolVariationDetail", "BoolVariationDetailCtx"),
                                 ctxArg("BoolVariationDetailCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false),
                         "js", new Binding(list("boolVariationDetail"),
                                 ctxArg(),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("string-variation-detail", "", "high",
@@ -135,10 +150,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("StringVariationDetail", "StringVariationDetailCtx"),
                                 ctxArg("StringVariationDetailCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false),
                         "js", new Binding(list("stringVariationDetail"),
                                 ctxArg(),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("number-variation-detail", "", "high",
@@ -147,10 +164,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("Float64VariationDetail", "Float64VariationDetailCtx"),
                                 ctxArg("Float64VariationDetailCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false),
                         "js", new Binding(list("numberVariationDetail"),
                                 ctxArg(),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("int-variation-detail", "", "high",
@@ -159,6 +178,7 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("IntVariationDetail", "IntVariationDetailCtx"),
                                 ctxArg("IntVariationDetailCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("json-variation-detail", "", "high",
@@ -167,10 +187,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("JSONVariationDetail", "JSONVariationDetailCtx"),
                                 ctxArg("JSONVariationDetailCtx", 0),
+                                3, 3,
                                 "", list(),
                                 list(), false),
                         "js", new Binding(list("jsonVariationDetail"),
                                 ctxArg(),
+                                3, 3,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("variation-detail", "", "high",
@@ -179,6 +201,7 @@ public final class RulesGen {
                 bindings(
                         "js", new Binding(list("variationDetail"),
                                 ctxArg(),
+                                3, 4,
                                 "", list(),
                                 list(), false))));
         rules.add(new Rule("all-flags-state", "", "high",
@@ -187,10 +210,12 @@ public final class RulesGen {
                 bindings(
                         "go", new Binding(list("AllFlagsState"),
                                 ctxArg(),
+                                1, null,
                                 "", list(),
                                 list(), false),
                         "js", new Binding(list("allFlagsState"),
                                 ctxArg(),
+                                1, 3,
                                 "", list(),
                                 list(), false))));
         RULES = Collections.unmodifiableList(rules);

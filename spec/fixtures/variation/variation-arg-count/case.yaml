@@ -1,0 +1,6 @@
+id: variation-arg-count
+rule: variation
+tags: []
+description: JS variation takes three arguments plus an optional trailing callback (argCount 3 to 4). Two arguments, five arguments and a spread are unrecognized and silent; three and four are reported.
+expect:
+  js: {diagnostics: [{line: 10, col: 9, ruleId: variation, skip: type-mismatch}, {line: 11, col: 9, ruleId: variation, skip: type-mismatch}], output: false}
