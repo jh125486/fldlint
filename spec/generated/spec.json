@@ -178,6 +178,10 @@
             ],
             "ctxArg": {
               "IntVariationCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -196,6 +200,10 @@
             ],
             "ctxArg": {
               "JSONVariationCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -209,7 +217,11 @@
           "js": {
             "methods": [
               "variation"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 4
+            }
           }
         },
         "skip": "type-mismatch"
@@ -222,7 +234,11 @@
           "js": {
             "methods": [
               "migrationVariation"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
@@ -231,6 +247,10 @@
             ],
             "ctxArg": {
               "MigrationVariationCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -244,7 +264,11 @@
           "js": {
             "methods": [
               "boolVariationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
@@ -253,6 +277,10 @@
             ],
             "ctxArg": {
               "BoolVariationDetailCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -266,7 +294,11 @@
           "js": {
             "methods": [
               "stringVariationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
@@ -275,6 +307,10 @@
             ],
             "ctxArg": {
               "StringVariationDetailCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -288,7 +324,11 @@
           "js": {
             "methods": [
               "numberVariationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
@@ -297,6 +337,10 @@
             ],
             "ctxArg": {
               "Float64VariationDetailCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -314,6 +358,10 @@
             ],
             "ctxArg": {
               "IntVariationDetailCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -327,7 +375,11 @@
           "js": {
             "methods": [
               "jsonVariationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
@@ -336,6 +388,10 @@
             ],
             "ctxArg": {
               "JSONVariationDetailCtx": 0
+            },
+            "argCount": {
+              "min": 3,
+              "max": 3
             }
           }
         },
@@ -349,7 +405,11 @@
           "js": {
             "methods": [
               "variationDetail"
-            ]
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 4
+            }
           }
         },
         "skip": "detail"
@@ -361,12 +421,19 @@
           "js": {
             "methods": [
               "allFlagsState"
-            ]
+            ],
+            "argCount": {
+              "min": 1,
+              "max": 3
+            }
           },
           "go": {
             "methods": [
               "AllFlagsState"
-            ]
+            ],
+            "argCount": {
+              "min": 1
+            }
           }
         },
         "skip": "bulk"
@@ -400,6 +467,45 @@
                 "col": 11,
                 "ruleId": "all-flags-state",
                 "skip": "bulk"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation-detail/detail-arg-count",
+      "case": {
+        "id": "detail-arg-count",
+        "rule": "bool-variation-detail",
+        "tags": [],
+        "description": "A report-only call is recognized only with an argument count inside the rule's argCount range. JS boolVariationDetail takes exactly three, so two, four and a spread are unrecognized and silent. Go BoolVariationDetail takes three and the Ctx variant four (argCount plus the leading context.Context); a wrong Go count does not compile, so only the correct counts are pinned here (forked signatures are covered by the Go analyzer tests).",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 10,
+                "col": 9,
+                "ruleId": "bool-variation-detail",
+                "skip": "detail"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 16,
+                "col": 12,
+                "ruleId": "bool-variation-detail",
+                "skip": "detail"
+              },
+              {
+                "line": 17,
+                "col": 12,
+                "ruleId": "bool-variation-detail",
+                "skip": "detail"
               }
             ],
             "output": false
@@ -1400,6 +1506,28 @@
       }
     },
     {
+      "path": "migration-variation/migration-arg-count",
+      "case": {
+        "id": "migration-arg-count",
+        "rule": "migration-variation",
+        "tags": [],
+        "description": "JS migrationVariation takes exactly three arguments (no callback), so two and four arguments are unrecognized and silent; only the three-argument call is reported.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 10,
+                "col": 9,
+                "ruleId": "migration-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
       "path": "migration-variation/migration-type-mismatch",
       "case": {
         "id": "migration-type-mismatch",
@@ -1496,6 +1624,34 @@
               }
             ],
             "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "variation/variation-arg-count",
+      "case": {
+        "id": "variation-arg-count",
+        "rule": "variation",
+        "tags": [],
+        "description": "JS variation takes three arguments plus an optional trailing callback (argCount 3 to 4). Two arguments, five arguments and a spread are unrecognized and silent; three and four are reported.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 10,
+                "col": 9,
+                "ruleId": "variation",
+                "skip": "type-mismatch"
+              },
+              {
+                "line": 11,
+                "col": 9,
+                "ruleId": "variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
           }
         }
       }

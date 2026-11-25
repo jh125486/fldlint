@@ -34,6 +34,12 @@ func TestGenerateJava(t *testing.T) {
 				`"java", new Binding(list("boolVariation"),`,
 				`list("any(dev.openfeature.sdk.Client)", "key", "default", "context")`,
 				`ctxArg("BoolVariationCtx", 0)`,
+				`ctxArg("BoolVariationDetailCtx", 0),
+                                3, 3,`,
+				`ctxArg(),
+                                1, null,`,
+				`ctxArg(),
+                                null, null,`,
 			},
 		},
 	}

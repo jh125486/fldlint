@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 import { basename, dirname, join } from "node:path";
 import type { CaseFile } from "./load.js";
-import { LANGUAGES, type Language, type RulesFile } from "./types.js";
+import { type ArgCount, LANGUAGES, type Language, type Rule, type RulesFile } from "./types.js";
 
 /** Per-language fixture file names inside a case directory. */
 export const LANG_FILES: Readonly<Record<Language, { input: string; output: string }>> = {
@@ -19,6 +19,7 @@ export function validateRulesSemantics(rf: RulesFile): string[] {
     ids.add(r.id);
     for (const lang of LANGUAGES) {
       const cfg = r.languages[lang];
+      if (cfg) errors.push(...validateArgCount(r, lang, cfg.argCount));
       if (!cfg || !cfg.ctxArg) continue;
       for (const m of Object.keys(cfg.ctxArg)) {
         if (!cfg.methods.includes(m)) {
@@ -28,6 +29,17 @@ export function validateRulesSemantics(rf: RulesFile): string[] {
     }
   }
   errors.push(...findDuplicateMethods(rf));
+  return errors;
+}
+
+/** argCount checks the schema cannot express: min <= max and min > keyArg (the key must always be present). */
+function validateArgCount(r: Rule, lang: Language, ac: ArgCount | undefined): string[] {
+  if (!ac) return [];
+  const at = `rules.yaml: rule "${r.id}" ${lang}.argCount`;
+  const errors: string[] = [];
+  if (ac.min < 1) errors.push(`${at}.min must be >= 1`);
+  if (ac.max !== undefined && ac.max < ac.min) errors.push(`${at}.max (${ac.max}) must be >= min (${ac.min})`);
+  if (r.keyArg !== undefined && ac.min <= r.keyArg) errors.push(`${at}.min (${ac.min}) must be > keyArg (${r.keyArg})`);
   return errors;
 }
 

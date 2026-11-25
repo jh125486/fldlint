@@ -59,6 +59,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"IntVariation", "IntVariationCtx"},
 			CtxArg:   map[string]int{"IntVariationCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -69,6 +70,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"JSONVariation", "JSONVariationCtx"},
 			CtxArg:   map[string]int{"JSONVariationCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -84,6 +86,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"MigrationVariation", "MigrationVariationCtx"},
 			CtxArg:   map[string]int{"MigrationVariationCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -94,6 +97,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"BoolVariationDetail", "BoolVariationDetailCtx"},
 			CtxArg:   map[string]int{"BoolVariationDetailCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -104,6 +108,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"StringVariationDetail", "StringVariationDetailCtx"},
 			CtxArg:   map[string]int{"StringVariationDetailCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -114,6 +119,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"Float64VariationDetail", "Float64VariationDetailCtx"},
 			CtxArg:   map[string]int{"Float64VariationDetailCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -124,6 +130,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"IntVariationDetail", "IntVariationDetailCtx"},
 			CtxArg:   map[string]int{"IntVariationDetailCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -134,6 +141,7 @@ var genRules = []Rule{
 		Go: &GoBinding{
 			Methods:  []string{"JSONVariationDetail", "JSONVariationDetailCtx"},
 			CtxArg:   map[string]int{"JSONVariationDetailCtx": 0},
+			ArgCount: &ArgCount{Min: 3, Max: 3},
 			Template: "",
 		},
 	},
@@ -148,6 +156,7 @@ var genRules = []Rule{
 		Skip: "bulk", Message: "",
 		Go: &GoBinding{
 			Methods:  []string{"AllFlagsState"},
+			ArgCount: &ArgCount{Min: 1, Max: 0},
 			Template: "",
 		},
 	},

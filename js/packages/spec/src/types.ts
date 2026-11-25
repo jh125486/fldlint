@@ -9,11 +9,19 @@ export interface SkipCategory {
   message: string;
 }
 
+/** Inclusive argument-count range of an SDK method; `max` is absent for a variadic method. */
+export interface ArgCount {
+  min: number;
+  max?: number;
+}
+
 export interface LanguageRule {
   methods: string[];
   template?: string;
   async?: boolean;
   ctxArg?: Record<string, number>;
+  /** Report-only rules: accepted argument count of the non-Ctx form (Go ctxArg methods add one). */
+  argCount?: ArgCount;
   requires?: string[];
 }
 
