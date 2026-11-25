@@ -613,4 +613,133 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
             "        }",
             "    }"));
   }
+
+  @Test
+  void constructorParameterIsTheBindingInsideAnExplicitConstructorCall() {
+    String source =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    static final Client shared = OpenFeatureAPI.getInstance().getClient(\"s\");",
+            "",
+            "    Checkout(boolean on) {}",
+            "",
+            "    Checkout(Client param, LDClient ld, String u) {",
+            "        this(ld.boolVariation(\"k\", LDContext.create(u), false));",
+            "    }",
+            "}");
+    // The parameter is the innermost client; the static field is not chosen over it.
+    assertEquals("", find(source).get(0).skip);
+  }
+
+  @Test
+  void constructorParameterShadowsTheField() {
+    String source =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    private final Client client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+            "",
+            "    Checkout(String client, LDClient ld, String u) {",
+            "        boolean b = ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "    }",
+            "}");
+    assertEquals("unbound-client", find(source).get(0).skip);
+  }
+
+  @Test
+  void blankFinalFieldIsNotABindingInConstructorsAndInitializers() {
+    String source =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    private final Client client;",
+            "",
+            "    Checkout(LDClient ld, String u) {",
+            "        boolean b = ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        this.client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+            "    }",
+            "}");
+    assertEquals("unbound-client", find(source).get(0).skip);
+    String initializer =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    private final Client client;",
+            "    private static final LDClient LD = null;",
+            "",
+            "    {",
+            "        boolean b = LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+            "        client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+            "    }",
+            "}");
+    assertEquals("unbound-client", find(initializer).get(0).skip);
+    String inMethod =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    private final Client client;",
+            "",
+            "    Checkout() {",
+            "        client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+            "    }",
+            "",
+            "    boolean f(LDClient ld, String u) {",
+            "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "    }",
+            "}");
+    assertEquals("", find(inMethod).get(0).skip);
+  }
+
+  @Test
+  void instanceInitializerBlockSeesEarlierClientField() {
+    String source =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    private final Client early = OpenFeatureAPI.getInstance().getClient(\"e\");",
+            "    private static final LDClient LD = null;",
+            "",
+            "    {",
+            "        boolean b = LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+            "    }",
+            "}");
+    assertEquals("", find(source).get(0).skip);
+  }
 }

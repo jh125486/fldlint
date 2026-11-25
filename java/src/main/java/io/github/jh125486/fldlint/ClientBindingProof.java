@@ -67,6 +67,8 @@ final class ClientBindingProof {
   static J.Identifier prove(Cursor start) {
     Set<String> shadowed = new HashSet<String>();
     boolean staticSoFar = false;
+    // Inside explicit this(..)/super(..) arguments: no instance fields, but parameters are fine.
+    boolean noInstanceFields = false;
     boolean captured = false;
     Object child = null;
     for (Cursor c = treeCursor(start); c != null; c = treeCursor(c.getParent())) {
@@ -86,7 +88,7 @@ final class ClientBindingProof {
           && ("super".equals(((J.MethodInvocation) v).getSimpleName())
               || "this".equals(((J.MethodInvocation) v).getSimpleName()))) {
         // Arguments of an explicit constructor call cannot reference instance fields.
-        staticSoFar = true;
+        noInstanceFields = true;
       }
       boolean crossesClass = false;
       boolean crossesLambda = false;
@@ -106,6 +108,13 @@ final class ClientBindingProof {
               child instanceof J.VariableDeclarations
                   || child instanceof J.Block
                   || child instanceof J.EnumValueSet;
+          // A blank final field may be unassigned inside a constructor, an initializer block or a
+          // field initializer, where reading it is a compile error.
+          boolean blankFinalUnsafe =
+              (child instanceof J.MethodDeclaration
+                      && ((J.MethodDeclaration) child).isConstructor())
+                  || child instanceof J.Block
+                  || child instanceof J.VariableDeclarations;
           for (int i = 0; i < members.size(); i++) {
             if (members.get(i) instanceof J.EnumValueSet) {
               // Enum constants are static fields: they shadow, and are never a binding.
@@ -135,6 +144,14 @@ final class ClientBindingProof {
                   false);
               if (forwardRestricted && i >= memberIdx) {
                 markNoCandidate(level, before);
+              }
+              if (blankFinalUnsafe) {
+                for (int k = before; k < level.size(); k++) {
+                  Decl blank = level.get(k);
+                  if (blank.finalModifier && !blank.hasInitializerOrIsParam) {
+                    blank.noCandidate = true;
+                  }
+                }
               }
             }
           }
@@ -279,7 +296,7 @@ final class ClientBindingProof {
           // locals and parameters of an enclosing method either.
           if (d.client
               && !d.noCandidate
-              && (d.field ? !staticSoFar || d.staticField : !staticSoFar)) {
+              && (d.field ? !(staticSoFar || noInstanceFields) || d.staticField : !staticSoFar)) {
             accessible.add(d);
           }
         }
