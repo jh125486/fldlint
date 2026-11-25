@@ -113,6 +113,7 @@ final class LaunchDarklyCall {
     Expression contextKey = null;
     if (contextArg instanceof J.MethodInvocation
         && CONTEXT_CREATE.matches((J.MethodInvocation) contextArg)
+        && isTypeQualifier(((J.MethodInvocation) contextArg).getSelect())
         && ((J.MethodInvocation) contextArg).getArguments().size() == 1) {
       contextKey = ((J.MethodInvocation) contextArg).getArguments().get(0);
       site.contextShape(CallSite.ContextShape.SIMPLE);
@@ -169,6 +170,25 @@ final class LaunchDarklyCall {
       }
     }.visit(cu, 0);
     return declared[0];
+  }
+
+  /**
+   * The receiver of a static call is absent (static import) or a type name, possibly
+   * package-qualified. A variable or any expression is not: the rewrite drops the receiver, so it
+   * must have no side effect.
+   */
+  private static boolean isTypeQualifier(Expression select) {
+    if (select == null) {
+      return true;
+    }
+    if (select instanceof J.Identifier) {
+      return ((J.Identifier) select).getFieldType() == null;
+    }
+    if (select instanceof J.FieldAccess) {
+      J.FieldAccess fa = (J.FieldAccess) select;
+      return fa.getName().getFieldType() == null && isTypeQualifier(fa.getTarget());
+    }
+    return false;
   }
 
   private static boolean isLdUserParameter(J.MethodInvocation m, int index) {
@@ -241,7 +261,8 @@ final class LaunchDarklyCall {
       return true;
     }
     if (contextArg instanceof J.MethodInvocation
-        && CONTEXT_CREATE.matches((J.MethodInvocation) contextArg)) {
+        && CONTEXT_CREATE.matches((J.MethodInvocation) contextArg)
+        && isTypeQualifier(((J.MethodInvocation) contextArg).getSelect())) {
       J.MethodInvocation create = (J.MethodInvocation) contextArg;
       if (create.getSelect() != null) {
         Cursor parent = cursor.getParent() == null ? cursor : cursor.getParent();

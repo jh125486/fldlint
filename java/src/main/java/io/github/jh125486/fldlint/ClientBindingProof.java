@@ -74,6 +74,14 @@ final class ClientBindingProof {
       Cursor parent = treeCursor(c.getParent());
       Object parentValue = parent == null ? null : parent.getValue();
       List<Decl> level = new ArrayList<Decl>();
+      if (v instanceof J.MethodInvocation
+          && child != null
+          && ((J.MethodInvocation) v).getSelect() == null
+          && ("super".equals(((J.MethodInvocation) v).getSimpleName())
+              || "this".equals(((J.MethodInvocation) v).getSimpleName()))) {
+        // Arguments of an explicit constructor call cannot reference instance fields.
+        staticSoFar = true;
+      }
       boolean crossesClass = false;
       boolean crossesLambda = false;
       if (v instanceof J.Block) {
@@ -93,6 +101,23 @@ final class ClientBindingProof {
                   || child instanceof J.Block
                   || child instanceof J.EnumValueSet;
           for (int i = 0; i < members.size(); i++) {
+            if (members.get(i) instanceof J.EnumValueSet) {
+              // Enum constants are static fields: they shadow, and are never a binding.
+              for (J.EnumValue ev : ((J.EnumValueSet) members.get(i)).getEnums()) {
+                int before = level.size();
+                level.add(
+                    new Decl(
+                        ev.getName().getSimpleName(),
+                        ev.getName(),
+                        false,
+                        true,
+                        true,
+                        captured,
+                        true,
+                        true));
+                markNoCandidate(level, before);
+              }
+            }
             if (members.get(i) instanceof J.VariableDeclarations) {
               int before = level.size();
               addVariables(
@@ -237,10 +262,12 @@ final class ClientBindingProof {
           if (patternBindingNames(cu).contains(d.name)) {
             return null;
           }
-          if (!d.field && d.captured && !d.finalModifier) {
-            if (!d.hasInitializerOrIsParam || isReassigned(cu, d.name)) {
-              return null;
-            }
+          // A local must be definitely assigned; an initializer (or being a parameter) proves it.
+          if (!d.field && !d.hasInitializerOrIsParam) {
+            return null;
+          }
+          if (!d.field && d.captured && !d.finalModifier && isReassigned(cu, d.name)) {
+            return null;
           }
           return d.ident;
         }

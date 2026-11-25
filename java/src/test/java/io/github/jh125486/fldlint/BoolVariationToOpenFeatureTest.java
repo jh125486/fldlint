@@ -451,4 +451,80 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
             "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
             "    }"));
   }
+
+  @Test
+  void localClientWithoutInitializerIsNotABinding() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    boolean f(LDClient ld, String u) {",
+            "        Client local;",
+            "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "    }"));
+  }
+
+  @Test
+  void explicitConstructorCallArgumentsCannotUseInstanceFields() {
+    String source =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public class Checkout {",
+            "    private final Client client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+            "",
+            "    Checkout(boolean on) {}",
+            "",
+            "    Checkout(LDClient ld, String u) {",
+            "        this(ld.boolVariation(\"k\", LDContext.create(u), false));",
+            "    }",
+            "}");
+    assertEquals("unbound-client", find(source).get(0).skip);
+  }
+
+  @Test
+  void enumConstantShadowsAnOuterClient() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    static final Client shared = OpenFeatureAPI.getInstance().getClient(\"s\");",
+            "",
+            "    enum Mode {",
+            "        shared;",
+            "",
+            "        boolean f(LDClient ld, String u) {",
+            "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void contextCreateOnAnExpressionReceiverIsNotTheStaticCall() {
+    assertEquals(
+        "context-unproven",
+        skipOf(
+            "    LDContext loadContext() {",
+            "        return null;",
+            "    }",
+            "",
+            "    boolean f(LDClient ld, String u) {",
+            "        return ld.boolVariation(\"k\", loadContext().create(u), false);",
+            "    }"));
+    assertEquals(
+        "context-unproven",
+        skipOf(
+            "    boolean f(LDClient ld, LDContext held, String u) {",
+            "        return ld.boolVariation(\"k\", held.create(u), false);",
+            "    }"));
+    assertEquals(
+        "",
+        skipOf(
+            "    boolean f(LDClient ld, String u) {",
+            "        return ld.boolVariation(\"k\", com.launchdarkly.sdk.LDContext.create(u), false);",
+            "    }"));
+  }
 }
