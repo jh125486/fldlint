@@ -74,6 +74,12 @@ final class ClientBindingProof {
       Cursor parent = treeCursor(c.getParent());
       Object parentValue = parent == null ? null : parent.getValue();
       List<Decl> level = new ArrayList<Decl>();
+      if (v instanceof J.ClassDeclaration
+          && (((J.ClassDeclaration) v).getKind() != J.ClassDeclaration.Kind.Type.Class
+              || ((J.ClassDeclaration) v).hasModifier(J.Modifier.Type.Static))) {
+        // A static, local or member, class: nothing outside it that is not static is reachable.
+        staticSoFar = true;
+      }
       if (v instanceof J.MethodInvocation
           && child != null
           && ((J.MethodInvocation) v).getSelect() == null
@@ -143,6 +149,31 @@ final class ClientBindingProof {
                 markNoCandidate(level, before);
               }
             }
+          }
+          // Inherited fields hide an outer variable of the same name. Unknown supertypes cannot be
+          // ruled out, so the proof gives up.
+          JavaType own =
+              parentValue instanceof J.ClassDeclaration
+                  ? ((J.ClassDeclaration) parentValue).getType()
+                  : ((J.NewClass) parentValue).getType();
+          if (parentValue instanceof J.ClassDeclaration
+              && !declaredSupertypesResolved((J.ClassDeclaration) parentValue)) {
+            return null;
+          }
+          if (parentValue instanceof J.NewClass
+              && ((J.NewClass) parentValue).getClazz() != null
+              && (((J.NewClass) parentValue).getClazz().getType() == null
+                  || ((J.NewClass) parentValue).getClazz().getType() instanceof JavaType.Unknown)) {
+            return null;
+          }
+          Set<String> inherited = inheritedFieldNames(own);
+          if (inherited == null) {
+            return null;
+          }
+          for (String name : inherited) {
+            int before = level.size();
+            level.add(new Decl(name, null, false, true, false, captured, true, true));
+            markNoCandidate(level, before);
           }
           crossesClass = true;
         } else {
@@ -243,7 +274,12 @@ final class ClientBindingProof {
       if (!level.isEmpty()) {
         List<Decl> accessible = new ArrayList<Decl>();
         for (Decl d : level) {
-          if (d.client && !d.noCandidate && (!d.field || !staticSoFar || d.staticField)) {
+          // Past a static boundary only static fields are reachable: not instance fields, and not
+          // the
+          // locals and parameters of an enclosing method either.
+          if (d.client
+              && !d.noCandidate
+              && (d.field ? !staticSoFar || d.staticField : !staticSoFar)) {
             accessible.add(d);
           }
         }
@@ -289,6 +325,58 @@ final class ClientBindingProof {
       cur = cur.getParent();
     }
     return cur;
+  }
+
+  /**
+   * Names of the fields of the supertypes (superclasses and interfaces, transitively) of a class,
+   * or null when a supertype is unknown (no type attribution), so the set cannot be trusted.
+   */
+  private static Set<String> inheritedFieldNames(JavaType type) {
+    if (!(type instanceof JavaType.FullyQualified) || type instanceof JavaType.Unknown) {
+      return null;
+    }
+    Set<String> names = new HashSet<String>();
+    Set<String> seen = new HashSet<String>();
+    List<JavaType.FullyQualified> work = new ArrayList<JavaType.FullyQualified>();
+    JavaType.FullyQualified own = (JavaType.FullyQualified) type;
+    if (own.getSupertype() != null) {
+      work.add(own.getSupertype());
+    }
+    work.addAll(own.getInterfaces());
+    while (!work.isEmpty()) {
+      JavaType.FullyQualified t = work.remove(work.size() - 1);
+      if (t instanceof JavaType.Unknown) {
+        return null;
+      }
+      if (!seen.add(t.getFullyQualifiedName())) {
+        continue;
+      }
+      for (JavaType.Variable f : t.getMembers()) {
+        names.add(f.getName());
+      }
+      if (t.getSupertype() != null) {
+        work.add(t.getSupertype());
+      }
+      work.addAll(t.getInterfaces());
+    }
+    return names;
+  }
+
+  private static boolean declaredSupertypesResolved(J.ClassDeclaration cd) {
+    List<org.openrewrite.java.tree.TypeTree> declared =
+        new ArrayList<org.openrewrite.java.tree.TypeTree>();
+    if (cd.getExtends() != null) {
+      declared.add(cd.getExtends());
+    }
+    if (cd.getImplements() != null) {
+      declared.addAll(cd.getImplements());
+    }
+    for (org.openrewrite.java.tree.TypeTree t : declared) {
+      if (t.getType() == null || t.getType() instanceof JavaType.Unknown) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private static boolean isClassBody(J.Block block, Object parentValue) {

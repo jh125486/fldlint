@@ -527,4 +527,90 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
             "        return ld.boolVariation(\"k\", com.launchdarkly.sdk.LDContext.create(u), false);",
             "    }"));
   }
+
+  @Test
+  void inheritedFieldShadowsAnOuterClient() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    static final Client shared = OpenFeatureAPI.getInstance().getClient(\"s\");",
+            "",
+            "    static class Base {",
+            "        protected String shared = \"x\";",
+            "    }",
+            "",
+            "    static class Inner extends Base {",
+            "        boolean f(LDClient ld, String u) {",
+            "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void inheritedInterfaceConstantShadowsAnOuterClient() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    static final Client shared = OpenFeatureAPI.getInstance().getClient(\"s\");",
+            "",
+            "    interface Names {",
+            "        String shared = \"x\";",
+            "    }",
+            "",
+            "    static class Inner implements Names {",
+            "        boolean f(LDClient ld, String u) {",
+            "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void classWithAnUnresolvedSupertypeGivesUp() {
+    final List<LaunchDarklyUsage.Row> rows = new ArrayList<LaunchDarklyUsage.Row>();
+    rewriteRun(
+        s ->
+            s.parser(FixtureParsers.forCase(""))
+                .typeValidationOptions(org.openrewrite.test.TypeValidation.none())
+                .recipe(new FindLaunchDarklyUsage())
+                .dataTable(LaunchDarklyUsage.Row.class, rows::addAll),
+        java(
+            body(
+                    "    class Inner extends Missing {",
+                    "        boolean f(LDClient ld, String u) {",
+                    "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+                    "        }",
+                    "    }")
+                .trim(),
+            src -> src.after(actual -> actual)));
+    assertEquals("unbound-client", rows.get(0).skip);
+  }
+
+  @Test
+  void staticMethodOfALocalClassCannotUseAnEnclosingLocalClient() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    void outer(LDClient ld, String u) {",
+            "        Client local = OpenFeatureAPI.getInstance().getClient(\"l\");",
+            "        class Loc {",
+            "            static boolean f(LDClient l2, String v) {",
+            "                return l2.boolVariation(\"k\", LDContext.create(v), false);",
+            "            }",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void localRecordCannotUseAnEnclosingParameterClient() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    void outer(Client param) {",
+            "        record Loc(String name) {",
+            "            boolean f(LDClient l2, String v) {",
+            "                return l2.boolVariation(\"k\", LDContext.create(v), false);",
+            "            }",
+            "        }",
+            "    }"));
+  }
 }
