@@ -95,7 +95,9 @@ class ConformanceTest implements RewriteTest {
               src ->
                   src.after(actual -> {
                     try {
-                      Files.write(afterFile, actual.getBytes(StandardCharsets.UTF_8));
+                      // The comparison trims, but committed files end with a newline.
+                      String text = actual.endsWith("\n") ? actual : actual + "\n";
+                      Files.write(afterFile, text.getBytes(StandardCharsets.UTF_8));
                     } catch (IOException e) {
                       throw new java.io.UncheckedIOException(e);
                     }

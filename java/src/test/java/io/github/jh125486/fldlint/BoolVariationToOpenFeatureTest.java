@@ -416,4 +416,39 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
                 "return client.getBooleanValue(\"k\", false, new ImmutableContext(u)).booleanValue();");
     rewriteRun(BoolVariationToOpenFeatureTest::migrate, java(before, after));
   }
+
+  @Test
+  void enumConstantArgumentsAreStaticAndForwardRestricted() {
+    String source =
+        lines(
+            "package flags;",
+            "",
+            "import com.launchdarkly.sdk.LDContext;",
+            "import com.launchdarkly.sdk.server.LDClient;",
+            "import dev.openfeature.sdk.Client;",
+            "import dev.openfeature.sdk.OpenFeatureAPI;",
+            "",
+            "public enum Mode {",
+            "    A(Holder.LD.boolVariation(\"k\", LDContext.create(\"u\"), false));",
+            "",
+            "    static class Holder {",
+            "        static final LDClient LD = null;",
+            "    }",
+            "",
+            "    final Client client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+            "",
+            "    Mode(boolean on) {}",
+            "}");
+    assertEquals("unbound-client", find(source).get(0).skip);
+  }
+
+  @Test
+  void aTypeParameterNamedImmutableContextBlocksTheRewrite() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    <ImmutableContext> boolean f(LDClient ld, String u, ImmutableContext x) {",
+            "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "    }"));
+  }
 }

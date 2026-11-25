@@ -134,8 +134,8 @@ final class LaunchDarklyCall {
   /**
    * The rewrite writes {@code new ImmutableContext(..)} and imports {@code
    * dev.openfeature.sdk.ImmutableContext}. Another type of that simple name in the file (imported,
-   * or declared in it) would capture the name, so the call is not rewritten. A same-package type in
-   * another file is not visible here.
+   * declared in it, or a type parameter) would capture the name, so the call is not rewritten. A
+   * same-package type in another file is not visible here.
    */
   private static boolean importedNameClash(Cursor cursor) {
     J.CompilationUnit cu = cursor.firstEnclosing(J.CompilationUnit.class);
@@ -156,6 +156,16 @@ final class LaunchDarklyCall {
           declared[0] = true;
         }
         return super.visitClassDeclaration(cd, p);
+      }
+
+      @Override
+      public J.TypeParameter visitTypeParameter(J.TypeParameter tp, Integer p) {
+        // Class and method type parameters: conservatively any in the file.
+        if (tp.getName() instanceof J.Identifier
+            && "ImmutableContext".equals(((J.Identifier) tp.getName()).getSimpleName())) {
+          declared[0] = true;
+        }
+        return super.visitTypeParameter(tp, p);
       }
     }.visit(cu, 0);
     return declared[0];

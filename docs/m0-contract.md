@@ -348,7 +348,10 @@ There are two kinds of skip. Do not conflate them:
   M0.4), `receiver-unproven` (amendment M0.5). A diagnostic on a rewriting rule either
   carries no `skip` (it is rewritten; `output: true` for that language) or
   carries one of those five call-site categories (`output: false` for that
-  language).
+  language), or carries `noFix: comment` with no `skip` (`output: false`): the
+  call is rewritable but a comment inside it has no home, so it is reported
+  with no fix (placeholders.md, issue #31). `noFix` is rejected with
+  `output: true`, together with `skip`, and on a report-only rule.
 
 Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
 `shadowed-client`, `goctx-shadowed-context`) assert their `skip` category again

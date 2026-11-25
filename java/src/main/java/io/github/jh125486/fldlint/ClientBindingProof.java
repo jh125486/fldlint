@@ -89,7 +89,9 @@ final class ClientBindingProof {
           // A field initializer or an initializer block may not name a field declared at or after
           // it by its simple name (JLS 8.3.3).
           boolean forwardRestricted =
-              child instanceof J.VariableDeclarations || child instanceof J.Block;
+              child instanceof J.VariableDeclarations
+                  || child instanceof J.Block
+                  || child instanceof J.EnumValueSet;
           for (int i = 0; i < members.size(); i++) {
             if (members.get(i) instanceof J.VariableDeclarations) {
               int before = level.size();
@@ -324,6 +326,10 @@ final class ClientBindingProof {
     }
     if (member instanceof J.VariableDeclarations) {
       return ((J.VariableDeclarations) member).hasModifier(J.Modifier.Type.Static);
+    }
+    if (member instanceof J.EnumValueSet) {
+      // Enum constant arguments are evaluated statically.
+      return true;
     }
     if (member instanceof J.Block) {
       return ((J.Block) member).isStatic();
