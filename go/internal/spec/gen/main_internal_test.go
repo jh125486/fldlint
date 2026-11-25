@@ -74,30 +74,24 @@ func TestRun(t *testing.T) {
 
 func TestExitCode(t *testing.T) {
 	t.Parallel()
-	root := filepath.Join(t.TempDir(), "missing")
+	missing := filepath.Join(t.TempDir(), "missing")
+	out := filepath.Join(t.TempDir(), "g.go")
 	tests := []struct {
 		name string
-		args []string
+		err  error
 		want int
 	}{
-		{name: "explicit missing spec is a usage error", args: []string{"-spec", root}, want: 2},
-		{name: "unknown flag is a usage error", args: []string{"-bogus"}, want: 2},
-		{name: "plain failure", args: nil, want: 1},
-		{name: "no error", args: nil, want: 0},
+		{name: "no error", err: nil, want: 0},
+		{name: "help", err: run([]string{"-h", "-out", out}), want: 0},
+		{name: "plain failure", err: errors.New("write failed"), want: 1},
+		{name: "explicit missing spec", err: run([]string{"-spec", missing, "-out", out, "-java-out", ""}), want: 2},
+		{name: "unknown flag", err: run([]string{"-bogus"}), want: 2},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			var err error
-			switch tt.want {
-			case 1:
-				err = errors.New("write failed")
-			case 0:
-			default:
-				err = run(append([]string{"-out", filepath.Join(t.TempDir(), "g.go"), "-java-out", ""}, tt.args...))
-			}
-			if got := exitCode(err); got != tt.want {
-				t.Fatalf("exitCode(%v) = %d, want %d", err, got, tt.want)
+			if got := exitCode(tt.err); got != tt.want {
+				t.Fatalf("exitCode(%v) = %d, want %d", tt.err, got, tt.want)
 			}
 		})
 	}

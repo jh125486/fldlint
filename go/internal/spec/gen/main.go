@@ -24,7 +24,7 @@ func (e *usageError) Unwrap() error { return e.err }
 func exitCode(err error) int {
 	var u *usageError
 	switch {
-	case err == nil:
+	case err == nil, errors.Is(err, flag.ErrHelp):
 		return 0
 	case errors.As(err, &u):
 		return 2
