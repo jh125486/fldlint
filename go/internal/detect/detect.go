@@ -113,13 +113,13 @@ func argCountOK(info *types.Info, call *ast.CallExpr, rule spec.Rule, method str
 	if call.Ellipsis.IsValid() {
 		return ac.Max == 0 && len(call.Args)-1-recv >= ac.Min+shift
 	}
-	n := len(call.Args) - recv
-	if n == 1 && recv == 0 {
+	n := len(call.Args)
+	if n == 1 {
 		if tup, ok := info.TypeOf(call.Args[0]).(*types.Tuple); ok {
 			n = tup.Len()
 		}
 	}
-	return ac.Accepts(n, shift)
+	return ac.Accepts(n-recv, shift)
 }
 
 // valueKind maps a rule value type to the Go basic kind of its default and

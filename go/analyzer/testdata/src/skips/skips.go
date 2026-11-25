@@ -39,6 +39,15 @@ func MethodExpr(userKey string) {
 	_, _, _ = (*ldclient.LDClient).BoolVariationDetail(ld, "detail", ldcontext.New(userKey), false) // want `Detail call; reason/variation metadata has no 1:1 rewrite \[skip: detail\]`
 }
 
+func recvAndContext(userKey string) (*ldclient.LDClient, ldcontext.Context) {
+	return ld, ldcontext.New(userKey)
+}
+
+// A single call supplying the receiver and the context counts both values.
+func MethodExprTuple(userKey string) {
+	_ = (*ldclient.LDClient).AllFlagsState(recvAndContext(userKey)) // want `Bulk evaluation; migrate manually \[skip: bulk\]`
+}
+
 func DynamicKey(userKey, suffix string) {
 	_, _ = ld.BoolVariation("a-"+suffix, ldcontext.New(userKey), false) // want `Flag key is not a static string \[skip: dynamic-key\]`
 	_, _ = ld.BoolVariation(suffix, ldcontext.New(userKey), false)      // want `Flag key is not a static string \[skip: dynamic-key\]`
