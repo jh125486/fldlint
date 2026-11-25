@@ -57,9 +57,10 @@ rules:
       go:   {methods: [BoolVariation, BoolVariationCtx], ctxArg: {BoolVariationCtx: 0},
              template: "{{client}}.BooleanValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
              requires: [context-unproven]}
-      # UNVERIFIED: Java mapping not checked against the LD Java SDK / OpenFeature Java SDK (M3).
-      java: {methods: [boolVariation],
-             template: "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"}
+      # Java keeps LaunchDarkly's primitive typing with .booleanValue() (ADR 009 D8). The recipe
+      # fills the placeholders by order of appearance and gives #{context} its own template.
+      java: {methods: [boolVariation], requires: [context-unproven, default-type-unproven],
+             template: "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context}).booleanValue()"}
   - id: string-variation
     message: "Migrate string flag {{key}} to OpenFeature"
     valueType: string
