@@ -145,6 +145,17 @@ func TestAssignOccurrences(t *testing.T) {
 			{RuleID: "r", Key: nil, Line: 1, Col: 1},
 			{RuleID: "r", Key: str("a\xff"), Line: 2, Col: 1},
 		}, []int{0, 1}},
+		{"tie on line and col keeps input order", []fingerprint.Positioned{
+			{RuleID: "r", Key: str("k"), Line: 1, Col: 1},
+			{RuleID: "r", Key: str("k"), Line: 1, Col: 1},
+			{RuleID: "r", Key: str("k"), Line: 1, Col: 1},
+		}, []int{0, 1, 2}},
+		{"same key different kind is a different group", []fingerprint.Positioned{
+			{RuleID: "r", Key: str("k"), Line: 1, Col: 1},
+			{RuleID: "r", Key: nil, Line: 2, Col: 1},
+			{RuleID: "r", Key: str("k"), Line: 3, Col: 1},
+			{RuleID: "r", Key: nil, Line: 4, Col: 1},
+		}, []int{0, 0, 1, 1}},
 		{"empty key differs from absent", []fingerprint.Positioned{
 			{RuleID: "r", Key: str(""), Line: 1, Col: 1},
 			{RuleID: "r", Key: nil, Line: 2, Col: 1},

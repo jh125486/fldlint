@@ -7,6 +7,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 
@@ -21,6 +22,8 @@ type vector struct {
 	Occ    int     `json:"occ"`
 }
 
+var errUsage = errors.New("usage: fp [--baseline out.json] [vectors.json]")
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "fp:", err)
@@ -30,14 +33,20 @@ func main() {
 
 func run(args []string) error {
 	var out string
-	if len(args) >= 2 && args[0] == "--baseline" {
+	if len(args) > 0 && args[0] == "--baseline" {
+		if len(args) < 2 {
+			return errUsage
+		}
 		out, args = args[1], args[2:]
 	}
-	path := "../spec/contracts/fingerprint-vectors.json"
+	path := "../spec/contracts/fingerprint-vectors.json" // from go/
+	if _, err := os.Stat(path); err != nil {
+		path = "spec/contracts/fingerprint-vectors.json" // from the repo root
+	}
 	if len(args) > 0 {
 		path = args[0]
 	}
-	data, err := os.ReadFile(path) //nolint:gosec // path is the caller's baseline/vectors file
+	data, err := os.ReadFile(path) //nolint:gosec // path is a command-line argument of a developer tool
 	if err != nil {
 		return err
 	}

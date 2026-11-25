@@ -54,6 +54,10 @@ func Format(fingerprints []string) ([]byte, error) {
 // Parse strictly parses baseline JSON text into a set of fingerprints.
 func Parse(data []byte) (map[string]struct{}, error) {
 	var obj map[string]json.RawMessage
+	if !json.Valid(data) {
+		// Unmarshal reports why (syntax error, trailing data, BOM).
+		return nil, invalid("not valid JSON: %v", json.Unmarshal(data, &obj))
+	}
 	if err := json.Unmarshal(data, &obj); err != nil || obj == nil {
 		return nil, invalid("expected a JSON object")
 	}
@@ -68,6 +72,9 @@ func Parse(data []byte) (map[string]struct{}, error) {
 		return nil, invalid(`both "version" and "fingerprints" are required`)
 	}
 	var version float64
+	if string(rawVersion) == "null" {
+		return nil, invalid(`"version" must be the number 1`)
+	}
 	if err := json.Unmarshal(rawVersion, &version); err != nil {
 		return nil, invalid(`"version" must be the number 1 (flaglint baseline files are not accepted)`)
 	}
@@ -92,7 +99,7 @@ func Parse(data []byte) (map[string]struct{}, error) {
 // Read reads and validates a baseline file. A missing or unreadable file is an
 // ErrInvalid too.
 func Read(path string) (map[string]struct{}, error) {
-	data, err := os.ReadFile(path) //nolint:gosec // path is the caller's baseline/vectors file
+	data, err := os.ReadFile(path) //nolint:gosec // path is a CLI argument
 	if err != nil {
 		return nil, invalid("cannot read %s: %v", path, err)
 	}
