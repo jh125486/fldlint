@@ -2,10 +2,11 @@
 // Receiver proof is derived from flaglint-js src/scanner/index.ts @b85599f
 // (collectLDClients), MIT, see NOTICE. The port keys on scope-manager
 // Variable objects instead of identifier names.
-import { AST_NODE_TYPES, TSESLint, type TSESTree } from "@typescript-eslint/utils";
+import { AST_NODE_TYPES, AST_TOKEN_TYPES, TSESLint, type TSESTree } from "@typescript-eslint/utils";
 import { findRuleByMethod } from "@fldlint/spec";
 import { visitorKeys as defaultVisitorKeys } from "@typescript-eslint/visitor-keys";
-import type { CallSite, ClientBinding, ContextShape, DefaultType } from "./callsite.js";
+import type { ArgRole, CallComment, CallSite, ClientBinding, CommentNotes, ContextShape, DefaultType } from "./callsite.js";
+import { hasLineTerminator, isDirective } from "./expand.js";
 import { staticFingerprintKey } from "./fingerprint.js";
 
 const { DefinitionType, ScopeType } = TSESLint.Scope;
@@ -40,6 +41,7 @@ class Detector {
   private readonly sites: CallSite[] = [];
   // `parent` links are set by ESLint's traversal, not by the parser; build our own.
   private readonly parents = new Map<Node, Node>();
+  private readonly comments: TSESTree.Comment[];
 
   constructor(
     private readonly ast: TSESTree.Program,
@@ -48,6 +50,7 @@ class Detector {
     private readonly visitorKeys: VisitorKeys = defaultVisitorKeys as unknown as VisitorKeys,
   ) {
     for (const scope of scopes.scopes) for (const ref of scope.references) this.refs.set(ref.identifier, ref);
+    this.comments = [...(ast.comments ?? [])].sort((a, b) => a.range[0] - b.range[0]);
   }
 
   run(): CallSite[] {
@@ -296,6 +299,7 @@ class Detector {
     const fpKey = staticFingerprintKey(key);
     const defaultNode = arg(rule.defaultArg);
 
+    const notes = rule.skip === undefined ? this.commentNotes(call, rule) : undefined;
     this.sites.push({
       ruleId: rule.id,
       method: callee.property.name,
@@ -309,23 +313,126 @@ class Detector {
       defaultType: defaultType(defaultNode),
       contextShape: this.contextShape(arg(rule.contextArg)),
       clientBinding: this.bindClient(call.range[0]),
+      ...(notes && { comments: notes }),
     });
   }
 
-  private contextShape(node: Expr | undefined): ContextShape {
-    const other: ContextShape = { kind: "other" };
-    if (node?.type !== AST_NODE_TYPES.ObjectExpression) return other;
+  /** The `key` value node of a context that is exactly `{ key, kind?: "user" }`. */
+  private contextKeyNode(node: Expr | undefined): Node | undefined {
+    if (node?.type !== AST_NODE_TYPES.ObjectExpression) return undefined;
     let keyNode: Node | undefined;
     let sawKind = false;
     for (const p of node.properties) {
-      if (p.type !== AST_NODE_TYPES.Property || p.kind !== "init" || p.method || p.computed) return other;
+      if (p.type !== AST_NODE_TYPES.Property || p.kind !== "init" || p.method || p.computed) return undefined;
       const name = propName(p.key);
       if (name === "key" && !keyNode) keyNode = p.value;
       else if (name === "kind" && !sawKind && isStringLiteral(p.value) && p.value.value === "user") sawKind = true;
-      else return other;
+      else return undefined;
     }
-    const keyText = this.text(keyNode);
-    return keyText === undefined ? other : { kind: "simple", keyText };
+    return keyNode;
+  }
+
+  private contextShape(node: Expr | undefined): ContextShape {
+    const keyText = this.text(this.contextKeyNode(node));
+    return keyText === undefined ? { kind: "other" } : { kind: "simple", keyText };
+  }
+
+  // ---------- comments inside a call (issue #31) ----------
+
+  private comment(c: TSESTree.Comment): CallComment {
+    const text = this.source.slice(c.range[0], c.range[1]);
+    if (c.type !== AST_TOKEN_TYPES.Line) return { text, line: false, eol: "" };
+    const rest = this.source.slice(c.range[1], c.range[1] + 2);
+    return { text, line: true, eol: rest.startsWith("\r\n") ? "\r\n" : /^[\n\r\u2028\u2029]/.test(rest) ? rest.charAt(0) : "\n" };
+  }
+
+  /** Offset of the first `,` at or after `from`, skipping whitespace, comments and closing parens. */
+  private commaAfter(from: number, inCall: readonly TSESTree.Comment[]): number {
+    let pos = from;
+    for (;;) {
+      const c = inCall.find((x) => x.range[0] === pos);
+      if (c) pos = c.range[1];
+      else if (/[\s)]/.test(this.source.charAt(pos))) pos++;
+      else return pos;
+    }
+  }
+
+  /**
+   * Place every comment inside the call range: those in an argument's own text
+   * are copied with it; the rest attach to the argument they touch, to the
+   * head (before the `(`) or to the tail (after the last argument). Returns
+   * undefined when the call holds no comment that needs placing.
+   */
+  private commentNotes(call: TSESTree.CallExpression, rule: { keyArg?: number; defaultArg?: number; contextArg?: number }): CommentNotes | undefined {
+    const [start, end] = call.range;
+    // `this.comments` is sorted by start: binary-search the first one at or after the call start.
+    let lo = 0;
+    let hi = this.comments.length;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if (this.comments[mid]!.range[0] < start) lo = mid + 1;
+      else hi = mid;
+    }
+    const inCall: TSESTree.Comment[] = [];
+    for (let i = lo; i < this.comments.length && this.comments[i]!.range[0] < end; i++) {
+      if (this.comments[i]!.range[1] <= end) inCall.push(this.comments[i]!);
+    }
+    if (inCall.length === 0) return undefined;
+    const args = call.arguments;
+    const roleOf = (i: number): ArgRole | undefined =>
+      i === rule.keyArg ? "key" : i === rule.defaultArg ? "default" : i === rule.contextArg ? "context" : undefined;
+    const ctxKey = rule.contextArg === undefined ? undefined : this.contextKeyNode(args[rule.contextArg]);
+    const notes: CommentNotes = { args: {}, head: [], tail: [], unhomed: false };
+    const slot = (role: ArgRole) => (notes.args[role] ??= { lead: [], trail: [] });
+
+    // The `(`: first non-trivia after the callee (and any type arguments).
+    let open = Math.max(call.callee.range[1], call.typeArguments?.range[1] ?? 0);
+    for (;;) {
+      while (/\s/.test(this.source.charAt(open))) open++;
+      const c = inCall.find((x) => x.range[0] === open);
+      if (!c) break;
+      open = c.range[1];
+    }
+    if (this.source.charAt(open) !== "(") notes.unhomed = true;
+
+    for (const c of inCall) {
+      const [cs, ce] = c.range;
+      const inside = args.findIndex((a) => a.range[0] <= cs && ce <= a.range[1]);
+      if (inside >= 0) {
+        // Copied verbatim with the argument, except inside the converted context literal.
+        const role = roleOf(inside);
+        const kept = role === "key" || role === "default" || (role === "context" && ctxKey !== undefined && ctxKey.range[0] <= cs && ce <= ctxKey.range[1]);
+        if (!kept) notes.unhomed = true;
+        continue;
+      }
+      const cc = this.comment(c);
+      // Moving a directive changes what it governs.
+      if (isDirective(cc.text)) notes.unhomed = true;
+      if (cs < open) {
+        notes.head.push(cc);
+        continue;
+      }
+      const next = args.findIndex((a) => a.range[0] >= ce);
+      const prevIdx = (next < 0 ? args.length : next) - 1;
+      const prev = args[prevIdx];
+      const following = next < 0 ? undefined : args[next];
+      const attach = (i: number, where: "lead" | "trail"): void => {
+        const role = roleOf(i);
+        if (role === undefined) notes.unhomed = true;
+        else slot(role)[where].push(cc);
+      };
+      if (!prev) attach(next, "lead");
+      else if (!following) {
+        if (hasLineTerminator(this.source.slice(prev.range[1], cs))) notes.tail.push(cc);
+        else attach(prevIdx, "trail");
+      } else if (cs < this.commaAfter(prev.range[1], inCall)) {
+        // Before the separating comma: it touches the previous argument.
+        attach(prevIdx, "trail");
+      } else if (!hasLineTerminator(this.source.slice(prev.range[1], cs)) && (c.type === AST_TOKEN_TYPES.Line || hasLineTerminator(this.source.slice(ce, following.range[0])))) {
+        attach(prevIdx, "trail");
+      } else attach(next, "lead");
+    }
+    return notes.head.length === 0 && notes.tail.length === 0 && Object.keys(notes.args).length === 0 && !notes.unhomed ? undefined : notes;
   }
 }
 

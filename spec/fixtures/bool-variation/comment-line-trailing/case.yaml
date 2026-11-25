@@ -1,0 +1,7 @@
+id: comment-line-trailing
+rule: bool-variation
+tags: [comments]
+description: Line comments after each argument of a multi-line call move with their argument, placed after the comma that follows it (Go rejects a line break before a comma).
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation}], output: true}

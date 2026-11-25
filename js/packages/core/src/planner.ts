@@ -1,6 +1,7 @@
 import { rules, type Rule } from "@fldlint/spec";
 import type { CallSite, DefaultType } from "./callsite.js";
 import type { PlanResult } from "@fldlint/spec";
+import { expand } from "./expand.js";
 
 const rulesById = new Map<string, Rule>(rules.map((r) => [r.id, r]));
 
@@ -15,7 +16,8 @@ function defaultMatches(valueType: Rule["valueType"], actual: DefaultType): bool
  *
  * Step order (one category per call, first match wins):
  * rule-level skip, dynamic-key, context-unproven, default-type-unproven,
- * unbound-client, else rewrite. (A call whose receiver is not proven is never
+ * unbound-client, else rewrite (or, when a comment inside the call has no home
+ * in the rewritten call, report it without a fix). (A call whose receiver is not proven is never
  * a call site, so it yields no finding at all.)
  */
 export function plan(site: CallSite): PlanResult {
@@ -40,7 +42,10 @@ export function plan(site: CallSite): PlanResult {
     default: site.defaultText,
     context: `{ targetingKey: ${site.contextShape.keyText} }`,
   };
-  // Single pass so substituted source text is never re-expanded.
-  const text = template.replace(/\{\{(\w+)\}\}/g, (m, name: string) => values[name] ?? m);
+  // Comments inside the call move with their arguments; one with no home
+  // withholds the fix (the call is still reported). Not a skip category.
+  if (site.comments?.unhomed) return { kind: "unfixable", ruleId: rule.id };
+  const text = expand(template, values, site.comments);
+  if (text === undefined) return { kind: "unfixable", ruleId: rule.id };
   return { kind: "rewrite", edit: { range: site.range, text } };
 }

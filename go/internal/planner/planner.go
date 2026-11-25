@@ -4,7 +4,9 @@
 //
 // Step order (identical across languages, ADR 010): identity (the caller),
 // rule-level skip, dynamic-key, context-unproven, default-type-unproven,
-// unbound-client, receiver-unproven, else rewrite. A rewrite that would leave
+// unbound-client, receiver-unproven, else rewrite (or, when a comment inside
+// the call has no home in the rewritten call, report it without a fix:
+// KindUnfixable). A rewrite that would leave
 // a function-local client variable with no remaining use is skipped as
 // receiver-unproven for every call on that variable (see PlanFile).
 package planner
@@ -27,6 +29,10 @@ const (
 	KindRewrite Kind = "rewrite"
 	// KindSkip means the call site is reported but not rewritten.
 	KindSkip Kind = "skip"
+	// KindUnfixable means the call is rewritable but a comment inside it has
+	// no home in the rewritten call, so it is reported without a fix (issue
+	// #31). It is not a skip category: the message is the rule's own.
+	KindUnfixable Kind = "unfixable"
 )
 
 // Call-site skip categories (spec/rules.yaml skipCategories).
@@ -92,6 +98,9 @@ type Facts struct {
 	// rewrite could leave without a use; nil for package-level variables,
 	// parameters, named results and package names, which never strand.
 	Receiver *Local
+	// Notes places the comments inside the call range (issue #31); nil when
+	// the call has none outside its copied argument text.
+	Notes *fix.Notes
 }
 
 // Local describes a function-local variable: Uses are its references that are
@@ -164,14 +173,23 @@ func Plan(site CallSite) Result {
 			return skip(rule, p.category)
 		}
 	}
-	text, err := fix.Expand(rule.Go.Template, vals)
+	message := strings.ReplaceAll(rule.Message, "{{key}}", f.Key)
+	// Comments inside the call move with their arguments; one with no home
+	// withholds the fix (the call is still reported). Not a skip category.
+	if f.Notes != nil && f.Notes.Unhomed {
+		return Result{Kind: KindUnfixable, RuleID: rule.ID, Message: message}
+	}
+	text, placed, err := fix.ExpandNotes(rule.Go.Template, vals, f.Notes)
 	if err != nil {
 		return skip(rule, CategoryContextUnproven)
+	}
+	if !placed {
+		return Result{Kind: KindUnfixable, RuleID: rule.ID, Message: message}
 	}
 	return Result{
 		Kind:       KindRewrite,
 		RuleID:     rule.ID,
-		Message:    strings.ReplaceAll(rule.Message, "{{key}}", f.Key),
+		Message:    message,
 		Edit:       &Edit{Pos: site.Call.Pos(), End: site.Call.End(), NewText: []byte(text)},
 		AddImports: f.AddImports,
 		Consumed:   f.Consumed,
@@ -208,6 +226,20 @@ func PlanFile(fi FileInfo, sites []CallSite) []Result {
 		results[i] = Plan(s)
 	}
 	strand(sites, results)
+	// A comment with no home must not hide a skip the call would report
+	// without it: judge each unfixable call as if it were a rewrite (its
+	// siblings keep their own outcome).
+	for i := range results {
+		if results[i].Kind != KindUnfixable {
+			continue
+		}
+		hypo := slices.Clone(results)
+		hypo[i].Kind = KindRewrite
+		strand(sites, hypo)
+		if hypo[i].Kind == KindSkip {
+			results[i] = hypo[i]
+		}
+	}
 	markNested(sites, results)
 
 	order := make([]*ast.ImportSpec, 0, len(fi.Removable))

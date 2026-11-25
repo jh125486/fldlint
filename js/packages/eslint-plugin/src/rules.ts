@@ -34,6 +34,7 @@ const skipMessageId = (category: string): string => `skip-${category}`;
 function makeRule(spec: SpecRule): Rule.RuleModule {
   const messages: Record<string, string> = {};
   if (spec.message !== undefined) messages.migrate = spec.message;
+  if (spec.message !== undefined) messages["migrate-nofix"] = `${spec.message} [no-fix: comment]`;
   for (const [category, { message }] of Object.entries(skipCategories)) {
     messages[skipMessageId(category)] = `${message} [skip: ${category}]`;
   }
@@ -70,6 +71,9 @@ function makeRule(spec: SpecRule): Rule.RuleModule {
                 data: { key: site.keyText ?? "" },
                 fix: (fixer) => fixer.replaceTextRange(edit.range, edit.text),
               });
+            } else if (result.kind === "unfixable") {
+              // A comment inside the call has no home in the rewrite: report, no fix.
+              context.report({ loc, messageId: "migrate-nofix", data: { key: site.keyText ?? "" } });
             } else {
               context.report({ loc, messageId: skipMessageId(result.category) });
             }

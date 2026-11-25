@@ -48,6 +48,21 @@ describe("shared JS fixtures through the bundled transform", () => {
   }
 });
 
+describe("comments inside a call (issue #31)", () => {
+  const head = `import { init } from "@launchdarkly/node-server-sdk";\nimport { OpenFeature } from "@openfeature/server-sdk";\nconst ld = init("x");\nconst c = OpenFeature.getClient();\n`;
+  it("moves a comment with its argument", () => {
+    const out = runCodemod(`${head}export const v = ld.boolVariation("k", /* who */ { key: u }, false);\n`, "a.ts");
+    expect(out.output).toBe(`${head}export const v = c.getBooleanValue("k", false, /* who */ { targetingKey: u });\n`);
+    expect(out.reports).toEqual([]);
+  });
+  it("leaves a call whose comment has no home untouched and reports it", () => {
+    const src = `${head}export const v = ld.boolVariation("k", { key: u /* id */ }, false);\n`;
+    const out = runCodemod(src, "a.ts");
+    expect(out.output).toBeNull();
+    expect(out.reports).toEqual([`a.ts:5:18  bool-variation  Migrate boolean flag "k" to OpenFeature [no-fix: comment]`]);
+  });
+});
+
 describe("runCodemod", () => {
   it("leaves unparseable files untouched and reports them", () => {
     const r = runCodemod("const = ;", "bad.ts");

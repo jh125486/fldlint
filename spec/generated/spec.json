@@ -498,6 +498,138 @@
       }
     },
     {
+      "path": "bool-variation/comment-callee-hoist",
+      "case": {
+        "id": "comment-callee-hoist",
+        "rule": "bool-variation",
+        "tags": [
+          "comments"
+        ],
+        "description": "Comments between the receiver, the method name and the opening paren are hoisted in front of the rewritten call.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/comment-inline-reorder",
+      "case": {
+        "id": "comment-inline-reorder",
+        "rule": "bool-variation",
+        "tags": [
+          "comments"
+        ],
+        "description": "Block comments touching an argument move with it when the rewrite reorders the arguments (key, context, default becomes key, default, context).",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/comment-line-trailing",
+      "case": {
+        "id": "comment-line-trailing",
+        "rule": "bool-variation",
+        "tags": [
+          "comments"
+        ],
+        "description": "Line comments after each argument of a multi-line call move with their argument, placed after the comma that follows it (Go rejects a line break before a comma).",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/comment-own-line",
+      "case": {
+        "id": "comment-own-line",
+        "rule": "bool-variation",
+        "tags": [
+          "comments"
+        ],
+        "description": "An own-line comment above the first argument leads it, and one after the last argument goes before the closing paren.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 14,
+                "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
       "path": "bool-variation/complex-context",
       "case": {
         "id": "complex-context",

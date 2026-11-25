@@ -33,6 +33,13 @@ flags described here are the JS/TS (ESLint-style) tools'; the Go tools use the
   source text). A finding that is **reported but not rewritten** uses the skip
   category's `message` from `skipCategories`, suffixed with
   `[skip: <category>]`. The same strings are the `message` in `json` output.
+  A third state, **rewritable but unfixable**, is a rewritable finding whose
+  fix is withheld because a comment inside the call has no home in the rewrite
+  ([placeholders.md](placeholders.md#comments-inside-a-call)). It is not a
+  skip: it uses the rule's own `message` (key substituted), suffixed with
+  `[no-fix: comment]`, and carries no `skip`. In `json` it has an optional
+  `noFix: "comment"` field (absent otherwise; additive, `version` stays 1).
+  Engines that do not emit `json` or `sarif` yet only emit the text form.
 - `json`: a single JSON document on stdout:
   `{"version": 1, "findings": [...], "summary": {"errors": n, "warnings": n, "info": n, "baselined": n}}`.
   `errors`, `warnings` and `info` count **non-baselined** findings by their

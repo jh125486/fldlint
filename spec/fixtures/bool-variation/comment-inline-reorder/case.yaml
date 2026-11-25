@@ -1,0 +1,7 @@
+id: comment-inline-reorder
+rule: bool-variation
+tags: [comments]
+description: Block comments touching an argument move with it when the rewrite reorders the arguments (key, context, default becomes key, default, context).
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
+  go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation}], output: true}

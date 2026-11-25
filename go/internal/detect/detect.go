@@ -220,6 +220,7 @@ func (e *Env) Site(f File, call *ast.CallExpr, method string) planner.CallSite {
 	if addCtx {
 		fa.AddImports = append(fa.AddImports, "context")
 	}
+	fa.Notes = e.notes(f, call, method, rule)
 	return site
 }
 
