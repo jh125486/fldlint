@@ -1,0 +1,6 @@
+package com.launchdarkly.sdk;
+
+/** Stub of the v6 LDUser (removed in 7.x), for the java-ld-user fixture only. */
+public class LDUser {
+    public LDUser(String key) {}
+}

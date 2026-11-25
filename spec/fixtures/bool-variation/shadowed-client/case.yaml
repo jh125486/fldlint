@@ -5,3 +5,4 @@ description: An inner-scope binding shadows the OpenFeature client name, so the 
 expect:
   js: {diagnostics: [{line: 9, col: 20, ruleId: bool-variation, skip: unbound-client}], output: false}
   go: {diagnostics: [{line: 21, col: 11, ruleId: bool-variation, skip: unbound-client}], output: false}
+  java: {diagnostics: [{line: 17, col: 16, ruleId: bool-variation, skip: unbound-client}], output: false}

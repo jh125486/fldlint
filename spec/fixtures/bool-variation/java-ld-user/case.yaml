@@ -1,0 +1,6 @@
+id: java-ld-user
+rule: bool-variation
+tags: [java, ld-user]
+description: The v6 LDUser overload (removed in 7.x, so this case is parsed against a stub of the v6 interface) is skipped as context-unproven.
+expect:
+  java: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, skip: context-unproven}], output: false}
