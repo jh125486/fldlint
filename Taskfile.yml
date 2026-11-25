@@ -19,12 +19,13 @@ tasks:
       - task --list
 
   check:
-    desc: Everything a good commit needs (spec:check, lint, test, js:types-floor)
+    desc: Everything a good commit needs (spec:check, lint, test, parity, js:types-floor)
     cmds:
       # Serial: spec:check regenerates files and js:types-floor swaps @types/node.
       - task: spec:check
       - task: lint
       - task: test
+      - task: parity
       - task: js:types-floor
 
   spec:check:
@@ -129,6 +130,25 @@ tasks:
     cmds:
       - cd go && go run {{.ACTIONLINT}} -color ../.github/workflows/*.yml
       - uvx {{.ZIZMOR}} --persona=regular .github/workflows
+
+  parity:
+    desc: Recompute the shared fingerprint vectors and a baseline in JS and Go; outputs must be byte-identical
+    deps: [js:install]
+    cmds:
+      - cd js && npm run build -w @fldlint/core --silent
+      - |
+        set -e
+        d=$(mktemp -d); trap 'rm -rf "$d"' EXIT
+        v=spec/contracts/fingerprint-vectors.json
+        node js/packages/core/dist/bin/fp.js "$v" > "$d/js.txt"
+        (cd go && go run ./internal/fingerprint/cmd/fp "../$v") > "$d/go.txt"
+        node -e 'for (const v of JSON.parse(require("fs").readFileSync(process.argv[1], "utf8"))) console.log(v.fingerprint)' "$v" > "$d/want.txt"
+        diff "$d/js.txt" "$d/go.txt"
+        diff "$d/js.txt" "$d/want.txt"
+        node js/packages/core/dist/bin/fp.js --baseline "$d/js.json" "$v"
+        (cd go && go run ./internal/fingerprint/cmd/fp --baseline "$d/go.json" "../$v")
+        cmp "$d/js.json" "$d/go.json"
+        echo "parity: $(wc -l < "$d/js.txt" | tr -d ' ') fingerprints and the baseline file are identical in JS and Go"
 
   lint:
     desc: Run all linters (JS, Go and Java)

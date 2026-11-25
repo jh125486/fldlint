@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"slices"
 	"testing"
 
 	"github.com/jh125486/fldlint/go/internal/fingerprint"
@@ -114,6 +115,45 @@ func TestStaticKey(t *testing.T) {
 			t.Parallel()
 			got := fingerprint.StaticKey(tt.in)
 			if (got == nil) != (tt.want == nil) || (got != nil && *got != *tt.want) {
+				t.Errorf("got %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
+
+func TestAssignOccurrences(t *testing.T) {
+	t.Parallel()
+	str := func(s string) *string { return &s }
+	tests := []struct {
+		name string
+		in   []fingerprint.Positioned
+		want []int
+	}{
+		{"empty", nil, []int{}},
+		{"orders by line then col, preserving input alignment", []fingerprint.Positioned{
+			{RuleID: "r", Key: str("k"), Line: 5, Col: 1},
+			{RuleID: "r", Key: str("k"), Line: 2, Col: 9},
+			{RuleID: "r", Key: str("k"), Line: 2, Col: 3},
+		}, []int{2, 1, 0}},
+		{"groups by rule and key", []fingerprint.Positioned{
+			{RuleID: "r", Key: str("a"), Line: 1, Col: 1},
+			{RuleID: "r", Key: str("b"), Line: 2, Col: 1},
+			{RuleID: "s", Key: str("a"), Line: 3, Col: 1},
+			{RuleID: "r", Key: str("a"), Line: 4, Col: 1},
+		}, []int{0, 0, 0, 1}},
+		{"ill-formed and absent keys share the keyless group", []fingerprint.Positioned{
+			{RuleID: "r", Key: nil, Line: 1, Col: 1},
+			{RuleID: "r", Key: str("a\xff"), Line: 2, Col: 1},
+		}, []int{0, 1}},
+		{"empty key differs from absent", []fingerprint.Positioned{
+			{RuleID: "r", Key: str(""), Line: 1, Col: 1},
+			{RuleID: "r", Key: nil, Line: 2, Col: 1},
+		}, []int{0, 0}},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			if got := fingerprint.AssignOccurrences(tt.in); !slices.Equal(got, tt.want) {
 				t.Errorf("got %v, want %v", got, tt.want)
 			}
 		})
