@@ -615,8 +615,11 @@ now carries `argCount: {min, max}`.
   the wrong-count behaviour is covered by the analyzer's `fork` tests.
   Go `AllFlagsState(ctx, opts...)` is still reported as `bulk`; JS
   `allFlagsState(ctx, ...opts)` stays unrecognized because the count may exceed `max`.
-- Java: only the generated table carries it (`Binding.getArgCountMin/Max`);
-  the Java engine is issue #10. No report-only rule has a Java binding yet.
+- Java: the generated table carries it (`Binding.getArgCountMin/Max`) and the
+  detector enforces it through `Planner.recognizesArgCount` (a count outside the
+  range is an unrecognized call, no finding); a rewriting binding must carry
+  every positional argument its template reads. No report-only rule has a Java
+  binding yet (#11), so the report-only range is covered by unit tests only.
 - Values (verified): JS `@launchdarkly/js-server-sdk-common` 2.26.8
   `LDClient.d.ts`: typed variation and detail methods and `migrationVariation`
   3..3; `variation` and `variationDetail` 3..4 (optional callback);

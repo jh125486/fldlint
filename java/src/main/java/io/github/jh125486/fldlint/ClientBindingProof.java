@@ -77,9 +77,9 @@ final class ClientBindingProof {
         J.Block block = (J.Block) v;
         boolean classBody =
             (parentValue instanceof J.ClassDeclaration
-                    && ((J.ClassDeclaration) parentValue).getBody() == block)
+                    && block.equals(((J.ClassDeclaration) parentValue).getBody()))
                 || (parentValue instanceof J.NewClass
-                    && ((J.NewClass) parentValue).getBody() == block);
+                    && block.equals(((J.NewClass) parentValue).getBody()));
         if (classBody) {
           boolean isInterface =
               parentValue instanceof J.ClassDeclaration
@@ -208,7 +208,7 @@ final class ClientBindingProof {
 
   private static int indexOf(List<org.openrewrite.java.tree.Statement> statements, Object child) {
     for (int i = 0; i < statements.size(); i++) {
-      if (statements.get(i) == child) {
+      if (statements.get(i).equals(child)) {
         return i;
       }
     }

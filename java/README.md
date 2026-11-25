@@ -2,15 +2,38 @@
 
 Java support is milestone M3. The Maven build, the generated rules table
 (`src/main/java/io/github/jh125486/fldlint/spec/RulesGen.java`, written by the Go
-generator, drift-checked), a stub planner and the JUnit conformance harness exist
-(#9); the recipes themselves land in #10. Build and test with `./mvnw -B verify`
-(JDK 21) or `task java:test` from the repository root.
+generator, drift-checked) and the JUnit conformance harness exist (#9). Issue #10
+adds the first rule, `bool-variation`: the shared `Planner`, the detector, the
+OpenFeature client binding proof and two recipes. Build and test with
+`./mvnw -B verify` (JDK 21) or `task java:test` from the repository root.
 
-Known gap for #10: the smoke fixture
-`spec/fixtures/bool-variation/static-key-double-quote/java/After.java` expects
-`.booleanValue()` appended (ADR 009 D8) and `LDContext.create("user")` becoming
-`new ImmutableContext("user")`. The Java template in `spec/rules.yaml` does not
-produce either yet; #10 must reconcile the template and the fixture.
+What exists (package `io.github.jh125486.fldlint`):
+
+- `planner.Planner.plan(CallSite) -> PlanResult`: the shared step order (ADR 010),
+  pure data in and out. `Planner.recognizesArgCount` enforces `argCount`.
+- `LaunchDarklyCall.detect`: match (`LDClientInterface`, overrides included),
+  static key, `LDContext.create(..)` context, default by static type, receiver
+  purity, comment placement. `ClientBindingProof`: the OpenFeature `Client` proof.
+- `BoolVariationToOpenFeature` (rewrite) and `FindLaunchDarklyUsage` (search plus
+  the `LaunchDarklyUsage` data table with position, skip, no-fix and fingerprint).
+  The composite `META-INF/rewrite/fldlint.yml`
+  (`MigrateLaunchDarklyToOpenFeature`) lists the rewrite recipe only; the search
+  recipe is `dryRun`-only (ADR 009 D5).
+- `Fingerprint`: spec/contracts/fingerprint.md, tested against the shared vectors.
+
+The conformance harness runs every case with an `expect.java`: diagnostics from the
+search recipe, the migrated output against `After.java` (or no change for a skip),
+and idempotency; `FixtureCompilesTest` compiles every `Before.java` and
+`After.java` with javac and the type-attribution test runs `FindMissingTypes`.
+The `java-ld-user` case needs the v6 `LDUser` overload, absent from the 7.x jar, so
+it is parsed and compiled against stubs in `src/test/resources/stubs/ld-v6`
+instead of the LaunchDarkly jars. To regenerate `After.java` files from the
+recipe: `./mvnw -B test -Dtest='ConformanceTest#fixtures' -Dfldlint.updateFixtures=true`,
+then review the diff.
+
+Not done yet: the other rules (#11), homing comments inside a call (Java reports
+such a call with no fix, `[no-fix: comment]`), constants as static keys, inherited
+client fields, and a CLI or plugin run (only `RewriteTest`).
 
 Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Accepted):
 
@@ -32,8 +55,7 @@ Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Accepte
 
 Argument counts: report-only rules carry `argCount` (`min`, and `max` unless variadic) on
 each language binding, exposed as `Binding.getArgCountMin()` / `getArgCountMax()`
-(null when absent). The Java engine does not exist yet (#10), so nothing enforces
-them here; the table only carries the values. No report-only rule has a Java
-binding today, so every Java `argCount` is currently null. When one is added,
-the recipe must treat a call whose argument count is outside the range as an
-unrecognized call (no finding), as the JS and Go engines do.
+(null when absent). `Planner.recognizesArgCount` enforces them: a call whose argument
+count is outside the range is an unrecognized call (no finding), as in the JS and Go
+engines. No report-only rule has a Java binding today (#11), so every Java `argCount`
+is currently null and the range is covered by unit tests only.

@@ -67,7 +67,7 @@ final class FixtureParsers {
       raw = System.getProperty("java.class.path");
     }
     List<String> entries = new ArrayList<String>();
-    for (String entry : raw.split(java.io.File.pathSeparator)) {
+    for (String entry : raw.split(java.io.File.pathSeparator, -1)) {
       boolean launchDarkly = entry.contains("launchdarkly");
       if (!(usesV6Stubs(casePath) && launchDarkly)) {
         entries.add(entry);

@@ -23,6 +23,8 @@ import org.openrewrite.marker.SearchResult;
  * source (ADR 009 D5). It calls the same {@link Planner} as the rewrite recipe.
  */
 public class FindLaunchDarklyUsage extends Recipe {
+  // The data table registers itself with the recipe; the table never reads the recipe back.
+  @SuppressWarnings("this-escape")
   private final transient LaunchDarklyUsage usage = new LaunchDarklyUsage(this);
 
   @Override
@@ -40,7 +42,7 @@ public class FindLaunchDarklyUsage extends Recipe {
   @Override
   public TreeVisitor<?, ExecutionContext> getVisitor() {
     return new JavaIsoVisitor<ExecutionContext>() {
-      /** A finding collected while visiting one file. */
+      // A finding collected while visiting one file.
       final class Found {
         final UUID id;
         final LaunchDarklyCall call;
