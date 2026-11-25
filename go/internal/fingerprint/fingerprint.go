@@ -4,9 +4,11 @@
 package fingerprint
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"unicode/utf8"
@@ -61,4 +63,37 @@ func Fingerprint(in Input) string {
 	pre := strings.Join([]string{in.RuleID, NormalizePath(in.Path), kind, key, strconv.Itoa(in.Occ)}, "\x00")
 	sum := sha256.Sum256([]byte(pre))
 	return hex.EncodeToString(sum[:])[:32]
+}
+
+// Positioned is a finding's position for [AssignOccurrences]. Col is the
+// shared UTF-16 column (position.UTF16Col), not a byte column.
+type Positioned struct {
+	RuleID string
+	Key    *string
+	Line   int
+	Col    int
+}
+
+// AssignOccurrences returns the `occ` of each finding of ONE file, index-aligned
+// with the input: the 0-based rank among findings with the same
+// (RuleID, kind, key), ordered by (Line, Col). Ties keep input order.
+func AssignOccurrences(findings []Positioned) []int {
+	groups := map[[3]string][]int{}
+	for i, f := range findings {
+		id := [3]string{f.RuleID, "-", ""}
+		if k := StaticKey(f.Key); k != nil {
+			id[1], id[2] = "s", *k
+		}
+		groups[id] = append(groups[id], i)
+	}
+	occ := make([]int, len(findings))
+	for _, idx := range groups {
+		slices.SortStableFunc(idx, func(a, b int) int {
+			return cmp.Or(cmp.Compare(findings[a].Line, findings[b].Line), cmp.Compare(findings[a].Col, findings[b].Col))
+		})
+		for rank, i := range idx {
+			occ[i] = rank
+		}
+	}
+	return occ
 }
