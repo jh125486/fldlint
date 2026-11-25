@@ -78,7 +78,37 @@ func Method(info *types.Info, call *ast.CallExpr) (string, bool) {
 	if rule.Skip == "" && rule.Go != nil && rule.Go.Template != "" && !signatureOK(sig, rule, fn.Name()) {
 		return "", false
 	}
+	// Report-only rules have no template to pin the signature; their
+	// argument count (rules.yaml argCount) does the same job.
+	if rule.Skip != "" && !argCountOK(info, call, rule, fn.Name()) {
+		return "", false
+	}
 	return fn.Name(), true
+}
+
+// argCountOK reports whether the call passes a number of arguments the rule's
+// argCount accepts; *Ctx methods take one more (the leading context.Context).
+// A `xs...` spread never matches, as in the JS engine. A single call that
+// supplies several values (f(g())) counts as that many arguments.
+func argCountOK(info *types.Info, call *ast.CallExpr, rule spec.Rule, method string) bool {
+	ac := rule.Go.ArgCount
+	if ac == nil {
+		return true
+	}
+	if call.Ellipsis.IsValid() {
+		return false
+	}
+	n := len(call.Args)
+	if n == 1 {
+		if tup, ok := info.TypeOf(call.Args[0]).(*types.Tuple); ok {
+			n = tup.Len()
+		}
+	}
+	shift := 0
+	if _, ok := rule.Go.CtxArg[method]; ok {
+		shift = 1
+	}
+	return ac.Accepts(n, shift)
 }
 
 // valueKind maps a rule value type to the Go basic kind of its default and

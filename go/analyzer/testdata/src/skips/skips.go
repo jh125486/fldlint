@@ -7,6 +7,7 @@ import (
 	"github.com/launchdarkly/go-sdk-common/v3/ldmigration"
 	"github.com/launchdarkly/go-sdk-common/v3/ldvalue"
 	"github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/launchdarkly/go-server-sdk/v7/interfaces/flagstate"
 	"github.com/open-feature/go-sdk/openfeature"
 )
 
@@ -22,6 +23,14 @@ func RuleLevel(userKey string) {
 	_, _ = ld.IntVariation("int", ldcontext.New(userKey), 1)                        // want `Return/default type differs between SDKs \[skip: type-mismatch\]`
 	_, _ = ld.JSONVariation("json", ldcontext.New(userKey), ldvalue.Null())         // want `Return/default type differs between SDKs \[skip: type-mismatch\]`
 	_, _, _ = ld.MigrationVariation("mig", ldcontext.New(userKey), ldmigration.Off) // want `Return/default type differs between SDKs \[skip: type-mismatch\]`
+}
+
+// A spread argument never matches an SDK signature, whatever the rule: no
+// finding, like the JS engine. Plain variadic options are reported.
+func Variadic(userKey string, opts ...flagstate.Option) {
+	c := ldcontext.New(userKey)
+	_ = ld.AllFlagsState(c, opts...)
+	_ = ld.AllFlagsState(c, flagstate.Option(nil), flagstate.Option(nil)) // want `Bulk evaluation; migrate manually \[skip: bulk\]`
 }
 
 func DynamicKey(userKey, suffix string) {
