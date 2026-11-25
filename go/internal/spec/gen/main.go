@@ -3,6 +3,7 @@
 package main
 
 import (
+	"errors"
 	"flag"
 	"fmt"
 	"os"
@@ -13,10 +14,29 @@ import (
 
 const stubSpec = "internal/spec/testdata/spec.json"
 
+// usageError marks a usage or configuration error (bad flag, missing explicit
+// -spec). It exits 2, like the JS tools and ESLint (ADR 004); other failures exit 1.
+type usageError struct{ err error }
+
+func (e *usageError) Error() string { return e.err.Error() }
+func (e *usageError) Unwrap() error { return e.err }
+
+func exitCode(err error) int {
+	var u *usageError
+	switch {
+	case err == nil:
+		return 0
+	case errors.As(err, &u):
+		return 2
+	default:
+		return 1
+	}
+}
+
 func main() {
 	if err := run(os.Args[1:]); err != nil {
 		fmt.Fprintln(os.Stderr, "gen:", err)
-		os.Exit(1)
+		os.Exit(exitCode(err))
 	}
 }
 
@@ -26,7 +46,7 @@ func run(args []string) error {
 	out := fs.String("out", "internal/spec/rules_gen.go", "Go output file")
 	javaOut := fs.String("java-out", "../java/src/main/java/io/github/jh125486/fldlint/spec/RulesGen.java", "Java output file; empty skips it (it is also skipped when the stub spec is used)")
 	if err := fs.Parse(args); err != nil {
-		return err
+		return &usageError{err}
 	}
 	explicit := false
 	fs.Visit(func(f *flag.Flag) {
@@ -38,7 +58,7 @@ func run(args []string) error {
 	usingStub := false
 	if _, err := os.Stat(path); err != nil {
 		if explicit {
-			return fmt.Errorf("-spec %q: %w", *root, err)
+			return &usageError{fmt.Errorf("-spec %q: %w", *root, err)}
 		}
 		fmt.Fprintf(os.Stderr, "gen: %s not found, using stub %s\n", path, stubSpec)
 		path = stubSpec

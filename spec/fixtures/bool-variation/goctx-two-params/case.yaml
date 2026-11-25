@@ -1,0 +1,6 @@
+id: goctx-two-params
+rule: bool-variation
+tags: [goctx]
+description: With two context.Context parameters in scope none is provably the right one, so a plain BoolVariation falls back to context.TODO().
+expect:
+  go: {diagnostics: [{line: 16, col: 11, ruleId: bool-variation}], output: true}

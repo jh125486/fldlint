@@ -200,7 +200,7 @@ block scalar is a string.
 - `expect.<lang>` is only allowed when the rule binds that language
   (`languages.<lang>` exists).
 - An explicit spec root (`--spec-root` in JS, `-spec` in the Go tools, `-Dfldlint.specRoot` in the Java harness) that is missing or
-  invalid is a **hard error**, never a silent fallback to the stub. The stub
+  invalid is a **hard error** (a usage error: exit 2 in the JS and Go spec tools), never a silent fallback to the stub. The stub
   fallback applies only when no spec root is given at all.
 
 ## Required checks (JS loader)

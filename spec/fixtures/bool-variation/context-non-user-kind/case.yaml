@@ -1,0 +1,6 @@
+id: context-non-user-kind
+rule: bool-variation
+tags: [context-unproven]
+description: A context literal whose kind is not "user" would be reinterpreted as a user, so the call is skipped as context-unproven.
+expect:
+  js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation, skip: context-unproven}], output: false}
