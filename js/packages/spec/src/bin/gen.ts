@@ -4,9 +4,16 @@ import { fileURLToPath } from "node:url";
 import { EmitError, emitSpecJson } from "../emit.js";
 import { generateRulesTs, SPEC_JSON } from "../gen.js";
 import { loadRules } from "../load.js";
-import { resolveSpecRoot } from "../specRoot.js";
+import { resolveSpecRoot, SpecRootError } from "../specRoot.js";
 
-const root = resolveSpecRoot();
+let root: string;
+try {
+  root = resolveSpecRoot();
+} catch (e) {
+  if (!(e instanceof SpecRootError)) throw e;
+  console.error(`gen: error: ${e.message}`);
+  process.exit(2);
+}
 
 // Validate and render everything in memory first, then write: a failure
 // anywhere leaves no partially updated output.

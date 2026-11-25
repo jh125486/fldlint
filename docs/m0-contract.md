@@ -330,8 +330,12 @@ job, `actions/setup-go` runs BEFORE `github/codeql-action/init`.
 
 ### Loaders
 - An explicit `-spec` (Go) / `--spec-root` (JS) that is missing or invalid is a
-  hard error, never a silent fallback to the stub. The stub fallback only applies
-  when no spec root is given at all.
+  hard error, never a silent fallback to the stub. A root that cannot be
+  resolved (missing, or lacking the files the tool needs: `rules.yaml` and the
+  schemas in JS, `generated/spec.json` in Go) is a usage error and exits 2 in
+  both languages. A root that resolves but holds an invalid spec is a
+  validation or load failure and exits 1. The stub fallback only applies when
+  no spec root is given at all.
 - YAML scalar typing is pinned by the "fldlint YAML subset" in
   [validation-parity.md](../spec/contracts/validation-parity.md#fldlint-yaml-subset).
 
