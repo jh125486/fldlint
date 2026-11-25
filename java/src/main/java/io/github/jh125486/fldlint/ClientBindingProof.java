@@ -36,6 +36,9 @@ final class ClientBindingProof {
     final boolean finalModifier;
     final boolean hasInitializerOrIsParam;
 
+    /** In scope for shadowing, but never a binding (not yet initialized, or not yet declared). */
+    boolean noCandidate;
+
     Decl(
         String name,
         J.Identifier ident,
@@ -75,20 +78,43 @@ final class ClientBindingProof {
       boolean crossesLambda = false;
       if (v instanceof J.Block) {
         J.Block block = (J.Block) v;
-        boolean classBody =
-            (parentValue instanceof J.ClassDeclaration
-                    && block.equals(((J.ClassDeclaration) parentValue).getBody()))
-                || (parentValue instanceof J.NewClass
-                    && block.equals(((J.NewClass) parentValue).getBody()));
-        if (classBody) {
+        if (isClassBody(block, parentValue)) {
           boolean isInterface =
               parentValue instanceof J.ClassDeclaration
                   && ((J.ClassDeclaration) parentValue).getKind()
                       == J.ClassDeclaration.Kind.Type.Interface;
           staticSoFar |= memberIsStatic(child);
-          for (org.openrewrite.java.tree.Statement s : block.getStatements()) {
-            if (s instanceof J.VariableDeclarations) {
-              addVariables(level, (J.VariableDeclarations) s, true, isInterface, captured, false);
+          List<org.openrewrite.java.tree.Statement> members = block.getStatements();
+          int memberIdx = child == null ? -1 : indexOf(members, child);
+          // A field initializer or an initializer block may not name a field declared at or after
+          // it by its simple name (JLS 8.3.3).
+          boolean forwardRestricted =
+              child instanceof J.VariableDeclarations || child instanceof J.Block;
+          for (int i = 0; i < members.size(); i++) {
+            if (members.get(i) instanceof J.VariableDeclarations) {
+              int before = level.size();
+              addVariables(
+                  level,
+                  (J.VariableDeclarations) members.get(i),
+                  true,
+                  isInterface,
+                  captured,
+                  false);
+              if (forwardRestricted && i >= memberIdx) {
+                markNoCandidate(level, before);
+              }
+            }
+          }
+          if (parentValue instanceof J.ClassDeclaration
+              && ((J.ClassDeclaration) parentValue).getPrimaryConstructor() != null) {
+            // Record components are fields the visitor does not list as members: shadow only.
+            for (org.openrewrite.java.tree.Statement rc :
+                ((J.ClassDeclaration) parentValue).getPrimaryConstructor()) {
+              if (rc instanceof J.VariableDeclarations) {
+                int before = level.size();
+                addVariables(level, (J.VariableDeclarations) rc, true, false, captured, false);
+                markNoCandidate(level, before);
+              }
             }
           }
           crossesClass = true;
@@ -96,12 +122,29 @@ final class ClientBindingProof {
           List<org.openrewrite.java.tree.Statement> statements = block.getStatements();
           int idx = child == null ? -1 : indexOf(statements, child);
           for (int i = 0; i < idx; i++) {
-            if (statements.get(i) instanceof J.VariableDeclarations) {
-              addVariables(
-                  level, (J.VariableDeclarations) statements.get(i), false, false, captured, false);
-            }
+            addLocalStatement(level, statements.get(i), captured);
           }
         }
+      } else if (v instanceof J.Case) {
+        // A classic switch case group is not a block, but its statements share the switch scope.
+        List<org.openrewrite.java.tree.Statement> statements = ((J.Case) v).getStatements();
+        int idx = child == null ? -1 : indexOf(statements, child);
+        for (int i = 0; i < idx; i++) {
+          addLocalStatement(level, statements.get(i), captured);
+        }
+      } else if (v instanceof J.VariableDeclarations
+          && child instanceof J.VariableDeclarations.NamedVariable
+          && !(parentValue instanceof J.Block
+              && isClassBody((J.Block) parentValue, grandValue(parent)))) {
+        // A local is in scope inside its own initializer, and so are the declarators before it.
+        J.VariableDeclarations vd = (J.VariableDeclarations) v;
+        int before = level.size();
+        addVariables(level, vd, false, false, captured, false);
+        int upTo = indexOfVariable(vd, child);
+        while (level.size() > before + upTo + 1) {
+          level.remove(level.size() - 1);
+        }
+        markNoCandidate(level, before);
       } else if (v instanceof J.MethodDeclaration) {
         for (org.openrewrite.java.tree.Statement p : ((J.MethodDeclaration) v).getParameters()) {
           if (p instanceof J.VariableDeclarations) {
@@ -128,19 +171,32 @@ final class ClientBindingProof {
         }
         crossesLambda = true;
       } else if (v instanceof J.ForLoop) {
+        int before = level.size();
         for (org.openrewrite.java.tree.Statement s : ((J.ForLoop) v).getControl().getInit()) {
           if (s instanceof J.VariableDeclarations) {
             addVariables(level, (J.VariableDeclarations) s, false, false, captured, false);
           }
         }
+        if (!isBody(child, ((J.ForLoop) v).getBody())) {
+          markNoCandidate(level, before);
+        }
       } else if (v instanceof J.ForEachLoop) {
         org.openrewrite.java.tree.Statement var = ((J.ForEachLoop) v).getControl().getVariable();
         if (var instanceof J.VariableDeclarations) {
           addVariables(level, (J.VariableDeclarations) var, false, false, captured, true);
+          if (!isBody(child, ((J.ForEachLoop) v).getBody())) {
+            markNoCandidate(level, 0);
+          }
         }
       } else if (v instanceof J.Try) {
-        if (((J.Try) v).getResources() != null) {
-          for (J.Try.Resource r : ((J.Try) v).getResources()) {
+        // Resources are in scope in the body and in later resources, never in catch or finally.
+        J.Try tr = (J.Try) v;
+        List<J.Try.Resource> resources = tr.getResources();
+        if (resources != null && (isBody(child, tr.getBody()) || child instanceof J.Try.Resource)) {
+          for (J.Try.Resource r : resources) {
+            if (child instanceof J.Try.Resource && r.equals(child)) {
+              break;
+            }
             if (r.getVariableDeclarations() instanceof J.VariableDeclarations) {
               addVariables(
                   level,
@@ -160,7 +216,7 @@ final class ClientBindingProof {
       if (!level.isEmpty()) {
         List<Decl> accessible = new ArrayList<Decl>();
         for (Decl d : level) {
-          if (d.client && (!d.field || !staticSoFar || d.staticField)) {
+          if (d.client && !d.noCandidate && (!d.field || !staticSoFar || d.staticField)) {
             accessible.add(d);
           }
         }
@@ -204,6 +260,52 @@ final class ClientBindingProof {
       cur = cur.getParent();
     }
     return cur;
+  }
+
+  private static boolean isClassBody(J.Block block, Object parentValue) {
+    return (parentValue instanceof J.ClassDeclaration
+            && block.equals(((J.ClassDeclaration) parentValue).getBody()))
+        || (parentValue instanceof J.NewClass
+            && block.equals(((J.NewClass) parentValue).getBody()));
+  }
+
+  private static Object grandValue(Cursor parent) {
+    Cursor g = parent == null ? null : treeCursor(parent.getParent());
+    return g == null ? null : g.getValue();
+  }
+
+  private static boolean isBody(Object child, Object body) {
+    return child != null && child.equals(body);
+  }
+
+  private static void markNoCandidate(List<Decl> level, int from) {
+    for (int i = from; i < level.size(); i++) {
+      level.get(i).noCandidate = true;
+    }
+  }
+
+  private static int indexOfVariable(J.VariableDeclarations vd, Object named) {
+    List<J.VariableDeclarations.NamedVariable> vars = vd.getVariables();
+    for (int i = 0; i < vars.size(); i++) {
+      if (vars.get(i).equals(named)) {
+        return i;
+      }
+    }
+    return vars.size() - 1;
+  }
+
+  /** A statement that may declare locals: a declaration, or a case group of a classic switch. */
+  private static void addLocalStatement(
+      List<Decl> level, org.openrewrite.java.tree.Statement s, boolean captured) {
+    if (s instanceof J.VariableDeclarations) {
+      addVariables(level, (J.VariableDeclarations) s, false, false, captured, false);
+    } else if (s instanceof J.Case) {
+      for (org.openrewrite.java.tree.Statement inner : ((J.Case) s).getStatements()) {
+        if (inner instanceof J.VariableDeclarations) {
+          addVariables(level, (J.VariableDeclarations) inner, false, false, captured, false);
+        }
+      }
+    }
   }
 
   private static int indexOf(List<org.openrewrite.java.tree.Statement> statements, Object child) {

@@ -124,11 +124,41 @@ final class LaunchDarklyCall {
     site.defaultProven(defaultMatches(rule.getValueType(), defaultArg.getType()));
 
     J.Identifier client = ClientBindingProof.prove(cursor);
-    site.clientBound(client != null);
+    site.clientBound(client != null && !importedNameClash(cursor));
     site.receiverPure(isPure(m.getSelect()));
     site.commentsUnhomed(hasUnhomedComment(m, cursor, contextArg));
 
     return new LaunchDarklyCall(rule, site.build(), key, defaultArg, contextKey, client);
+  }
+
+  /**
+   * The rewrite writes {@code new ImmutableContext(..)} and imports {@code
+   * dev.openfeature.sdk.ImmutableContext}. Another type of that simple name in the file (imported,
+   * or declared in it) would capture the name, so the call is not rewritten. A same-package type in
+   * another file is not visible here.
+   */
+  private static boolean importedNameClash(Cursor cursor) {
+    J.CompilationUnit cu = cursor.firstEnclosing(J.CompilationUnit.class);
+    if (cu == null) {
+      return true;
+    }
+    for (J.Import imp : cu.getImports()) {
+      if ("ImmutableContext".equals(imp.getQualid().getSimpleName())
+          && !"dev.openfeature.sdk.ImmutableContext".equals(imp.getTypeName())) {
+        return true;
+      }
+    }
+    final boolean[] declared = {false};
+    new org.openrewrite.java.JavaIsoVisitor<Integer>() {
+      @Override
+      public J.ClassDeclaration visitClassDeclaration(J.ClassDeclaration cd, Integer p) {
+        if ("ImmutableContext".equals(cd.getSimpleName())) {
+          declared[0] = true;
+        }
+        return super.visitClassDeclaration(cd, p);
+      }
+    }.visit(cu, 0);
+    return declared[0];
   }
 
   private static boolean isLdUserParameter(J.MethodInvocation m, int index) {

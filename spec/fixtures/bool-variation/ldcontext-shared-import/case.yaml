@@ -4,3 +4,4 @@ tags: [shared-import]
 description: Two rewritable calls share the ldcontext import; each fix alone leaves the import in use by the other call, and only the last remaining use removes it (batch drivers clean the rest).
 expect:
   go: {diagnostics: [{line: 15, col: 11, ruleId: bool-variation}, {line: 20, col: 11, ruleId: bool-variation}], output: true}
+  java: {diagnostics: [{line: 18, col: 16, ruleId: bool-variation}], output: true}

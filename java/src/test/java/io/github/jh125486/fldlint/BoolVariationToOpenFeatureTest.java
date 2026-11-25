@@ -238,4 +238,182 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
     assertEquals("Flag key is not a static string [skip: dynamic-key]", rows.get(2).message);
     assertEquals(Fingerprint.of("bool-variation", path, null, 0), rows.get(2).fingerprint);
   }
+
+  private String skipOf(String... bodyLines) {
+    return find(body(bodyLines)).get(0).skip;
+  }
+
+  /** The expected output: the OpenFeature import added and the unused LDContext import dropped. */
+  private static String migrated(String source) {
+    return source
+        .replace(
+            "import dev.openfeature.sdk.Client;\n",
+            "import dev.openfeature.sdk.Client;\nimport dev.openfeature.sdk.ImmutableContext;\n")
+        .replace("import com.launchdarkly.sdk.LDContext;\n", "");
+  }
+
+  @Test
+  void switchCaseGroupLocalShadowsTheField() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    boolean f(LDClient ld, String u, int n) {",
+            "        switch (n) {",
+            "            case 1:",
+            "                String client = \"x\";",
+            "                return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "            default:",
+            "                return false;",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void switchLocalOfAnEarlierGroupIsStillInScope() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    boolean f(LDClient ld, String u, int n) {",
+            "        switch (n) {",
+            "            case 1:",
+            "                String client = \"x\";",
+            "                break;",
+            "            default:",
+            "                return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        }",
+            "        return false;",
+            "    }"));
+  }
+
+  @Test
+  void switchCaseGroupClientIsTheInnermostBinding() {
+    String before =
+        body(
+            "    boolean f(LDClient ld, String u, int n) {",
+            "        switch (n) {",
+            "            case 1:",
+            "                Client other = OpenFeatureAPI.getInstance().getClient(\"o\");",
+            "                return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "            default:",
+            "                return false;",
+            "        }",
+            "    }");
+    rewriteRun(
+        BoolVariationToOpenFeatureTest::migrate,
+        java(
+            before,
+            migrated(before)
+                .replace(
+                    "return ld.boolVariation(\"k\", LDContext.create(u), false);",
+                    "return other.getBooleanValue(\"k\", false, new ImmutableContext(u)).booleanValue();")));
+  }
+
+  @Test
+  void localIsInScopeInsideItsOwnInitializer() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    boolean f(LDClient ld, String u) {",
+            "        boolean client = ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        return client;",
+            "    }"));
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    boolean f(LDClient ld, String u) {",
+            "        boolean a = true, client = ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        return a && client;",
+            "    }"));
+  }
+
+  @Test
+  void tryResourcesAreInScopeInTheBodyButNotInCatch() {
+    String[] head = {
+      "    boolean f(LDClient ld, String u) {",
+      "        try (java.io.StringReader client = new java.io.StringReader(\"x\")) {"
+    };
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            head[0],
+            head[1],
+            "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        } catch (RuntimeException e) {",
+            "            return false;",
+            "        }",
+            "    }"));
+    assertEquals(
+        "",
+        skipOf(
+            head[0],
+            head[1],
+            "            return true;",
+            "        } catch (RuntimeException e) {",
+            "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        } finally {",
+            "            ld.boolVariation(\"j\", LDContext.create(u), false);",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void fieldDeclaredAfterAFieldInitializerCallIsAForwardReference() {
+    String ld = "    private final LDClient ld = null;";
+    String call =
+        "    private final boolean on = ld.boolVariation(\"k\", LDContext.create(\"u\"), false);";
+    String late = "    private final Client late = OpenFeatureAPI.getInstance().getClient(\"l\");";
+    String early =
+        "    private final Client early = OpenFeatureAPI.getInstance().getClient(\"e\");";
+    // The class has the field `client` from the header; a second client makes the proof ambiguous
+    // unless one of them is not a usable binding at the call.
+    assertEquals("", find(body(ld, call)).get(0).skip);
+    assertEquals("unbound-client", find(body(ld, early, call)).get(0).skip);
+    assertEquals("", find(body(ld, call, late)).get(0).skip);
+  }
+
+  @Test
+  void recordComponentShadowsAnOuterClient() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    static final Client shared = OpenFeatureAPI.getInstance().getClient(\"s\");",
+            "",
+            "    record R(String shared) {",
+            "        boolean f(LDClient ld, String u) {",
+            "            return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "        }",
+            "    }"));
+  }
+
+  @Test
+  void anotherTypeNamedImmutableContextBlocksTheRewrite() {
+    assertEquals(
+        "unbound-client",
+        skipOf(
+            "    static class ImmutableContext {}",
+            "",
+            "    boolean f(LDClient ld, String u) {",
+            "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "    }"));
+  }
+
+  @Test
+  void ldContextImportStaysWhileStillUsedElsewhere() {
+    String before =
+        body(
+            "    static final LDContext ANON = LDContext.create(\"anon\");",
+            "",
+            "    boolean f(LDClient ld, String u) {",
+            "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+            "    }");
+    String after =
+        before
+            .replace(
+                "import dev.openfeature.sdk.Client;\n",
+                "import dev.openfeature.sdk.Client;\nimport dev.openfeature.sdk.ImmutableContext;\n")
+            .replace(
+                "return ld.boolVariation(\"k\", LDContext.create(u), false);",
+                "return client.getBooleanValue(\"k\", false, new ImmutableContext(u)).booleanValue();");
+    rewriteRun(BoolVariationToOpenFeatureTest::migrate, java(before, after));
+  }
 }

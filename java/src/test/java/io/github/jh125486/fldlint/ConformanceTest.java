@@ -141,7 +141,7 @@ class ConformanceTest implements RewriteTest {
       assertEquals(want.get("col").asInt(), row.col, path + ": col of diagnostic " + i);
       assertEquals(want.get("ruleId").asText(), row.ruleId, path + ": ruleId of diagnostic " + i);
       assertEquals(want.path("skip").asText(""), row.skip, path + ": skip of diagnostic " + i);
-      assertEquals("", row.noFix, path + ": no fixture expects no-fix");
+      assertEquals(want.path("noFix").asText(""), row.noFix, path + ": noFix of diagnostic " + i);
     }
   }
 

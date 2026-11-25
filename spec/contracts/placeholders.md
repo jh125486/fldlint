@@ -80,6 +80,16 @@ Identical in every language; the first matching step decides the call:
 
 Rationale and the receiver/stranded-local rules: [ADR 010](../../docs/adr/010-planner-step-order-and-receiver-removal.md).
 
+## Argument evaluation order
+
+The Go and Java (and JS) templates reorder arguments: the LaunchDarkly call
+evaluates the key, then the context (`LDContext.create(..)`, `ldcontext.New(..)`),
+then the default, while the OpenFeature call evaluates the key, the default and then
+the context. A side effect in the default or in the context key expression
+therefore runs in a different order after a rewrite. This is a known, accepted
+reordering, the same in every engine; the engines do not try to prove the
+expressions pure.
+
 ## Static key
 
 A flag key is static only if it is a string literal, or (JS/TS) a template
@@ -105,7 +115,18 @@ The step order above is the Java order too, with these Java facts:
   `dev.openfeature.sdk.Client` must declare exactly one; an inner declaration
   of the same name (any type, a pattern binding included) shadows it; an
   instance field is not accessible from a static context; a captured local
-  must be effectively final. Inherited fields are not looked at.
+  must be effectively final. Inherited fields are not looked at. Scopes follow
+  the language: a local is in scope inside its own initializer (and so are the
+  declarators before it), classic `switch` case groups share the switch block's
+  scope, try-with-resources variables are in scope in the try body and later
+  resources only (not in `catch` or `finally`), a field is not usable by simple
+  name in an initializer at or before its own declaration (forward reference),
+  and record components shadow. A variable that is in scope but not yet usable
+  still shadows an outer client of the same name.
+- Name clash: the rewrite writes `new ImmutableContext(..)` and imports
+  `dev.openfeature.sdk.ImmutableContext`. If the file imports or declares
+  another type of that simple name, the call is `unbound-client` (a
+  same-package type in another file is not detected).
 - `receiver-unproven`: the receiver must be absent (implicit `this`), an
   identifier or a field-access chain of identifiers. Unused Java locals compile,
   so nothing is ever stranded (ADR 010 item 6).

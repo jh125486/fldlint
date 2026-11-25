@@ -67,6 +67,7 @@ export const CALL_SITE_SKIPS: readonly string[] = ["dynamic-key", "unbound-clien
 interface Diag {
   ruleId: string;
   skip?: string;
+  noFix?: string;
 }
 interface CaseShape {
   id?: string;
@@ -123,6 +124,12 @@ export function validateCaseSemantics(rf: RulesFile, c: CaseFile): string[] {
       const at = `expect.${lang}.diagnostics[${i}]`;
       if (diag.ruleId !== d.rule) err(`${at} ruleId "${diag.ruleId}" must equal the case rule "${d.rule}"`);
       if (diag.skip !== undefined && exp.output) err(`${at} has skip "${diag.skip}" but output is true`);
+      if (diag.noFix !== undefined) {
+        if (exp.output) err(`${at} has noFix "${diag.noFix}" but output is true`);
+        if (diag.skip !== undefined) err(`${at} has both skip "${diag.skip}" and noFix "${diag.noFix}"`);
+        if (rule?.skip !== undefined) err(`${at} has noFix but rule "${rule.id}" is report-only`);
+        return;
+      }
       if (!rule) return;
       if (rule.skip !== undefined) {
         if (diag.skip !== rule.skip) {
