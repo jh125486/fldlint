@@ -102,11 +102,19 @@ func argCountOK(info *types.Info, call *ast.CallExpr, rule spec.Rule, method str
 	if _, ok := rule.Go.CtxArg[method]; ok {
 		shift = 1
 	}
-	if call.Ellipsis.IsValid() {
-		return ac.Max == 0 && len(call.Args)-1 >= ac.Min+shift
+	// A method expression, (*Client).M(c, args...), passes the receiver as
+	// the first argument; it is not one of the method's own arguments.
+	recv := 0
+	if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
+		if s := info.Selections[sel]; s != nil && s.Kind() == types.MethodExpr {
+			recv = 1
+		}
 	}
-	n := len(call.Args)
-	if n == 1 {
+	if call.Ellipsis.IsValid() {
+		return ac.Max == 0 && len(call.Args)-1-recv >= ac.Min+shift
+	}
+	n := len(call.Args) - recv
+	if n == 1 && recv == 0 {
 		if tup, ok := info.TypeOf(call.Args[0]).(*types.Tuple); ok {
 			n = tup.Len()
 		}

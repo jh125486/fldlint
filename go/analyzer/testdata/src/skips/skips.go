@@ -29,8 +29,14 @@ func RuleLevel(userKey string) {
 // may be empty, so only the arguments before it must reach the minimum.
 func Variadic(userKey string, opts ...flagstate.Option) {
 	c := ldcontext.New(userKey)
-	_ = ld.AllFlagsState(c, opts...) // want `Bulk evaluation; migrate manually \[skip: bulk\]`
+	_ = ld.AllFlagsState(c, opts...)                                      // want `Bulk evaluation; migrate manually \[skip: bulk\]`
 	_ = ld.AllFlagsState(c, flagstate.Option(nil), flagstate.Option(nil)) // want `Bulk evaluation; migrate manually \[skip: bulk\]`
+}
+
+// A method expression passes the receiver as its first argument; it does not
+// count toward the method's own arity.
+func MethodExpr(userKey string) {
+	_, _, _ = (*ldclient.LDClient).BoolVariationDetail(ld, "detail", ldcontext.New(userKey), false) // want `Detail call; reason/variation metadata has no 1:1 rewrite \[skip: detail\]`
 }
 
 func DynamicKey(userKey, suffix string) {
