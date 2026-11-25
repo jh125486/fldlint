@@ -1,0 +1,11 @@
+---
+type: specs.openrewrite.org/v1beta/recipe
+name: io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature
+displayName: Migrate LaunchDarkly flag calls to OpenFeature
+description: >-
+  Rewrites the LaunchDarkly Java SDK flag calls that can be proven safe to the OpenFeature SDK.
+  Calls it cannot prove are left alone. Run io.github.jh125486.fldlint.FindLaunchDarklyUsage with
+  dryRun to see them; that recipe is not listed here because run would write its markers into
+  source (ADR 009 D5).
+recipeList:
+  - io.github.jh125486.fldlint.BoolVariationToOpenFeature

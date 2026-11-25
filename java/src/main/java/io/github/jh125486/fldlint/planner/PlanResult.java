@@ -1,77 +1,55 @@
 package io.github.jh125486.fldlint.planner;
 
 /**
- * The planner outcome for one call site: a rewrite (with an edit) or a skip (with a category),
- * mirroring go/internal/planner and the JS planner.
+ * The planner outcome for one call site: rewrite, skip (with a call-site category) or unfixable,
+ * mirroring go/internal/planner and the JS planner. Java edits are made by the recipe with {@code
+ * JavaTemplate}, so a rewrite carries no text edit.
  */
 public final class PlanResult {
   /** Outcome class. */
   public enum Kind {
     REWRITE,
-    SKIP
-  }
-
-  /** A text replacement of the half-open range [start, end). */
-  public static final class Edit {
-    private final int start;
-    private final int end;
-    private final String text;
-
-    public Edit(int start, int end, String text) {
-      this.start = start;
-      this.end = end;
-      this.text = text;
-    }
-
-    public int getStart() {
-      return start;
-    }
-
-    public int getEnd() {
-      return end;
-    }
-
-    public String getText() {
-      return text;
-    }
+    SKIP,
+    /**
+     * Rewritable, but a comment inside the call has no home in the rewrite: reported with no fix
+     * (issue #31). Not a skip category.
+     */
+    UNFIXABLE
   }
 
   private final Kind kind;
   private final String category;
   private final String ruleId;
-  private final Edit edit;
 
-  private PlanResult(Kind kind, String category, String ruleId, Edit edit) {
+  private PlanResult(Kind kind, String category, String ruleId) {
     this.kind = kind;
     this.category = category;
     this.ruleId = ruleId;
-    this.edit = edit;
   }
 
-  public static PlanResult rewrite(String ruleId, Edit edit) {
-    return new PlanResult(Kind.REWRITE, "", ruleId, edit);
+  public static PlanResult rewrite(String ruleId) {
+    return new PlanResult(Kind.REWRITE, "", ruleId);
   }
 
   public static PlanResult skip(String category, String ruleId) {
-    return new PlanResult(Kind.SKIP, category, ruleId, null);
+    return new PlanResult(Kind.SKIP, category, ruleId);
+  }
+
+  public static PlanResult unfixable(String ruleId) {
+    return new PlanResult(Kind.UNFIXABLE, "", ruleId);
   }
 
   public Kind getKind() {
     return kind;
   }
 
-  /** The skip category; empty for a rewrite. */
+  /** The skip category; empty unless the kind is {@link Kind#SKIP}. */
   public String getCategory() {
     return category;
   }
 
-  /** The matched rule id, or empty when the method is not bound to a rule. */
+  /** The matched rule id. */
   public String getRuleId() {
     return ruleId;
-  }
-
-  /** The edit; null for a skip. */
-  public Edit getEdit() {
-    return edit;
   }
 }
