@@ -3,8 +3,9 @@
 Java support is milestone M3. The Maven build, the generated rules table
 (`src/main/java/io/github/jh125486/fldlint/spec/RulesGen.java`, written by the Go
 generator, drift-checked) and the JUnit conformance harness exist (#9). Issue #10
-adds the first rule, `bool-variation`: the shared `Planner`, the detector, the
-OpenFeature client binding proof and two recipes. Build and test with
+added the shared `Planner`, the detector, the OpenFeature client binding proof and
+the first rule, `bool-variation`; issue #11 added the remaining Java rules (below).
+Build and test with
 `./mvnw -B verify` (JDK 21) or `task java:test` from the repository root.
 
 What exists (package `io.github.jh125486.fldlint`):
