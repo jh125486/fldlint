@@ -36,10 +36,11 @@ tasks:
       - task: parity
 
   check:go:
-    desc: Go lint and race tests
+    desc: Go lint and race tests (including the golangci plugin module)
     cmds:
       - task: go:lint
       - task: go:test
+      - task: go:plugin-test
 
   check:js:
     desc: JS lint, tests and the @types/node floor
@@ -137,6 +138,32 @@ tasks:
     desc: Run golangci-lint (pinned v2.15.0 via go run)
     cmds:
       - cd go && go run {{.GOLANGCI_LINT}} run ./...
+
+  go:plugin-test:
+    desc: Vet and test the golangci-lint module plugin (separate module go/golangci)
+    cmds:
+      - cd go/golangci && go vet ./... && go test -race ./...
+
+  go:plugin-smoke:
+    desc: Build a custom golangci-lint (v2.15.0) with the plugin, run it on a fixture, check findings and --fix (needs network and git)
+    cmds:
+      - |
+        set -eu
+        root=$PWD
+        work=$(mktemp -d)
+        trap 'rm -rf "$work"' EXIT
+        cp -R go/golangci/testdata/. "$work/testdata"
+        # `path: ..` in .custom-gcl.yml is relative to the config, so build in place.
+        (cd go/golangci/testdata && go run {{.GOLANGCI_LINT}} custom -v && mv custom-gcl "$work/custom-gcl")
+        cd "$work/testdata/smoke"
+        rc=0
+        out=$("$work/custom-gcl" run -c ../.golangci.yml ./... 2>&1) || rc=$?
+        echo "$out"
+        [ "$rc" -eq 1 ] || { echo "go:plugin-smoke: expected exit 1 on findings, got $rc" >&2; exit 1; }
+        echo "$out" | grep -q '(fldlint)' || { echo "go:plugin-smoke: no fldlint finding" >&2; exit 1; }
+        "$work/custom-gcl" run -c ../.golangci.yml --fix ./...
+        grep -q 'client.BooleanValue(' flags/flags.go || { echo "go:plugin-smoke: --fix did not rewrite the call" >&2; exit 1; }
+        cd "$root"
 
   java:test:
     desc: Run the Java build and tests (JDK 21; ./mvnw verify, includes the conformance harness; FLDLINT_SKIP_JAVA=1 skips)

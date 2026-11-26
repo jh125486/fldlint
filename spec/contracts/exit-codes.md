@@ -103,8 +103,27 @@ Consequences for the Go tools:
 Commands were run from a scratch module outside this repository; the
 throwaway code is not part of the repo.
 
-Unverified: behaviour under golangci-lint (plugin/module mode) and gopls, and
-anything on Go versions other than go1.27.4.
+### golangci-lint module plugin
+
+Observed with golangci-lint v2.15.0 (built with go1.27.0) and
+`github.com/golangci/plugin-module-register` v0.1.2, running go1.27.4
+darwin/arm64. `golangci-lint custom` built `custom-gcl` from
+`go/golangci/testdata/.custom-gcl.yml`; the sample is
+`go/golangci/testdata/smoke` (one rewritable `BoolVariation` call).
+
+| Command | Exit | Observed |
+|---------|------|----------|
+| `golangci-lint custom -v` | 0 | custom binary built (clones golangci-lint, needs network) |
+| `./custom-gcl run ./...` | **1** | `smoke/flags/flags.go:21:11: Migrate boolean flag "dark-mode" to OpenFeature (fldlint)`, source line, `1 issues: * fldlint: 1` |
+| `./custom-gcl run --fix ./...` | 0 | `0 issues.`; file rewritten (adds `"context"`, replaces the call with `client.BooleanValue(context.TODO(), ...)`, drops the unused `ldcontext` import) |
+| `./custom-gcl run ./...` after `--fix` | 0 | `0 issues.` |
+| `./custom-gcl run --output.json.path=stdout ./...` | 1 | JSON `Issues[]` with `SuggestedFixes` (byte-offset `TextEdits`) |
+
+So suggested fixes do apply under `golangci-lint run --fix`. golangci-lint
+reports every diagnostic as one severity and exits `1` on any finding (not
+`3`).
+
+Unverified: gopls, and anything on Go versions other than go1.27.4.
 
 ## Java (OpenRewrite, M3): placeholder
 

@@ -24,3 +24,7 @@ updates:
     directory: /go
     schedule:
       interval: weekly
+  - package-ecosystem: gomod
+    directory: /go/golangci
+    schedule:
+      interval: weekly

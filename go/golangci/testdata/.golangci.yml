@@ -1,0 +1,10 @@
+version: "2"
+linters:
+  default: none
+  enable:
+    - fldlint
+  settings:
+    custom:
+      fldlint:
+        type: module
+        description: Report LaunchDarkly Go SDK calls that can migrate to OpenFeature
