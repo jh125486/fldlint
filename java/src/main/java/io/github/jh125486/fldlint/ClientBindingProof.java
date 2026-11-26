@@ -291,6 +291,14 @@ final class ClientBindingProof {
       if (!level.isEmpty()) {
         List<Decl> accessible = new ArrayList<Decl>();
         for (Decl d : level) {
+          // A client that is in scope but not readable here (not yet declared, not yet
+          // assigned, still being initialized) makes the choice unprovable: giving up beats
+          // silently selecting another client.
+          if (d.client
+              && d.noCandidate
+              && (d.field ? !(staticSoFar || noInstanceFields) || d.staticField : !staticSoFar)) {
+            return null;
+          }
           // Past a static boundary only static fields are reachable: not instance fields, and not
           // the
           // locals and parameters of an enclosing method either.

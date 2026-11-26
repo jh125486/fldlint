@@ -368,7 +368,8 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
     // unless one of them is not a usable binding at the call.
     assertEquals("", find(body(ld, call)).get(0).skip);
     assertEquals("unbound-client", find(body(ld, early, call)).get(0).skip);
-    assertEquals("", find(body(ld, call, late)).get(0).skip);
+    // A client that cannot be read here still makes the choice unprovable.
+    assertEquals("unbound-client", find(body(ld, call, late)).get(0).skip);
   }
 
   @Test
@@ -741,5 +742,159 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
             "    }",
             "}");
     assertEquals("", find(source).get(0).skip);
+  }
+
+  @Test
+  void blankFinalClientBlocksTheChoiceEvenAfterItIsAssigned() {
+    assertEquals(
+        "unbound-client",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout {",
+                "    private final Client checkout;",
+                "    private final Client billing = OpenFeatureAPI.getInstance().getClient(\"b\");",
+                "",
+                "    Checkout(LDClient ld, String u) {",
+                "        checkout = OpenFeatureAPI.getInstance().getClient(\"c\");",
+                "        boolean b = ld.boolVariation(\"k\", LDContext.create(u), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
+
+  @Test
+  void explicitConstructorCallArgumentsMayUseStaticFields() {
+    assertEquals(
+        "",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout {",
+                "    static final Client shared = OpenFeatureAPI.getInstance().getClient(\"s\");",
+                "",
+                "    Checkout(boolean on) {}",
+                "",
+                "    Checkout(LDClient ld, String u) {",
+                "        this(ld.boolVariation(\"k\", LDContext.create(u), false));",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
+
+  @Test
+  void anonymousClassInitializerSeesAnEffectivelyFinalEnclosingLocal() {
+    assertEquals(
+        "",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout {",
+                "    void f(LDClient ld, String u) {",
+                "        Client local = OpenFeatureAPI.getInstance().getClient(\"l\");",
+                "        new Object() {",
+                "            {",
+                "                boolean b = ld.boolVariation(\"k\", LDContext.create(u), false);",
+                "            }",
+                "        };",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
+
+  @Test
+  void anonymousClassConstructorArgumentsDoNotSeeTheBodyMembers() {
+    assertEquals(
+        "unbound-client",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout {",
+                "    static class Base {",
+                "        Base(boolean on) {}",
+                "    }",
+                "",
+                "    void f(LDClient ld, String u) {",
+                "        new Base(ld.boolVariation(\"k\", LDContext.create(u), false)) {",
+                "            Client client = OpenFeatureAPI.getInstance().getClient(\"x\");",
+                "        };",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
+
+  @Test
+  void enumConstructorSeesItsInitializedInstanceField() {
+    assertEquals(
+        "",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public enum Checkout {",
+                "    A;",
+                "",
+                "    private static final LDClient LD = null;",
+                "    private final Client client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+                "",
+                "    Checkout() {",
+                "        boolean b = LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
+
+  @Test
+  void compactRecordConstructorComponentClientGivesUp() {
+    assertEquals(
+        "unbound-client",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout {",
+                "    record R(Client client) {",
+                "        R {",
+                "            boolean b = LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+                "        }",
+                "    }",
+                "",
+                "    static final LDClient LD = null;",
+                "}"))
+            .get(0)
+            .skip);
   }
 }
