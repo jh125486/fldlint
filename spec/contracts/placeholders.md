@@ -109,8 +109,20 @@ The step order above is the Java order too, with these Java facts:
   (static import allowed). The v6 `LDUser` overload is `context-unproven` too,
   but only after `dynamic-key`: the step order is the same for every call.
 - `default-type-unproven`: proven by static type, like Go. The argument's type
-  must be exactly `boolean` for `bool-variation`; a boxed `Boolean` is not
-  proven (the rewrite would unbox it and could throw on `null`).
+  must be exactly the primitive the rule's OpenFeature call boxes: `boolean`
+  (`bool-variation`), `double` (`number-variation`), `int` (`java-int-variation`)
+  or `String` (`string-variation`, where a `null` literal is also proven because
+  `getStringValue` accepts it). A boxed `Boolean`, `Double` or `Integer` is not
+  proven (the rewrite would unbox it and could throw on `null`), and neither is
+  a default of another numeric type: `doubleVariation("k", ctx, 1)` widens the
+  `int` literal to `double`, but `getDoubleValue(String, Double, ..)` does not
+  accept an `int`, so it is reported as `default-type-unproven` (fixture
+  `number-variation/java-int-default`).
+- Report-only rules (`*-detail`, `java-json-variation`, `migration-variation`,
+  `all-flags-state`) still need the receiver proof (an `LDClientInterface`) and
+  the binding's `argCount`, but nothing else: the rule's skip is reported and the
+  call is never rewritten. A method of the same name on an unrelated class is no
+  finding (fixture `bool-variation/java-unrelated-method`).
 - `unbound-client`: the innermost scope that declares an accessible
   `dev.openfeature.sdk.Client` must declare exactly one; an inner declaration
   of the same name (any type, a pattern binding included) shadows it; an

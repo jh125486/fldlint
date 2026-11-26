@@ -1,0 +1,6 @@
+id: java-null-default
+rule: string-variation
+tags: [java]
+description: A null default is a String; getStringValue accepts null, so the call is rewritten.
+expect:
+  java: {diagnostics: [{line: 12, col: 16, ruleId: string-variation}], output: true}

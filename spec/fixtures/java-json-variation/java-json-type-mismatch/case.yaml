@@ -1,0 +1,6 @@
+id: java-json-type-mismatch
+rule: java-json-variation
+tags: [java]
+description: Java jsonValueVariation takes and returns LDValue while OpenFeature getObjectValue uses Value, so the call is skipped as type-mismatch.
+expect:
+  java: {diagnostics: [{line: 9, col: 16, ruleId: java-json-variation, skip: type-mismatch}], output: false}

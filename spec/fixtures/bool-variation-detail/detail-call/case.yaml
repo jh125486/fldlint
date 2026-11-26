@@ -5,3 +5,4 @@ description: A detail call has no one-to-one rewrite and is reported as skipped 
 expect:
   js: {diagnostics: [{line: 8, col: 24, ruleId: bool-variation-detail, skip: detail}], output: false}
   go: {diagnostics: [{line: 14, col: 18, ruleId: bool-variation-detail, skip: detail}], output: false}
+  java: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation-detail, skip: detail}], output: false}

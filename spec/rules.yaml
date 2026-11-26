@@ -22,7 +22,10 @@
 # leading context.Context). `max` is omitted only for a variadic method (Go
 # AllFlagsState). Counts verified against @launchdarkly/js-server-sdk-common
 # 2.26.8 (LDClient.d.ts; JS variation/variationDetail/allFlagsState take an
-# optional trailing callback) and go-server-sdk v7.23.0 (ldclient.go).
+# optional trailing callback) and go-server-sdk v7.23.0 (ldclient.go) and
+# launchdarkly-java-server-sdk 7.18.1 (LDClientInterface via javap: every Java variation, detail
+# and migrationVariation method takes (String, LDContext, default); allFlagsState takes
+# (LDContext, FlagsStateOption...), variadic).
 #
 # `message` (rewriting rules only) is the diagnostic text for a rewritable
 # finding; the only placeholder allowed in it is {{key}}.
@@ -75,6 +78,9 @@ rules:
       go: {methods: [StringVariation, StringVariationCtx], ctxArg: {StringVariationCtx: 0},
            template: "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
            requires: [context-unproven]}
+      # A null default is a String and is proven (getStringValue accepts null).
+      java: {methods: [stringVariation], requires: [context-unproven, default-type-unproven],
+             template: "#{any(dev.openfeature.sdk.Client)}.getStringValue(#{key}, #{default}, #{context})"}
   - id: number-variation
     message: "Migrate number flag {{key}} to OpenFeature"
     valueType: number
@@ -89,6 +95,22 @@ rules:
       go: {methods: [Float64Variation, Float64VariationCtx], ctxArg: {Float64VariationCtx: 0},
            template: "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})",
            requires: [context-unproven]}
+      # LD doubleVariation returns double; the default must be exactly double (an int literal
+      # would not box to Double after the rewrite), and the result is unboxed (ADR 009 D8).
+      java: {methods: [doubleVariation], requires: [context-unproven, default-type-unproven],
+             template: "#{any(dev.openfeature.sdk.Client)}.getDoubleValue(#{key}, #{default}, #{context}).doubleValue()"}
+  # Separate from number-variation (JS numberVariation / Go Float64Variation) because Java has
+  # both intVariation and doubleVariation and one rule holds one valueType and one template.
+  - id: java-int-variation
+    message: "Migrate integer flag {{key}} to OpenFeature"
+    valueType: integer
+    risk: low
+    keyArg: 0
+    defaultArg: 2
+    contextArg: 1
+    languages:
+      java: {methods: [intVariation], requires: [context-unproven, default-type-unproven],
+             template: "#{any(dev.openfeature.sdk.Client)}.getIntegerValue(#{key}, #{default}, #{context}).intValue()"}
   - id: json-variation
     message: "Migrate JSON flag {{key}} to OpenFeature"
     valueType: object
@@ -119,6 +141,14 @@ rules:
     languages:
       go: {methods: [JSONVariation, JSONVariationCtx], ctxArg: {JSONVariationCtx: 0}, argCount: {min: 3, max: 3}}
     skip: type-mismatch
+  # Java jsonValueVariation takes/returns LDValue; OpenFeature getObjectValue uses Value.
+  - id: java-json-variation
+    valueType: object
+    risk: medium
+    keyArg: 0
+    languages:
+      java: {methods: [jsonValueVariation], argCount: {min: 3, max: 3}}
+    skip: type-mismatch
   # JS generic variation() returns any; the target typed method cannot be
   # chosen from the call alone.
   - id: variation
@@ -135,6 +165,7 @@ rules:
     languages:
       js: {methods: [migrationVariation], argCount: {min: 3, max: 3}}
       go: {methods: [MigrationVariation, MigrationVariationCtx], ctxArg: {MigrationVariationCtx: 0}, argCount: {min: 3, max: 3}}
+      java: {methods: [migrationVariation], argCount: {min: 3, max: 3}}
     skip: type-mismatch
 
   # ---- report-only: detail ----
@@ -144,6 +175,7 @@ rules:
     languages:
       js: {methods: [boolVariationDetail], argCount: {min: 3, max: 3}}
       go: {methods: [BoolVariationDetail, BoolVariationDetailCtx], ctxArg: {BoolVariationDetailCtx: 0}, argCount: {min: 3, max: 3}}
+      java: {methods: [boolVariationDetail], argCount: {min: 3, max: 3}}
     skip: detail
   - id: string-variation-detail
     risk: high
@@ -151,6 +183,7 @@ rules:
     languages:
       js: {methods: [stringVariationDetail], argCount: {min: 3, max: 3}}
       go: {methods: [StringVariationDetail, StringVariationDetailCtx], ctxArg: {StringVariationDetailCtx: 0}, argCount: {min: 3, max: 3}}
+      java: {methods: [stringVariationDetail], argCount: {min: 3, max: 3}}
     skip: detail
   - id: number-variation-detail
     risk: high
@@ -158,12 +191,14 @@ rules:
     languages:
       js: {methods: [numberVariationDetail], argCount: {min: 3, max: 3}}
       go: {methods: [Float64VariationDetail, Float64VariationDetailCtx], ctxArg: {Float64VariationDetailCtx: 0}, argCount: {min: 3, max: 3}}
+      java: {methods: [doubleVariationDetail], argCount: {min: 3, max: 3}}
     skip: detail
   - id: int-variation-detail
     risk: high
     keyArg: 0
     languages:
       go: {methods: [IntVariationDetail, IntVariationDetailCtx], ctxArg: {IntVariationDetailCtx: 0}, argCount: {min: 3, max: 3}}
+      java: {methods: [intVariationDetail], argCount: {min: 3, max: 3}}
     skip: detail
   - id: json-variation-detail
     risk: high
@@ -171,6 +206,7 @@ rules:
     languages:
       js: {methods: [jsonVariationDetail], argCount: {min: 3, max: 3}}
       go: {methods: [JSONVariationDetail, JSONVariationDetailCtx], ctxArg: {JSONVariationDetailCtx: 0}, argCount: {min: 3, max: 3}}
+      java: {methods: [jsonValueVariationDetail], argCount: {min: 3, max: 3}}
     skip: detail
   - id: variation-detail
     risk: high
@@ -185,4 +221,6 @@ rules:
     languages:
       js: {methods: [allFlagsState], argCount: {min: 1, max: 3}}
       go: {methods: [AllFlagsState], argCount: {min: 1}}
+      # allFlagsState(LDContext, FlagsStateOption...): variadic, so no max.
+      java: {methods: [allFlagsState], argCount: {min: 1}}
     skip: bulk

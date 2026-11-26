@@ -1,0 +1,6 @@
+id: java-int-static-key
+rule: java-int-variation
+tags: [java]
+description: A static integer flag is rewritten to getIntegerValue and unboxed with intValue to keep the primitive int.
+expect:
+  java: {diagnostics: [{line: 12, col: 16, ruleId: java-int-variation}], output: true}

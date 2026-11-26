@@ -42,7 +42,7 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task js:ts-next` | Non-required canary: typecheck and build with `typescript@latest` |
 | `task go:test` | Go tests with the race detector (`go test -race ./...` in `go/`) |
 | `task go:lint` | `golangci-lint` v2.15.0, pinned via `go run` |
-| `task java:test` | `cd java && ./mvnw -B verify`: compiles, runs the unit tests and the conformance harness (every case in `spec/generated/spec.json` is discovered; Java cases are pending until #10, the rest are not applicable) |
+| `task java:test` | `cd java && ./mvnw -B verify`: compiles, runs the unit tests and the conformance harness (every case in `spec/generated/spec.json` is discovered and every case with an `expect.java` runs; the rest are not applicable) |
 | `task java:lint` | Checks Java formatting (Spotless, google-java-format) and compiles main and test code with `-Xlint:all -Werror` plus Error Prone (Maven profile `lint`, builds into `java/target-lint`). Fix formatting with `cd java && ./mvnw spotless:apply`; `RulesGen.java` is generated and excluded (ADR 012) |
 | `task workflows:lint` | actionlint v1.7.12 (`go run`) and zizmor 1.33.1 (`uvx`, needs [uv](https://docs.astral.sh/uv/)) on `.github/workflows`; run by the `workflows` CI job, not part of `task check` |
 | `task lint` | `js:lint`, `go:lint` and `java:lint` |
@@ -124,7 +124,8 @@ amendments noted in the ADR index are the one exception).
   ([validation-parity.md](spec/contracts/validation-parity.md),
   [ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)).
 - Shape tags are mandatory for `bool-variation` only; every rewriting rule
-  needs at least one rewrite case for each language that has a template
+  needs at least one rewrite case for each language that has a template (js,
+  go and java; `task spec:tags` enforces it, the Java lift is #11)
   ([ADR 007](docs/adr/007-shape-tag-coverage-reference-rule-only.md)).
 - Positions are 1-based, with `col` in UTF-16 code units
   ([output-format.md](spec/contracts/output-format.md#positions)).

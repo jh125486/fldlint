@@ -15,7 +15,10 @@ final class OpenFeatureStubs {
         + " public ImmutableContext(String targetingKey) {} }",
     "package dev.openfeature.sdk;"
         + " public interface Client {"
-        + " Boolean getBooleanValue(String key, Boolean defaultValue, EvaluationContext ctx); }"
+        + " Boolean getBooleanValue(String key, Boolean defaultValue, EvaluationContext ctx);"
+        + " String getStringValue(String key, String defaultValue, EvaluationContext ctx);"
+        + " Double getDoubleValue(String key, Double defaultValue, EvaluationContext ctx);"
+        + " Integer getIntegerValue(String key, Integer defaultValue, EvaluationContext ctx); }"
   };
 
   private OpenFeatureStubs() {}

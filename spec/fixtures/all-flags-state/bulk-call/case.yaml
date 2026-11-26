@@ -5,3 +5,4 @@ description: A bulk all-flags-state evaluation is reported as skipped with the b
 expect:
   js: {diagnostics: [{line: 8, col: 23, ruleId: all-flags-state, skip: bulk}], output: false}
   go: {diagnostics: [{line: 14, col: 11, ruleId: all-flags-state, skip: bulk}], output: false}
+  java: {diagnostics: [{line: 10, col: 16, ruleId: all-flags-state, skip: bulk}], output: false}

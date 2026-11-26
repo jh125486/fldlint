@@ -5,3 +5,4 @@ description: A migration flag returns a stage and operation tracker rather than 
 expect:
   js: {diagnostics: [{line: 8, col: 27, ruleId: migration-variation, skip: type-mismatch}], output: false}
   go: {diagnostics: [{line: 17, col: 17, ruleId: migration-variation, skip: type-mismatch}, {line: 19, col: 17, ruleId: migration-variation, skip: type-mismatch}], output: false}
+  java: {diagnostics: [{line: 10, col: 40, ruleId: migration-variation, skip: type-mismatch}], output: false}
