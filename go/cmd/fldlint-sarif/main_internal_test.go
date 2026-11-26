@@ -43,6 +43,7 @@ func TestRun(t *testing.T) {
 		{name: "unknown flag", args: []string{"-bogus"}, wantCode: 2, wantStderr: "flag provided but not defined"},
 		{name: "positional argument", args: []string{"x"}, wantCode: 2, wantStderr: "unexpected argument"},
 		{name: "bad severity", args: []string{"-severity", "loud"}, wantCode: 2, wantStderr: "level must be error, warn or info"},
+		{name: "unknown severity rule", args: []string{"-severity", "no-such-rule=error"}, wantCode: 2, wantStderr: "unknown rule id"},
 		{name: "unsupported baseline", args: []string{"-baseline", badBaseline}, stdin: good, wantCode: 2, wantStderr: "unsupported baseline version"},
 		{name: "missing baseline", args: []string{"-baseline", filepath.Join(dir, "nope.json")}, stdin: good, wantCode: 2, wantStderr: "invalid baseline"},
 		{name: "empty stdin", args: nil, stdin: "", wantCode: 1, wantStderr: "reading fldlint -json"},

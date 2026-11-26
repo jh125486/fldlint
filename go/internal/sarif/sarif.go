@@ -70,7 +70,7 @@ type diag struct {
 
 var (
 	posnRE   = regexp.MustCompile(`^(.*):(\d+):(\d+)$`)
-	suffixRE = regexp.MustCompile(`^(.*) \[(?:skip: ([a-z0-9-]+)|(no-fix: comment))\]$`)
+	suffixRE = regexp.MustCompile(`(?s)^(.*) \[(?:skip: ([a-z0-9-]+)|(no-fix: comment))\]$`)
 )
 
 // Output structs; field order is the emitted key order.
@@ -161,12 +161,13 @@ func Convert(r io.Reader, o Options) ([]byte, error) {
 
 	cache := map[string]*source{}
 	var items []*pending
-	seen := map[diag]bool{}
+	seen := map[[2]string]bool{}
 	for _, d := range diags {
-		if seen[d] { // the same file is analysed once per package variant
+		k := [2]string{d.Category, d.Posn}
+		if seen[k] { // the same file is analysed once per package variant
 			continue
 		}
-		seen[d] = true
+		seen[k] = true
 		p, err := build(d, root, o, rules, cache, read)
 		if err != nil {
 			return nil, err
@@ -207,16 +208,28 @@ func Convert(r io.Reader, o Options) ([]byte, error) {
 // readDiags decodes {pkg: {analyzer: [diag...] | {"error": "..."}}} and
 // returns the fldlint diagnostics in a deterministic order.
 func readDiags(r io.Reader) ([]diag, error) {
+	// go vet -vettool -json prints one object per package; fldlint -json one
+	// object in all. Decode until EOF and merge them.
 	dec := json.NewDecoder(r)
-	var tree map[string]map[string]json.RawMessage
-	if err := dec.Decode(&tree); err != nil {
-		return nil, inputErr("reading fldlint -json: %v", err)
-	}
-	if tree == nil {
-		return nil, inputErr("reading fldlint -json: expected a JSON object")
-	}
-	if _, err := dec.Token(); !errors.Is(err, io.EOF) {
-		return nil, inputErr("reading fldlint -json: trailing data after the JSON object")
+	tree := map[string]map[string]json.RawMessage{}
+	for n := 0; ; n++ {
+		var one map[string]map[string]json.RawMessage
+		err := dec.Decode(&one)
+		if errors.Is(err, io.EOF) && n > 0 {
+			break
+		}
+		if err != nil {
+			return nil, inputErr("reading fldlint -json: %v", err)
+		}
+		if one == nil {
+			return nil, inputErr("reading fldlint -json: expected a JSON object")
+		}
+		for pkg, m := range one {
+			if tree[pkg] == nil {
+				tree[pkg] = map[string]json.RawMessage{}
+			}
+			maps.Copy(tree[pkg], m)
+		}
 	}
 	var out []diag
 	for _, pkg := range slices.Sorted(maps.Keys(tree)) {
@@ -293,7 +306,34 @@ func offsetOf(src []byte, line, col int) (int, bool) {
 		off += i + 1
 	}
 	off += col - 1
-	return off, off <= len(src)
+	if off > len(src) {
+		return 0, false
+	}
+	if i := bytes.IndexByte(src[off-(col-1):], '\n'); i >= 0 && col-1 > i {
+		return 0, false // beyond the end of the line
+	}
+	return off, true
+}
+
+// relUnder returns file relative to root. When file is not under root as
+// spelled, both are retried with symlinks resolved (a root reached through a
+// symlink, such as /var and /private/var on macOS).
+func relUnder(root, file string) (string, bool) {
+	inside := func(rel string, err error) (string, bool) {
+		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+			return "", false
+		}
+		return rel, true
+	}
+	if rel, ok := inside(filepath.Rel(root, file)); ok {
+		return rel, true
+	}
+	r, err1 := filepath.EvalSymlinks(root)
+	f, err2 := filepath.EvalSymlinks(file)
+	if err1 != nil || err2 != nil {
+		return "", false
+	}
+	return inside(filepath.Rel(r, f))
 }
 
 func build(d diag, root string, o Options, rules map[string]spec.Rule, cache map[string]*source, read func(string) ([]byte, error)) (*pending, error) {
@@ -309,8 +349,8 @@ func build(d diag, root string, o Options, rules map[string]spec.Rule, cache map
 	if err != nil {
 		return nil, inputErr("%v", err)
 	}
-	rel, err := filepath.Rel(root, abs)
-	if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
+	rel, ok := relUnder(root, abs)
+	if !ok {
 		return nil, inputErr("%s is outside the scan root %s (use -root)", file, root)
 	}
 	s, err := load(abs, cache, read)
@@ -319,7 +359,7 @@ func build(d diag, root string, o Options, rules map[string]spec.Rule, cache map
 	}
 	off, inFile := offsetOf(s.src, line, col)
 	if !inFile {
-		return nil, inputErr("position %s is outside the file", d.Posn)
+		return nil, inputErr("position %s is outside the file (line or column past its end)", d.Posn)
 	}
 	endOff := -1
 	if d.End != "" {
@@ -374,7 +414,7 @@ func staticKey(s *source, rule spec.Rule, off, endOff int) *string {
 		if tf.Offset(call.Pos()) != off || (endOff >= 0 && tf.Offset(call.End()) != endOff) {
 			return true
 		}
-		sel, ok := call.Fun.(*ast.SelectorExpr)
+		sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
 		if !ok || call.Ellipsis.IsValid() {
 			return true
 		}

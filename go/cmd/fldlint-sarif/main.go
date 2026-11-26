@@ -15,10 +15,12 @@ import (
 	"io"
 	"os"
 	"runtime/debug"
+	"slices"
 	"strings"
 
 	"github.com/jh125486/fldlint/go/internal/baseline"
 	"github.com/jh125486/fldlint/go/internal/sarif"
+	"github.com/jh125486/fldlint/go/internal/spec"
 )
 
 func main() {
@@ -40,6 +42,9 @@ func (s severities) Set(v string) error {
 	rule, level, ok := strings.Cut(v, "=")
 	if !ok {
 		rule, level = "", v
+	}
+	if rule != "" && !slices.ContainsFunc(spec.Rules(), func(r spec.Rule) bool { return r.ID == rule }) {
+		return fmt.Errorf("severity %q: unknown rule id %q", v, rule)
 	}
 	lv, ok := map[string]string{"error": "error", "warn": "warning", "warning": "warning", "info": "note", "note": "note"}[level]
 	if !ok {

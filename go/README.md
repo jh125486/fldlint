@@ -1,22 +1,101 @@
-## SARIF
+# fldlint for Go
+
+`go/analysis` analyzer that finds LaunchDarkly Go SDK v7 flag evaluations and
+migrates the provably safe ones to OpenFeature through suggested fixes. Calls
+it cannot prove safe are reported with a skip category and left alone. The
+analyzer is `go/analyzer`; two binaries wrap it, and `fldlint-sarif` is an
+optional converter (see [SARIF](#sarif-fldlint-sarif)).
+
+| Binary | Built with | Use it for |
+|--------|------------|------------|
+| `fldlint` | `singlechecker` | standalone: `fldlint ./...` |
+| `fldlint-fix` | `unitchecker` | `go vet -vettool=` and `go fix -fixtool=` only |
+
+The binary is `fldlint-fix`, the name used in
+[docs/m0-contract.md](../docs/m0-contract.md). It also reports findings under
+`go vet`.
+
+The Go tools have no `--max-warnings` and no severity setting. Exit codes are
+the Go analysis framework's; see the Go section of
+[spec/contracts/exit-codes.md](../spec/contracts/exit-codes.md) for the observed
+table. Requires Go 1.26.0 or newer (`go/go.mod`).
+
+## Install
+
+From a checkout (works today):
+
+```sh
+cd go
+go install ./cmd/fldlint ./cmd/fldlint-fix ./cmd/fldlint-sarif
+```
+
+UNVERIFIED until the first tag exists (#20): `go install
+github.com/jh125486/fldlint/go/cmd/fldlint@vX.Y.Z`. The module lives in the
+`go/` subdirectory, so tags are expected as `go/vX.Y.Z` and the version after
+`@` is `vX.Y.Z`. Nothing is tagged and nothing is on the Go proxy yet.
+
+## Standalone (`fldlint`)
+
+```sh
+fldlint ./...              # report; exit 3 when there are findings
+fldlint -fix ./...         # rewrite files in place; exit 0
+fldlint -fix -diff ./...   # preview the rewrite as a unified diff; files untouched
+```
+
+## `go vet`
+
+```sh
+go vet -vettool="$(command -v fldlint-fix)" ./...        # exit 1 on findings
+go vet -vettool="$(command -v fldlint-fix)" -fix ./...   # apply fixes, exit 0
+go vet -vettool="$(command -v fldlint-fix)" -fldlint=false ./...   # disable
+```
+
+`fldlint-fix` refuses direct invocation (`invoking "go tool fldlint-fix"
+directly is unsupported`).
+
+## `go fix`
+
+```sh
+go fix -fixtool="$(command -v fldlint-fix)" ./...        # apply fixes
+go fix -diff -fixtool="$(command -v fldlint-fix)" ./...  # preview
+```
+
+`go fix -diff` exits 1 on a non-empty diff with go1.27.4, but exits 0 with
+go1.26.0 (the `go.mod` floor). Do not rely on its exit code there. On go1.26.0
+the `go help fix` text documents `-diff` and `-fixtool` but no exit-code rule.
+
+## JSON
+
+```sh
+fldlint -json ./...
+go vet -vettool="$(command -v fldlint-fix)" -json ./...
+```
+
+This is the analysis framework's JSON (`{package: {analyzer: [...]}}`, positions
+as `file:line:col` strings, byte offsets in edits; `category` is the rule id),
+not fldlint's own JSON format. The exit code is 0 even with findings.
+
+## SARIF (`fldlint-sarif`)
 
 `fldlint-sarif` is an optional extra. `fldlint` has no SARIF output (and does
 not change); this command reads `fldlint -json` on stdin and writes SARIF 2.1.0
-on stdout, per [`spec/contracts/sarif.md`](../../../spec/contracts/sarif.md).
+on stdout, per [`spec/contracts/sarif.md`](../spec/contracts/sarif.md).
 
 ```sh
-# from a checkout (installing by module path is unverified until the first Go tag):
-(cd go && go install ./cmd/fldlint ./cmd/fldlint-sarif)
 set -o pipefail   # keep fldlint's status visible through the pipe
 fldlint -json ./... | fldlint-sarif > fldlint.sarif
+go vet -vettool="$(command -v fldlint-fix)" -json ./... 2>&1 | fldlint-sarif > fldlint.sarif
 ```
+
+`go vet -json` prints one JSON object per package; `fldlint-sarif` reads any
+number of them and merges them (observed with two packages).
 
 What it does beyond reformatting:
 
 - `startColumn` is in UTF-16 code units. `fldlint -json` reports byte columns,
   so the command re-reads each reported file and converts.
 - `partialFingerprints["fldlint/fingerprint"]` is the shared fingerprint
-  ([`fingerprint.md`](../../../spec/contracts/fingerprint.md)). The flag key is
+  ([`fingerprint.md`](../spec/contracts/fingerprint.md)). The flag key is
   re-read from the call's key argument (a string literal, as in the analyzer),
   and `occ` is assigned per file by `(ruleId, key)` in `(line, col)` order.
   Identical diagnostics (a file analysed in two package variants) are
@@ -26,15 +105,15 @@ What it does beyond reformatting:
   `properties.noFix`), and `properties.risk` is the rule's risk.
 - Results are sorted by file, line, column, rule id. Paths are relative to
   `-root` (default: the current directory) with `uriBaseId: "%SRCROOT%"`. A
-  file outside the root is an error.
+  file outside the root (after resolving symlinks) is an error.
 
 ### Flags
 
 | Flag | Meaning |
 |------|---------|
 | `-root dir` | Scan root that result paths are relative to. Default: the current directory. |
-| `-baseline file` | A [baseline](../../../spec/contracts/baseline.md) file. Every result gets `baselineState`: `unchanged` if its fingerprint is in the file, else `new`. Without it, `baselineState` is omitted. |
-| `-severity [rule=]level` | Configured severity (`error`, `warn`, `info`) mapped to SARIF `level` (`error`, `warning`, `note`). `level` alone sets the default; `rule=level` one rule. Repeatable. Default: `warn`, so an unconfigured run reports `warning`. |
+| `-baseline file` | A [baseline](../spec/contracts/baseline.md) file. Every result gets `baselineState`: `unchanged` if its fingerprint is in the file, else `new`. Without it, `baselineState` is omitted. |
+| `-severity [rule=]level` | Configured severity (`error`, `warn`, `info`) mapped to SARIF `level` (`error`, `warning`, `note`). `level` alone sets the default; `rule=level` one rule. Repeatable; an unknown rule id is exit 2. Default: `warn`, so an unconfigured run reports `warning`. |
 
 Version: `tool.driver.version` is the module version of a `go install`ed binary,
 or `0.0.0` for a local build.
@@ -43,14 +122,14 @@ or `0.0.0` for a local build.
 
 These are this command's own; they do not depend on `fldlint`'s (which exits 0
 with `-json`, see the exit-code notes in the Go section of
-[`exit-codes.md`](../../../spec/contracts/exit-codes.md)). Findings, baselined or
+[`exit-codes.md`](../spec/contracts/exit-codes.md)). Findings, baselined or
 not, never change them.
 
 | Code | Meaning |
 |------|---------|
 | `0` | SARIF written (also when there are no findings). `-h` also exits 0. |
 | `1` | The input cannot be used: empty or malformed JSON, an analysis error reported inside it (`fldlint -json` prints `{"pkg": {"fldlint": {"error": ...}}}` when packages do not load or type-check), an unknown rule id, a source file that cannot be read or parsed, or a path outside `-root`. Nothing is written to stdout. |
-| `2` | Usage: unknown flag, positional argument, bad `-severity`; or an invalid `-baseline` (missing, malformed, unknown field, `version` other than 1), as in [`baseline.md`](../../../spec/contracts/baseline.md). Nothing is scanned. |
+| `2` | Usage: unknown flag, positional argument, bad `-severity` (including an unknown rule id); or an invalid `-baseline` (missing, malformed, unknown field, `version` other than 1), as in [`baseline.md`](../spec/contracts/baseline.md). Nothing is scanned. |
 
 When `fldlint` itself fails to load packages it exits 1 and prints an error
 object (and its own message on stderr); with `set -o pipefail` the pipeline
@@ -156,3 +235,24 @@ fldlint -json ./... | fldlint-sarif > fldlint.sarif
 ```
 
 (Not run here: uploading needs a GitHub repository and token.)
+
+### Limitations
+
+- A `//line` directive or a cgo-generated file makes the analyzer report a
+  position in another file than the one on disk. `fldlint-sarif` re-reads the
+  reported file, so it either fails (exit 1, file missing) or reads the wrong
+  text: not supported.
+- A column past the end of its line, or a line past the end of the file, is
+  exit 1.
+
+## Not available yet
+
+golangci-lint module plugin and a real-SDK compile check module
+are tracked in #18 and not implemented. Behaviour under golangci-lint and gopls
+is unverified.
+
+## Tests
+
+`go test ./...` in this directory. `go/conformance` runs every shared fixture
+that has a `go` expectation (diagnostics, UTF-16 columns, golden bytes, and a
+type-check against the SDK stubs in `go/analyzer/testdata`).

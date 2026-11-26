@@ -6,12 +6,14 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"maps"
 	"os"
 	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
 
+	"github.com/jh125486/fldlint/go/internal/fingerprint"
 	"github.com/jh125486/fldlint/go/internal/sarif"
 )
 
@@ -276,221 +278,309 @@ func TestConvert_illformedKey(t *testing.T) {
 	}
 }
 
-// TestConvert_structure asserts the contract's document shape on a run with
-// several rules, skips and an unfixable result, without a baseline.
-func TestConvert_structure(t *testing.T) {
+// resultDoc is the part of the SARIF output that TestConvert asserts on.
+type resultDoc struct {
+	Schema  string `json:"$schema"`
+	Version string `json:"version"`
+	Runs    []struct {
+		ColumnKind string `json:"columnKind"`
+		Tool       struct {
+			Driver struct {
+				Name    string `json:"name"`
+				Version string `json:"version"`
+				Rules   []struct {
+					ID string `json:"id"`
+				} `json:"rules"`
+			} `json:"driver"`
+		} `json:"tool"`
+		Results []struct {
+			RuleID  string `json:"ruleId"`
+			Level   string `json:"level"`
+			Message struct {
+				Text string `json:"text"`
+			} `json:"message"`
+			Locations []struct {
+				PhysicalLocation struct {
+					ArtifactLocation struct {
+						URI       string `json:"uri"`
+						URIBaseID string `json:"uriBaseId"`
+					} `json:"artifactLocation"`
+				} `json:"physicalLocation"`
+			} `json:"locations"`
+			PartialFingerprints map[string]string `json:"partialFingerprints"`
+			BaselineState       *string           `json:"baselineState"`
+			Properties          map[string]string `json:"properties"`
+		} `json:"results"`
+	} `json:"runs"`
+}
+
+func fp(rule, path string, key *string, occ int) string {
+	return fingerprint.Fingerprint(fingerprint.Input{RuleID: rule, Path: path, Key: key, Occ: occ})
+}
+
+func strp(s string) *string { return &s }
+
+type convertCase struct {
+	name    string
+	files   map[string]string
+	in      func(root string) string
+	opts    func(t *testing.T, root string) sarif.Options
+	wantErr string // substring of an ErrInput; empty means success
+	check   func(t *testing.T, d resultDoc)
+}
+
+// TestConvert covers the contract's document shape, the callee and key forms
+// the analyzer accepts, input forms and every failure.
+func TestConvert(t *testing.T) {
 	t.Parallel()
-	root := t.TempDir()
-	b, a := filepath.Join(root, "b.go"), filepath.Join(root, "a.go")
-	const body = "package p\n\nfunc f() {\n\t_ = c.StringVariation(\"k\", c, \"\")\n\t_ = c.BoolVariation(\"k\", c, false)\n}\n"
-	in := `{"p2": {"fldlint": [{"category": "bool-variation", "posn": "` + filepath.ToSlash(b) + `:5:6", "message": "Migrate boolean flag \"k\" to OpenFeature [no-fix: comment]"}]},
-	"p1": {"fldlint": [
-	  {"category": "string-variation", "posn": "` + filepath.ToSlash(a) + `:4:6", "message": "Migrate string flag \"k\" to OpenFeature"},
-	  {"category": "bool-variation", "posn": "` + filepath.ToSlash(a) + `:5:6", "message": "Cannot prove LD context -> EvaluationContext conversion [skip: context-unproven]"}],
-	  "other": [{"category": "x", "posn": "nope", "message": "ignored"}]}}`
-	out, err := sarif.Convert(strings.NewReader(in), sarif.Options{
-		Root:     root,
-		ReadFile: memFS(map[string]string{a: body, b: body}),
-		Level:    map[string]string{"": "note", "string-variation": "error"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	var doc map[string]any
-	if err := json.Unmarshal(out, &doc); err != nil {
-		t.Fatal(err)
-	}
-	if doc["$schema"] != sarif.Schema || doc["version"] != "2.1.0" {
-		t.Fatalf("header: %v %v", doc["$schema"], doc["version"])
-	}
-	run := doc["runs"].([]any)[0].(map[string]any)
-	if run["columnKind"] != "utf16CodeUnits" {
-		t.Fatalf("columnKind = %v", run["columnKind"])
-	}
-	driver := run["tool"].(map[string]any)["driver"].(map[string]any)
-	if driver["name"] != "fldlint" || driver["version"] != "0.0.0" {
-		t.Fatalf("driver = %v", driver)
-	}
-	var ruleIDs []string
-	for _, r := range driver["rules"].([]any) {
-		ruleIDs = append(ruleIDs, r.(map[string]any)["id"].(string))
-	}
-	if want := []string{"bool-variation", "string-variation"}; !slices.Equal(ruleIDs, want) {
-		t.Fatalf("rules = %v, want %v", ruleIDs, want)
+	const two = "package p\n\nfunc f() {\n\t_ = c.StringVariation(\"k\", c, \"\")\n\t_ = c.BoolVariation(\"k\", c, false)\n}\n"
+	// posn returns "<root>/<file><at>" as fldlint prints it.
+	posn := func(root, file, at string) string { return filepath.ToSlash(filepath.Join(root, file)) + at }
+	wantFP := func(rule, path string, key *string) func(t *testing.T, d resultDoc) {
+		return func(t *testing.T, d resultDoc) {
+			t.Helper()
+			if got, want := d.Runs[0].Results[0].PartialFingerprints["fldlint/fingerprint"], fp(rule, path, key, 0); got != want {
+				t.Errorf("fingerprint = %s, want %s", got, want)
+			}
+		}
 	}
 
-	type want struct {
-		uri, rule, level, text string
-		props                  map[string]any
+	tests := []convertCase{
+		{
+			name:  "document shape, order, levels and properties",
+			files: map[string]string{"a.go": two, "b.go": two},
+			in: func(r string) string {
+				return `{"p2": {"fldlint": [{"category": "bool-variation", "posn": "` + posn(r, "b.go", ":5:6") + `", "message": "Migrate boolean flag \"k\" to OpenFeature [no-fix: comment]"}]},
+				"p1": {"fldlint": [
+				  {"category": "string-variation", "posn": "` + posn(r, "a.go", ":4:6") + `", "message": "Migrate string flag \"k\" to OpenFeature"},
+				  {"category": "bool-variation", "posn": "` + posn(r, "a.go", ":5:6") + `", "message": "Cannot prove LD context -> EvaluationContext conversion [skip: context-unproven]"}],
+				  "other": [{"category": "x", "posn": "nope", "message": "ignored"}]}}`
+			},
+			opts: func(_ *testing.T, r string) sarif.Options {
+				return sarif.Options{Root: r, Level: map[string]string{"": "note", "string-variation": "error"}}
+			},
+			check: func(t *testing.T, d resultDoc) {
+				run := d.Runs[0]
+				if d.Schema != sarif.Schema || d.Version != "2.1.0" || run.ColumnKind != "utf16CodeUnits" ||
+					run.Tool.Driver.Name != "fldlint" || run.Tool.Driver.Version != "0.0.0" {
+					t.Errorf("header = %+v", d)
+				}
+				var ids []string
+				for _, r := range run.Tool.Driver.Rules {
+					ids = append(ids, r.ID)
+				}
+				if want := []string{"bool-variation", "string-variation"}; !slices.Equal(ids, want) {
+					t.Errorf("rules = %v, want %v", ids, want)
+				}
+				type want struct {
+					uri, rule, level, text string
+					props                  map[string]string
+				}
+				wants := []want{
+					{"a.go", "string-variation", "error", `Migrate string flag "k" to OpenFeature`, map[string]string{"risk": "low"}},
+					{"a.go", "bool-variation", "note", "Cannot prove LD context -> EvaluationContext conversion", map[string]string{"risk": "low", "skip": "context-unproven"}},
+					{"b.go", "bool-variation", "note", `Migrate boolean flag "k" to OpenFeature`, map[string]string{"risk": "low", "noFix": "comment"}},
+				}
+				if len(run.Results) != len(wants) {
+					t.Fatalf("%d results, want %d", len(run.Results), len(wants))
+				}
+				for i, w := range wants {
+					r := run.Results[i]
+					loc := r.Locations[0].PhysicalLocation.ArtifactLocation
+					if loc.URI != w.uri || loc.URIBaseID != "%SRCROOT%" || r.RuleID != w.rule || r.Level != w.level ||
+						r.Message.Text != w.text || !maps.Equal(r.Properties, w.props) || r.BaselineState != nil ||
+						len(r.PartialFingerprints) != 1 || len(r.PartialFingerprints["fldlint/fingerprint"]) != 32 {
+						t.Errorf("result %d = %+v", i, r)
+					}
+				}
+			},
+		},
+		{
+			name:  "parenthesized callee keeps its key",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (c.BoolVariation)(\"paren-fun\", c, false)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("bool-variation", "a.go", strp("paren-fun")),
+		},
+		{
+			name:  "Ctx method shifts the key argument",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = c.BoolVariationCtx(ctx, \"ctx-key\", c, false)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("bool-variation", "a.go", strp("ctx-key")),
+		},
+		{
+			name:  "multi-line raw key with a no-fix suffix",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = c.BoolVariation(`raw\nmulti`, ldcontext.New(/* c */ \"user\"), false)\n}\n"},
+			in: func(r string) string {
+				return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":4:6"), "Migrate boolean flag `raw\nmulti` to OpenFeature [no-fix: comment]"})
+			},
+			check: func(t *testing.T, d resultDoc) {
+				r := d.Runs[0].Results[0]
+				if r.Message.Text != "Migrate boolean flag `raw\nmulti` to OpenFeature" || r.Properties["noFix"] != "comment" {
+					t.Errorf("message %q, properties %v", r.Message.Text, r.Properties)
+				}
+				wantFP("bool-variation", "a.go", strp("raw\nmulti"))(t, d)
+			},
+		},
+		{
+			name:  "go vet output: one object per package",
+			files: map[string]string{"a.go": two, "b.go": two},
+			in: func(r string) string {
+				first := strings.Replace(diagJSON([3]string{"string-variation", posn(r, "a.go", ":4:6"), "m"}), `{"p"`, `{"p1"`, 1)
+				second := strings.Replace(diagJSON([3]string{"bool-variation", posn(r, "b.go", ":5:6"), "m"}), `{"p"`, `{"p2"`, 1)
+				return first + "\n" + second + "\n"
+			},
+			check: func(t *testing.T, d resultDoc) {
+				if n := len(d.Runs[0].Results); n != 2 {
+					t.Errorf("%d results, want 2", n)
+				}
+			},
+		},
+		{
+			name:  "same finding from two package variants is one result",
+			files: map[string]string{"a.go": two},
+			in: func(r string) string {
+				plain := `{"fldlint": [{"category": "bool-variation", "posn": "` + posn(r, "a.go", ":5:6") + `", "message": "m"}]}`
+				withEnd := `{"fldlint": [{"category": "bool-variation", "posn": "` + posn(r, "a.go", ":5:6") + `", "end": "` + posn(r, "a.go", ":5:30") + `", "message": "m"}]}`
+				return `{"p": ` + plain + `, "p [p.test]": ` + withEnd + `}`
+			},
+			check: func(t *testing.T, d resultDoc) {
+				if n := len(d.Runs[0].Results); n != 1 {
+					t.Errorf("%d results, want 1", n)
+				}
+			},
+		},
+		{
+			name: "empty run",
+			in:   func(string) string { return "{}" },
+			check: func(t *testing.T, d resultDoc) {
+				if len(d.Runs[0].Results) != 0 || len(d.Runs[0].Tool.Driver.Rules) != 0 {
+					t.Errorf("run = %+v", d.Runs[0])
+				}
+			},
+		},
+		{
+			name:  "root reached through a symlink",
+			files: map[string]string{"a.go": two},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":5:6"), "m"}) },
+			opts: func(t *testing.T, r string) sarif.Options {
+				link := filepath.Join(t.TempDir(), "link")
+				if err := os.Symlink(r, link); err != nil {
+					t.Skipf("symlinks unavailable: %v", err)
+				}
+				return sarif.Options{Root: link}
+			},
+			check: func(t *testing.T, d resultDoc) {
+				if uri := d.Runs[0].Results[0].Locations[0].PhysicalLocation.ArtifactLocation.URI; uri != "a.go" {
+					t.Errorf("uri = %q, want a.go", uri)
+				}
+			},
+		},
 	}
-	wants := []want{
-		{"a.go", "string-variation", "error", `Migrate string flag "k" to OpenFeature`, map[string]any{"risk": "low"}},
-		{"a.go", "bool-variation", "note", "Cannot prove LD context -> EvaluationContext conversion", map[string]any{"risk": "low", "skip": "context-unproven"}},
-		{"b.go", "bool-variation", "note", `Migrate boolean flag "k" to OpenFeature`, map[string]any{"risk": "low", "noFix": "comment"}},
-	}
-	results := run["results"].([]any)
-	if len(results) != len(wants) {
-		t.Fatalf("%d results, want %d:\n%s", len(results), len(wants), out)
-	}
-	for i, w := range wants {
-		r := results[i].(map[string]any)
-		loc := r["locations"].([]any)[0].(map[string]any)["physicalLocation"].(map[string]any)
-		art := loc["artifactLocation"].(map[string]any)
-		if art["uri"] != w.uri || art["uriBaseId"] != "%SRCROOT%" {
-			t.Errorf("result %d location = %v", i, art)
-		}
-		if r["ruleId"] != w.rule || r["level"] != w.level || r["message"].(map[string]any)["text"] != w.text {
-			t.Errorf("result %d = %v", i, r)
-		}
-		if _, ok := r["baselineState"]; ok {
-			t.Errorf("result %d has baselineState without a baseline", i)
-		}
-		fps := r["partialFingerprints"].(map[string]any)
-		if len(fps) != 1 || len(fps["fldlint/fingerprint"].(string)) != 32 {
-			t.Errorf("result %d fingerprints = %v", i, fps)
-		}
-		if got, _ := json.Marshal(r["properties"]); !jsonEqual(t, got, w.props) {
-			t.Errorf("result %d properties = %s, want %v", i, got, w.props)
-		}
-	}
-}
 
-func jsonEqual(t *testing.T, got []byte, want map[string]any) bool {
-	t.Helper()
-	w, err := json.Marshal(want)
-	if err != nil {
-		t.Fatal(err)
-	}
-	return string(got) == string(w)
-}
-
-// TestConvert_baseline checks baselineState and that it is set on every result.
-func TestConvert_baseline(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	abs := filepath.Join(root, "a.go")
-	src := "package p\n\nfunc f() {\n\t_ = c.BoolVariation(\"one\", c, false)\n\t_ = c.BoolVariation(\"two\", c, false)\n}\n"
-	in := diagJSON(
-		[3]string{"bool-variation", filepath.ToSlash(abs) + ":4:6", "m"},
-		[3]string{"bool-variation", filepath.ToSlash(abs) + ":5:6", "m"},
-	)
-	first := func(base map[string]struct{}) []byte {
-		out, err := sarif.Convert(strings.NewReader(in), sarif.Options{Root: root, ReadFile: memFS(map[string]string{abs: src}), Baseline: base})
-		if err != nil {
-			t.Fatal(err)
-		}
-		return out
-	}
-	// Learn the fingerprint of "one" from an unbaselined run.
-	var doc struct {
-		Runs []struct {
-			Results []struct {
-				PartialFingerprints map[string]string `json:"partialFingerprints"`
-				BaselineState       string            `json:"baselineState"`
-			} `json:"results"`
-		} `json:"runs"`
-	}
-	if err := json.Unmarshal(first(nil), &doc); err != nil {
-		t.Fatal(err)
-	}
-	one := doc.Runs[0].Results[0].PartialFingerprints["fldlint/fingerprint"]
-
-	for name, base := range map[string]map[string]struct{}{
-		"empty baseline":   {},
-		"one baselined":    {one: {}},
-		"unrelated stored": {"ffffffffffffffffffffffffffffffff": {}},
-	} {
-		if err := json.Unmarshal(first(base), &doc); err != nil {
-			t.Fatal(err)
-		}
-		var states []string
-		for _, r := range doc.Runs[0].Results {
-			states = append(states, r.BaselineState)
-		}
-		want := []string{"new", "new"}
-		if name == "one baselined" {
-			want = []string{"unchanged", "new"}
-		}
-		if !slices.Equal(states, want) {
-			t.Errorf("%s: states = %v, want %v", name, states, want)
-		}
-	}
-}
-
-// TestConvert_duplicatesAndEmpty covers the dedupe of repeated diagnostics (one
-// per package variant) and the empty document.
-func TestConvert_duplicatesAndEmpty(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	abs := filepath.Join(root, "a.go")
-	src := "package p\n\nfunc f() {\n\t_ = c.BoolVariation(\"k\", c, false)\n}\n"
-	d := [3]string{"bool-variation", filepath.ToSlash(abs) + ":4:6", "m"}
-	two := `{"p": ` + diagBody(d) + `, "p [p.test]": ` + diagBody(d) + `}`
-	out, err := sarif.Convert(strings.NewReader(two), sarif.Options{Root: root, ReadFile: memFS(map[string]string{abs: src})})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if n := strings.Count(string(out), `"ruleId"`); n != 1 {
-		t.Fatalf("%d results, want 1 after dedupe:\n%s", n, out)
-	}
-
-	empty, err := sarif.Convert(strings.NewReader("{}"), sarif.Options{})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if !strings.Contains(string(empty), `"results": []`) || !strings.Contains(string(empty), `"rules": []`) {
-		t.Fatalf("empty run:\n%s", empty)
-	}
-}
-
-func diagBody(d [3]string) string {
-	return `{"fldlint": [` + fmt.Sprintf(`{"category": %q, "posn": %q, "message": %q}`, d[0], d[1], d[2]) + `]}`
-}
-
-// TestConvert_errors checks that every input failure wraps ErrInput.
-func TestConvert_errors(t *testing.T) {
-	t.Parallel()
-	root := t.TempDir()
-	abs := filepath.Join(root, "a.go")
-	src := "package p\n\nfunc f() {\n\t_ = c.BoolVariation(\"k\", c, false)\n}\n"
-	posn := func(s string) string { return filepath.ToSlash(abs) + s }
-	tests := []struct {
-		name string
-		in   string
-		want string
-	}{
+	failures := []struct{ name, in, want string }{
 		{"empty input", ``, "reading fldlint -json"},
 		{"not json", `nope`, "reading fldlint -json"},
 		{"not an object", `[]`, "reading fldlint -json"},
 		{"null", `null`, "expected a JSON object"},
-		{"trailing data", `{} {}`, "trailing data"},
+		{"trailing garbage", `{} nope`, "reading fldlint -json"},
 		{"analysis error", `{"flags": {"fldlint": {"error": "analysis skipped due to errors in package"}}}`, "analysis skipped due to errors in package"},
-		{"bad diagnostics", `{"p": {"fldlint": {"x": 1}, "y": 1}}`, "analysis of p failed"},
 		{"diagnostics not an array", `{"p": {"fldlint": "x"}}`, "package p"},
-		{"unknown rule", diagJSON([3]string{"no-such-rule", posn(":4:6"), "m"}), "unknown rule id"},
-		{"malformed posn", diagJSON([3]string{"bool-variation", "a.go", "m"}), "malformed position"},
-		{"zero column", diagJSON([3]string{"bool-variation", posn(":4:0"), "m"}), "malformed position"},
-		{"outside root", diagJSON([3]string{"bool-variation", filepath.ToSlash(filepath.Join(filepath.Dir(root), "x.go")) + ":4:6", "m"}), "outside the scan root"},
-		{"missing file", diagJSON([3]string{"bool-variation", filepath.ToSlash(filepath.Join(root, "gone.go")) + ":4:6", "m"}), "reading source"},
-		{"line past end", diagJSON([3]string{"bool-variation", posn(":99:1"), "m"}), "outside the file"},
-		{"column past end", diagJSON([3]string{"bool-variation", posn(":4:999"), "m"}), "outside the file"},
+		{"unknown rule", `{"p": {"fldlint": [{"category": "no-such-rule", "posn": "{{a}}:4:6", "message": "m"}]}}`, "unknown rule id"},
+		{"malformed posn", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "a.go", "message": "m"}]}}`, "malformed position"},
+		{"zero column", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "{{a}}:4:0", "message": "m"}]}}`, "malformed position"},
+		{"outside root", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "/elsewhere/x.go:4:6", "message": "m"}]}}`, "outside the scan root"},
+		{"missing file", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "{{r}}/gone.go:4:6", "message": "m"}]}}`, "reading source"},
+		{"line past end", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "{{a}}:99:1", "message": "m"}]}}`, "outside the file"},
+		{"column past end of line", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "{{a}}:5:200", "message": "m"}]}}`, "outside the file"},
+		{"column past end of file", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "{{a}}:7:999", "message": "m"}]}}`, "outside the file"},
+		{"source does not parse", `{"p": {"fldlint": [{"category": "bool-variation", "posn": "{{bad}}:1:1", "message": "m"}]}}`, "parsing"},
+	}
+	for _, f := range failures {
+		tests = append(tests, convertCase{
+			name:  "error: " + f.name,
+			files: map[string]string{"a.go": two, "bad.go": "not go"},
+			in: func(r string) string {
+				return strings.NewReplacer("{{a}}", posn(r, "a.go", ""), "{{bad}}", posn(r, "bad.go", ""), "{{r}}", filepath.ToSlash(r)).Replace(f.in)
+			},
+			wantErr: f.want,
+		})
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			root := t.TempDir()
+			for name, content := range tt.files {
+				if err := os.WriteFile(filepath.Join(root, name), []byte(content), 0o644); err != nil {
+					t.Fatal(err)
+				}
+			}
+			opts := sarif.Options{Root: root}
+			if tt.opts != nil {
+				opts = tt.opts(t, root)
+			}
+			out, err := sarif.Convert(strings.NewReader(tt.in(root)), opts)
+			if tt.wantErr != "" {
+				if !errors.Is(err, sarif.ErrInput) || !strings.Contains(err.Error(), tt.wantErr) {
+					t.Fatalf("err = %v, want ErrInput containing %q", err, tt.wantErr)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			var d resultDoc
+			if err := json.Unmarshal(out, &d); err != nil {
+				t.Fatalf("%v\n%s", err, out)
+			}
+			tt.check(t, d)
+		})
+	}
+}
+
+// TestConvert_baseline checks baselineState on every result.
+func TestConvert_baseline(t *testing.T) {
+	t.Parallel()
+	const src = "package p\n\nfunc f() {\n\t_ = c.BoolVariation(\"one\", c, false)\n\t_ = c.BoolVariation(\"two\", c, false)\n}\n"
+	one := fp("bool-variation", "a.go", strp("one"), 0)
+	tests := []struct {
+		name     string
+		baseline map[string]struct{}
+		want     []string // "" means baselineState is omitted
+	}{
+		{"no baseline", nil, []string{"", ""}},
+		{"empty baseline", map[string]struct{}{}, []string{"new", "new"}},
+		{"one baselined", map[string]struct{}{one: {}}, []string{"unchanged", "new"}},
+		{"unrelated entry", map[string]struct{}{"ffffffffffffffffffffffffffffffff": {}}, []string{"new", "new"}},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			_, err := sarif.Convert(strings.NewReader(tt.in), sarif.Options{Root: root, ReadFile: memFS(map[string]string{abs: src})})
-			if !errors.Is(err, sarif.ErrInput) || !strings.Contains(err.Error(), tt.want) {
-				t.Fatalf("err = %v, want ErrInput containing %q", err, tt.want)
+			root := t.TempDir()
+			if err := os.WriteFile(filepath.Join(root, "a.go"), []byte(src), 0o644); err != nil {
+				t.Fatal(err)
+			}
+			a := filepath.ToSlash(filepath.Join(root, "a.go"))
+			in := diagJSON([3]string{"bool-variation", a + ":4:6", "m"}, [3]string{"bool-variation", a + ":5:6", "m"})
+			out, err := sarif.Convert(strings.NewReader(in), sarif.Options{Root: root, Baseline: tt.baseline})
+			if err != nil {
+				t.Fatal(err)
+			}
+			var d resultDoc
+			if err := json.Unmarshal(out, &d); err != nil {
+				t.Fatal(err)
+			}
+			var got []string
+			for _, r := range d.Runs[0].Results {
+				s := ""
+				if r.BaselineState != nil {
+					s = *r.BaselineState
+				}
+				got = append(got, s)
+			}
+			if !slices.Equal(got, tt.want) {
+				t.Errorf("states = %v, want %v", got, tt.want)
 			}
 		})
 	}
-
-	t.Run("source does not parse", func(t *testing.T) {
-		t.Parallel()
-		_, err := sarif.Convert(strings.NewReader(diagJSON([3]string{"bool-variation", posn(":1:1"), "m"})),
-			sarif.Options{Root: root, ReadFile: memFS(map[string]string{abs: "not go"})})
-		if !errors.Is(err, sarif.ErrInput) || !strings.Contains(err.Error(), "parsing") {
-			t.Fatalf("err = %v", err)
-		}
-	})
 }
