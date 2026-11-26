@@ -115,6 +115,18 @@ final class ClientBindingProof {
                       && ((J.MethodDeclaration) child).isConstructor())
                   || child instanceof J.Block
                   || child instanceof J.VariableDeclarations;
+          // An enum's constructors, instance initializers and instance field initializers may not
+          // read its non-constant static fields (JLS 8.9.2); a Client is never constant.
+          boolean enumInstanceInit =
+              parentValue instanceof J.ClassDeclaration
+                  && ((J.ClassDeclaration) parentValue).getKind()
+                      == J.ClassDeclaration.Kind.Type.Enum
+                  && ((child instanceof J.MethodDeclaration
+                          && ((J.MethodDeclaration) child).isConstructor())
+                      || (child instanceof J.Block && !((J.Block) child).isStatic())
+                      || (child instanceof J.VariableDeclarations
+                          && !((J.VariableDeclarations) child)
+                              .hasModifier(J.Modifier.Type.Static)));
           for (int i = 0; i < members.size(); i++) {
             if (members.get(i) instanceof J.EnumValueSet) {
               // Enum constants are static fields: they shadow, and are never a binding.
@@ -144,6 +156,13 @@ final class ClientBindingProof {
                   false);
               if (forwardRestricted && i >= memberIdx) {
                 markNoCandidate(level, before);
+              }
+              if (enumInstanceInit) {
+                for (int k = before; k < level.size(); k++) {
+                  if (level.get(k).staticField) {
+                    level.get(k).noCandidate = true;
+                  }
+                }
               }
               if (blankFinalUnsafe) {
                 for (int k = before; k < level.size(); k++) {

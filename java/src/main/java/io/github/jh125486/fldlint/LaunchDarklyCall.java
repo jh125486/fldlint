@@ -150,11 +150,15 @@ final class LaunchDarklyCall {
       }
     }
     final boolean[] declared = {false};
+    final java.util.Set<String> declaredHere = new java.util.HashSet<String>();
     new org.openrewrite.java.JavaIsoVisitor<Integer>() {
       @Override
       public J.ClassDeclaration visitClassDeclaration(J.ClassDeclaration cd, Integer p) {
         if ("ImmutableContext".equals(cd.getSimpleName())) {
           declared[0] = true;
+        }
+        if (cd.getType() != null) {
+          declaredHere.add(cd.getType().getFullyQualifiedName());
         }
         return super.visitClassDeclaration(cd, p);
       }
@@ -169,7 +173,59 @@ final class LaunchDarklyCall {
         return super.visitTypeParameter(tp, p);
       }
     }.visit(cu, 0);
-    return declared[0];
+    return declared[0] || inheritsUnknownMemberTypes(cursor, declaredHere);
+  }
+
+  /**
+   * A class inherits the member types of its supertypes, and the type model does not list them. A
+   * supertype from outside the JDK and outside this file might declare a member type named {@code
+   * ImmutableContext}, so any enclosing class with such a supertype, or an unresolved one, counts
+   * as a clash.
+   */
+  private static boolean inheritsUnknownMemberTypes(Cursor cursor, java.util.Set<String> here) {
+    for (Cursor c = cursor; c != null; c = c.getParent()) {
+      Object v = c.getValue();
+      JavaType own = null;
+      if (v instanceof J.ClassDeclaration) {
+        own = ((J.ClassDeclaration) v).getType();
+      } else if (v instanceof J.NewClass && ((J.NewClass) v).getBody() != null) {
+        own = ((J.NewClass) v).getType();
+      } else {
+        continue;
+      }
+      if (!(own instanceof JavaType.FullyQualified) || own instanceof JavaType.Unknown) {
+        return true;
+      }
+      java.util.List<JavaType.FullyQualified> work =
+          new java.util.ArrayList<JavaType.FullyQualified>();
+      java.util.Set<String> seen = new java.util.HashSet<String>();
+      work.add((JavaType.FullyQualified) own);
+      boolean first = true;
+      while (!work.isEmpty()) {
+        JavaType.FullyQualified t = work.remove(work.size() - 1);
+        if (t instanceof JavaType.Unknown) {
+          return true;
+        }
+        String fqn = t.getFullyQualifiedName();
+        if (!first) {
+          if (fqn.startsWith("java.")) {
+            continue;
+          }
+          if (!here.contains(fqn)) {
+            return true;
+          }
+        }
+        first = false;
+        if (!seen.add(fqn)) {
+          continue;
+        }
+        if (t.getSupertype() != null) {
+          work.add(t.getSupertype());
+        }
+        work.addAll(t.getInterfaces());
+      }
+    }
+    return false;
   }
 
   /**

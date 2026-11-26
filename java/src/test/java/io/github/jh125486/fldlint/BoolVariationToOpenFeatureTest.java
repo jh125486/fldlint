@@ -897,4 +897,120 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
             .get(0)
             .skip);
   }
+
+  @Test
+  void aSupertypeFromOutsideTheFileMayInheritAMemberTypeNamedImmutableContext() {
+    assertEquals(
+        "unbound-client",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout implements dev.openfeature.sdk.FeatureProvider {",
+                "    private final Client client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+                "",
+                "    boolean f(LDClient ld, String u) {",
+                "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+    // JDK supertypes cannot declare one: the rewrite still applies.
+    assertEquals(
+        "",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public class Checkout implements Runnable {",
+                "    private final Client client = OpenFeatureAPI.getInstance().getClient(\"c\");",
+                "",
+                "    public void run() {}",
+                "",
+                "    boolean f(LDClient ld, String u) {",
+                "        return ld.boolVariation(\"k\", LDContext.create(u), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
+
+  @Test
+  void enumConstructorsAndInstanceInitializersCannotReadStaticClients() {
+    assertEquals(
+        "unbound-client",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public enum Checkout {",
+                "    A;",
+                "",
+                "    private static final LDClient LD = null;",
+                "    private static final Client SHARED = OpenFeatureAPI.getInstance().getClient(\"s\");",
+                "",
+                "    Checkout() {",
+                "        boolean b = LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+    assertEquals(
+        "unbound-client",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public enum Checkout {",
+                "    A;",
+                "",
+                "    private static final LDClient LD = null;",
+                "    private static final Client SHARED = OpenFeatureAPI.getInstance().getClient(\"s\");",
+                "",
+                "    {",
+                "        boolean b = LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+    // A static method of the enum may read its static client.
+    assertEquals(
+        "",
+        find(lines(
+                "package flags;",
+                "",
+                "import com.launchdarkly.sdk.LDContext;",
+                "import com.launchdarkly.sdk.server.LDClient;",
+                "import dev.openfeature.sdk.Client;",
+                "import dev.openfeature.sdk.OpenFeatureAPI;",
+                "",
+                "public enum Checkout {",
+                "    A;",
+                "",
+                "    private static final LDClient LD = null;",
+                "    private static final Client SHARED = OpenFeatureAPI.getInstance().getClient(\"s\");",
+                "",
+                "    static boolean f() {",
+                "        return LD.boolVariation(\"k\", LDContext.create(\"u\"), false);",
+                "    }",
+                "}"))
+            .get(0)
+            .skip);
+  }
 }
