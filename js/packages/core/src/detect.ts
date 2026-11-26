@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
-// Receiver proof is derived from flaglint-js src/scanner/index.ts @b85599f
-// (collectLDClients), MIT, see NOTICE. The port keys on scope-manager
-// Variable objects instead of identifier names.
+// Derived from flaglint-js src/scanner/index.ts @b85599fec7aab9d9af79e018b3e2df3013fc0dd6
+// (collectLDClients), MIT, see NOTICE. Receiver proof only: the port keys on
+// scope-manager Variable objects instead of identifier names.
 import { AST_NODE_TYPES, AST_TOKEN_TYPES, TSESLint, type TSESTree } from "@typescript-eslint/utils";
 import { findRuleByMethod } from "@fldlint/spec";
 import { visitorKeys as defaultVisitorKeys } from "@typescript-eslint/visitor-keys";
