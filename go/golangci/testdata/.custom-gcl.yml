@@ -4,7 +4,10 @@
 # via `path`. The plugin module's own go.mod `replace` is not honoured by the
 # generated build module, so the analyzer module is listed too.
 #
-# For a released fldlint, drop `path` and pin versions instead:
+# For a released fldlint, drop `path` and pin versions instead. UNVERIFIED (no
+# tags exist yet). Before tagging go/golangci/vX.Y.Z, bump `require
+# github.com/jh125486/fldlint/go` in go/golangci/go.mod to a real tag (the
+# `replace` there is ignored by the generated build).
 #
 #   plugins:
 #     - module: 'github.com/jh125486/fldlint/go/golangci'

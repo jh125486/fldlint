@@ -12,7 +12,10 @@ sites are identified by type). It has no settings; an unknown key under
 
 ## Use
 
-1. `.custom-gcl.yml` (pin the golangci-lint version and the fldlint tag):
+1. `.custom-gcl.yml` (pin the golangci-lint version and the fldlint tag).
+   UNVERIFIED (no tags exist yet). Before tagging `go/golangci/vX.Y.Z`, bump
+   `require github.com/jh125486/fldlint/go` in `go/golangci/go.mod` to a real
+   tag: its `replace` is ignored by the generated build.
 
    ```yaml
    version: v2.15.0

@@ -140,8 +140,16 @@ tasks:
       - cd go && go run {{.GOLANGCI_LINT}} run ./...
 
   go:plugin-test:
-    desc: Vet and test the golangci-lint module plugin (separate module go/golangci)
+    desc: Lint, vet and test the golangci-lint module plugin (separate module go/golangci); fails if its stubs drift from the analyzer's
     cmds:
+      - |
+        set -eu
+        a=go/analyzer/testdata/src/github.com
+        s=go/golangci/testdata/stubs
+        diff -r -x go.mod $a/launchdarkly/go-sdk-common/v3 $s/ldcommon
+        diff -r -x go.mod $a/launchdarkly/go-server-sdk/v7 $s/ldserver
+        diff -r -x go.mod $a/open-feature/go-sdk $s/openfeature
+      - cd go/golangci && go run {{.GOLANGCI_LINT}} run -c ../.golangci.yml ./...
       - cd go/golangci && go vet ./... && go test -race ./...
 
   go:plugin-smoke:
@@ -150,6 +158,9 @@ tasks:
       - |
         set -eu
         root=$PWD
+        want={{.GOLANGCI_LINT}}; want=${want##*@}
+        have=$(sed -n 's/^version: *//p' go/golangci/testdata/.custom-gcl.yml)
+        [ "$have" = "$want" ] || { echo "go:plugin-smoke: .custom-gcl.yml version '$have' != GOLANGCI_LINT '$want'" >&2; exit 1; }
         work=$(mktemp -d)
         trap 'rm -rf "$work"' EXIT
         cp -R go/golangci/testdata/. "$work/testdata"

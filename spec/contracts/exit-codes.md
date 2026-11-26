@@ -105,7 +105,8 @@ throwaway code is not part of the repo.
 
 ### golangci-lint module plugin
 
-Observed with golangci-lint v2.15.0 (built with go1.27.0) and
+Observed (not constraints: the toolchain versions are just what was used) with
+golangci-lint v2.15.0 (built with go1.27.0, run on go1.27.4) and
 `github.com/golangci/plugin-module-register` v0.1.2, running go1.27.4
 darwin/arm64. `golangci-lint custom` built `custom-gcl` from
 `go/golangci/testdata/.custom-gcl.yml`; the sample is
