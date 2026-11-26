@@ -45,10 +45,8 @@ Run from the repo root; `task --list` shows all tasks (table in CONTRIBUTING.md)
 - `task spec:gen`, `task spec:check`, `task spec:tags`.
 - `task java:lint`, `task java:test` (JDK 21 and `unzip` required).
 - `task workflows:lint`: only when you change `.github/workflows`.
-- No JDK: `FLDLINT_SKIP_JAVA=1 task check` skips the Java tasks. The CI
-  `check (N)` matrix legs run with `FLDLINT_SKIP_JAVA=1`; the Node 22 leg runs
-  `task check`, the others `task check:node`. Java runs in a separate
-  path-filtered job.
+- No JDK: `FLDLINT_SKIP_JAVA=1 task check` skips the Java tasks (CI sets this
+  where no JDK is available; Java runs in a separate path-filtered job).
 - Optional, if your `task` shim lacks the needed version:
   `mise x task@<ver> -- task <name>`.
 

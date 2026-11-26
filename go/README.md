@@ -10,10 +10,9 @@ analyzer is `go/analyzer`; two binaries wrap it.
 | `fldlint` | `singlechecker` | standalone: `fldlint ./...` |
 | `fldlint-fix` | `unitchecker` | `go vet -vettool=` and `go fix -fixtool=` only |
 
-The name `fldlint-fix` is kept: it is the name in
-[docs/m0-contract.md](../docs/m0-contract.md). It also reports (under `go vet`),
-so the owner may still prefer `fldlint-vet`; renaming is a one-line change per
-doc plus the directory and has not been decided.
+The binary is `fldlint-fix`, the name used in
+[docs/m0-contract.md](../docs/m0-contract.md). It also reports findings under
+`go vet`.
 
 The Go tools have no `--max-warnings` and no severity setting. Exit codes are
 the Go analysis framework's; see the Go section of
