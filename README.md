@@ -43,8 +43,11 @@ A call is rewritten only when the engine can prove all of these:
 4. an OpenFeature client binding is in scope, and removing the LaunchDarkly
    receiver is safe ([ADR 010](docs/adr/010-planner-step-order-and-receiver-removal.md)).
 
-Every engine applies one fixed step order, first match wins, so the same call
-gets the same category everywhere. Anything unproven is reported, not rewritten,
+Every engine applies the same fixed step order, first match wins, but outcomes
+can differ by language because each engine has different safety checks (for
+example, a function-local client whose only use is the rewritten call is
+rewritten in JS but skipped as `receiver-unproven` in Go; see the
+`stranded-local-client` fixture). Anything unproven is reported, not rewritten,
 with one of the skip categories in [`spec/rules.yaml`](spec/rules.yaml):
 `detail`, `bulk`, `dynamic-key`, `unbound-client`, `type-mismatch`,
 `context-unproven`, `default-type-unproven`, `receiver-unproven`. Some rules
