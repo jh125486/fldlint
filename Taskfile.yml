@@ -19,13 +19,33 @@ tasks:
       - task --list
 
   check:
-    desc: Everything a good commit needs (spec:check, lint, test, parity, js:types-floor)
+    desc: Everything a good commit needs (check:shared, check:go, check:js, Java lint and tests)
     cmds:
       # Serial: spec:check regenerates files and js:types-floor swaps @types/node.
+      - task: check:shared
+      - task: check:go
+      - task: check:js
+      - task: java:lint
+      - task: java:test
+
+  check:shared:
+    desc: Language-independent checks (spec:check, workflows:test, parity); CI runs it on any non-docs change
+    cmds:
       - task: spec:check
-      - task: lint
-      - task: test
+      - task: workflows:test
       - task: parity
+
+  check:go:
+    desc: Go lint and race tests
+    cmds:
+      - task: go:lint
+      - task: go:test
+
+  check:js:
+    desc: JS lint, tests and the @types/node floor
+    cmds:
+      - task: js:lint
+      - task: js:test
       - task: js:types-floor
 
   check:node:
@@ -132,9 +152,42 @@ tasks:
         if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:lint skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
         cd java && ./mvnw -B -q -Plint test-compile
 
-  workflows:lint:
-    desc: Lint .github/workflows with actionlint (go run) and zizmor (uvx, needs uv)
+  java:smoke:
+    desc: Run the published-style recipes through rewrite-maven-plugin dryRun in java/smoke (installs a local snapshot first; FLDLINT_SKIP_JAVA=1 skips). Not part of 'task check'; CI runs it in the java job
     cmds:
+      - |
+        if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:smoke skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
+        set -e
+        cd java && ./mvnw -B -DskipTests install
+        ver=$(./mvnw -q -B org.apache.maven.plugins:maven-help-plugin:3.6.0:evaluate -Dexpression=project.version -DforceStdout)
+        cd smoke && rm -rf target/rewrite && ../mvnw -B -Dfldlint.version="$ver" \
+          org.openrewrite.maven:rewrite-maven-plugin:6.46.1:dryRun \
+          -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:"$ver" \
+          -Drewrite.activeRecipes=io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature,io.github.jh125486.fldlint.FindLaunchDarklyUsage
+        # Compare the dry-run patch with the committed expected one. Dropping the
+        # `index <sha>..<sha>` lines is the only normalization the patch needs: its
+        # paths are relative to the repository root and it has no timestamps.
+        grep -v '^index ' target/rewrite/rewrite.patch > target/rewrite/normalized.patch
+        test -s target/rewrite/normalized.patch || { echo "java:smoke: the dry-run patch is missing or empty" >&2; exit 1; }
+        {{if eq .UPDATE "1"}}cp target/rewrite/normalized.patch expected.patch
+        echo "java:smoke: updated java/smoke/expected.patch"{{else}}diff -u expected.patch target/rewrite/normalized.patch || { echo "java:smoke: the dry-run patch differs from java/smoke/expected.patch (if intended, run 'task java:smoke:update' and review the diff)" >&2; exit 1; }
+        echo "java:smoke: patch matches expected.patch"{{end}}
+
+  java:smoke:update:
+    desc: Regenerate java/smoke/expected.patch from the current recipes (review the diff before committing)
+    cmds:
+      - task: java:smoke
+        vars: {UPDATE: "1"}
+
+  workflows:test:
+    desc: Table test for the CI change classifier (.github/scripts/classify-changes.sh)
+    cmds:
+      - bash .github/scripts/classify-changes.test.sh
+
+  workflows:lint:
+    desc: Test the change classifier, then lint .github/workflows with actionlint (go run) and zizmor (uvx, needs uv)
+    cmds:
+      - task: workflows:test
       - cd go && go run {{.ACTIONLINT}} -color ../.github/workflows/*.yml
       - uvx {{.ZIZMOR}} --persona=regular .github/workflows
 
