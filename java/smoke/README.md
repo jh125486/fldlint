@@ -26,3 +26,8 @@ Expected (checked against plugin 6.46.1): `BUILD SUCCESS` and `rewrite.patch` (u
 Run only `MigrateLaunchDarklyToOpenFeature` to get the rewrites without the markers, and add
 `-DfailOnDryRunResults=true` to fail the build when anything is found. The project compiles as
 it is (`../mvnw -B compile`).
+
+`task java:smoke` (the CI check) runs the commands above and compares the patch, minus its
+`index` lines, with the committed `expected.patch`, so any change to a rewrite or skip fails it.
+After an intended recipe change run `task java:smoke:update` and review the diff of
+`expected.patch`.

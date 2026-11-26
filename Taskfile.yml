@@ -164,21 +164,20 @@ tasks:
           org.openrewrite.maven:rewrite-maven-plugin:6.46.1:dryRun \
           -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:"$ver" \
           -Drewrite.activeRecipes=io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature,io.github.jh125486.fldlint.FindLaunchDarklyUsage
-        patch=target/rewrite/rewrite.patch
-        fail() { echo "java:smoke: $1" >&2; exit 1; }
-        test -s "$patch" || fail "$patch is missing or empty"
-        # The four rewritten calls (added lines), by flag key.
-        for pair in Boolean:smoke-bool String:smoke-string Double:smoke-number Integer:smoke-int; do
-          t=${pair%%:*}; k=${pair#*:}
-          grep -Eq "^\+.*get${t}Value\(\"${k}\"" "$patch" || fail "no rewrite to get${t}Value(\"${k}\") in $patch"
-        done
-        # One skip marker per reported call, by category.
-        for c in default-type-unproven dynamic-key detail bulk; do
-          [ "$(grep -c "\[skip: $c\]" "$patch")" -eq 1 ] || fail "expected exactly one [skip: $c] in $patch"
-        done
-        [ "$(grep -c '\[skip: type-mismatch\]' "$patch")" -eq 2 ] || fail "expected two [skip: type-mismatch] (json, migration) in $patch"
-        # The unrelated class must not be touched or marked.
-        if grep -E '^[-+].*(toggles\.boolVariation|smoke-unrelated)' "$patch"; then fail "unrelated call changed or marked in $patch"; fi
+        # Compare the dry-run patch with the committed expected one. Dropping the
+        # `index <sha>..<sha>` lines is the only normalization the patch needs: its
+        # paths are relative to the repository root and it has no timestamps.
+        grep -v '^index ' target/rewrite/rewrite.patch > target/rewrite/normalized.patch
+        test -s target/rewrite/normalized.patch || { echo "java:smoke: the dry-run patch is missing or empty" >&2; exit 1; }
+        {{if eq .UPDATE "1"}}cp target/rewrite/normalized.patch expected.patch
+        echo "java:smoke: updated java/smoke/expected.patch"{{else}}diff -u expected.patch target/rewrite/normalized.patch || { echo "java:smoke: the dry-run patch differs from java/smoke/expected.patch (if intended, run 'task java:smoke:update' and review the diff)" >&2; exit 1; }
+        echo "java:smoke: patch matches expected.patch"{{end}}
+
+  java:smoke:update:
+    desc: Regenerate java/smoke/expected.patch from the current recipes (review the diff before committing)
+    cmds:
+      - task: java:smoke
+        vars: {UPDATE: "1"}
 
   workflows:test:
     desc: Table test for the CI change classifier (.github/scripts/classify-changes.sh)

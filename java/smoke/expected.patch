@@ -1,0 +1,45 @@
+diff --git a/java/smoke/src/main/java/smoke/SmokeFlags.java b/java/smoke/src/main/java/smoke/SmokeFlags.java
+--- a/java/smoke/src/main/java/smoke/SmokeFlags.java
++++ b/java/smoke/src/main/java/smoke/SmokeFlags.java
+@@ -7,6 +7,7 @@ org.openrewrite.config.CompositeRecipe
+ import com.launchdarkly.sdk.server.LDClient;
+ import com.launchdarkly.sdk.server.MigrationStage;
+ import dev.openfeature.sdk.Client;
++import dev.openfeature.sdk.ImmutableContext;
+ import dev.openfeature.sdk.OpenFeatureAPI;
+ 
+ /**
+@@ -19,22 +20,22 @@
+ 
+     /** The four rewriting rules: bool, string, number and java-int variation. */
+     public String rewritten(LDClient ld, String userKey) {
+-        boolean on = ld.boolVariation("smoke-bool", LDContext.create(userKey), false);
+-        String layout = ld.stringVariation("smoke-string", LDContext.create(userKey), "classic");
+-        double rate = ld.doubleVariation("smoke-number", LDContext.create(userKey), 0.5);
+-        int size = ld.intVariation("smoke-int", LDContext.create(userKey), 20);
++        boolean on = client.getBooleanValue("smoke-bool", false, new ImmutableContext(userKey)).booleanValue();
++        String layout = client.getStringValue("smoke-string", "classic", new ImmutableContext(userKey));
++        double rate = client.getDoubleValue("smoke-number", 0.5, new ImmutableContext(userKey)).doubleValue();
++        int size = client.getIntegerValue("smoke-int", 20, new ImmutableContext(userKey)).intValue();
+         return on + layout + rate + size;
+     }
+ 
+     /** Skips: default type, dynamic key, detail, json, migration and bulk. */
+     public Object reported(LDClient ld, String userKey, String dynamicKey) {
+-        double wideDefault = ld.doubleVariation("smoke-int-default", LDContext.create(userKey), 1);
+-        boolean dynamic = ld.boolVariation(dynamicKey, LDContext.create(userKey), false);
+-        Object detail = ld.boolVariationDetail("smoke-detail", LDContext.create(userKey), false);
+-        Object json = ld.jsonValueVariation("smoke-json", LDContext.create(userKey), LDValue.ofNull());
++        double wideDefault = /*~~(Default value type not proven [skip: default-type-unproven])~~>*/ld.doubleVariation("smoke-int-default", LDContext.create(userKey), 1);
++        boolean dynamic = /*~~(Flag key is not a static string [skip: dynamic-key])~~>*/ld.boolVariation(dynamicKey, LDContext.create(userKey), false);
++        Object detail = /*~~(Detail call; reason/variation metadata has no 1:1 rewrite [skip: detail])~~>*/ld.boolVariationDetail("smoke-detail", LDContext.create(userKey), false);
++        Object json = /*~~(Return/default type differs between SDKs [skip: type-mismatch])~~>*/ld.jsonValueVariation("smoke-json", LDContext.create(userKey), LDValue.ofNull());
+         Object migration =
+-                ld.migrationVariation("smoke-migration", LDContext.create(userKey), MigrationStage.OFF);
+-        FeatureFlagsState all = ld.allFlagsState(LDContext.create(userKey), FlagsStateOption.WITH_REASONS);
++                /*~~(Return/default type differs between SDKs [skip: type-mismatch])~~>*/ld.migrationVariation("smoke-migration", LDContext.create(userKey), MigrationStage.OFF);
++        FeatureFlagsState all = /*~~(Bulk evaluation; migrate manually [skip: bulk])~~>*/ld.allFlagsState(LDContext.create(userKey), FlagsStateOption.WITH_REASONS);
+         return wideDefault + "" + dynamic + detail + json + migration + all;
+     }
+ 
+
