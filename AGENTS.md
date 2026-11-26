@@ -59,9 +59,9 @@ Docs-only changes need no task run.
 - Always work in a git worktree on a branch. Never commit to `main`.
 - Open a PR. Merge `origin/main` into your branch before pushing (the ruleset
   requires the branch to be up to date).
-- Required checks are those in the repo ruleset (currently `check (22)`,
-  `check (24)`, `check (26)` and `dco`). `validate` (PR title) is also
-  expected to pass. Review threads must be resolved before merge.
+- All checks required by the repo ruleset must pass (read the ruleset, do not
+  assume a list), and the PR title check should pass too. Review threads must
+  be resolved before merge.
 - Owner policy: sign commits (`-S`, gpg or ssh) in addition to the DCO
   sign-off (`-s`). If signing or ssh fails, retry a few times. Never disable
   signing, switch remotes or otherwise work around a signing failure; report
@@ -71,9 +71,8 @@ Docs-only changes need no task run.
 
 ## Review loop
 
-1. After opening the PR, wait for all configured review bots (currently
-   Copilot, CodeRabbit and, if installed, Greptile) to review the current head
-   commit, not an earlier one.
+1. After opening the PR, wait for every configured review bot to review the
+   current head commit, not an earlier one.
 2. Address every comment. Fix with a code commit, then reply to AND resolve
    each thread (a reply alone leaves it unresolved).
 3. Batch all fixes of a round into one push; each push re-runs CI and
@@ -85,8 +84,7 @@ Docs-only changes need no task run.
 
 ## Issues
 
-Assign the issue to the owner (`jh125486`) when you start work. Issues track
-the roadmap; see the roadmap issue.
+Assign the issue to the owner (`jh125486`) when you start work.
 
 ## Orchestration
 
