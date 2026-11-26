@@ -95,18 +95,21 @@ final class LaunchDarklyCall {
     }
 
     CallSite.Builder site = CallSite.builder(rule.getId());
-    // Report-only rules (detail, bulk) need no proofs: the planner decides on the rule alone.
-    if (!rule.getSkip().isEmpty()) {
-      return new LaunchDarklyCall(rule, site.build(), null, null, null, null);
-    }
-
-    Expression keyArg = args.get(rule.getKeyArg());
+    // The static key is the finding's fingerprint identity (fingerprint.md), so every per-flag
+    // rule reads it, report-only ones included. A rule with no keyArg (all-flags-state) is keyless.
     J.Literal key = null;
-    if (keyArg instanceof J.Literal
-        && ((J.Literal) keyArg).getType() == JavaType.Primitive.String
-        && ((J.Literal) keyArg).getValue() instanceof String) {
-      key = (J.Literal) keyArg;
-      site.keyStatic(true);
+    if (rule.getKeyArg() >= 0) {
+      Expression keyArg = args.get(rule.getKeyArg());
+      if (keyArg instanceof J.Literal
+          && ((J.Literal) keyArg).getType() == JavaType.Primitive.String
+          && ((J.Literal) keyArg).getValue() instanceof String) {
+        key = (J.Literal) keyArg;
+        site.keyStatic(true);
+      }
+    }
+    // Report-only rules (detail, bulk) need no other proof: the planner decides on the rule alone.
+    if (!rule.getSkip().isEmpty()) {
+      return new LaunchDarklyCall(rule, site.build(), key, null, null, null);
     }
 
     Expression contextArg = args.get(rule.getContextArg());

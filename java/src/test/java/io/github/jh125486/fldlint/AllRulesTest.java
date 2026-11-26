@@ -226,4 +226,54 @@ class AllRulesTest implements RewriteTest {
     rewriteRun(
         s -> s.parser(FixtureParsers.forCase("")).recipe(new FindLaunchDarklyUsage()), java(src));
   }
+
+  private static String threeCalls(String first, String second, String third) {
+    return HEADER
+        + "    void f(LDClient ld, LDContext ctx) {\n"
+        + "        "
+        + first
+        + ";\n        "
+        + second
+        + ";\n        "
+        + third
+        + ";\n    }\n}\n";
+  }
+
+  @Test
+  void reportOnlyFindingsKeepTheirLiteralKeyInTheFingerprint() {
+    // a, b, a: different keys differ, and the same key is told apart by its occurrence.
+    String[][] rules = {
+      {"bool-variation-detail", "ld.boolVariationDetail(\"%s\", ctx, false)"},
+      {"java-json-variation", "ld.jsonValueVariation(\"%s\", ctx, LDValue.ofNull())"},
+      {"migration-variation", "ld.migrationVariation(\"%s\", ctx, MigrationStage.OFF)"},
+    };
+    for (String[] rule : rules) {
+      List<LaunchDarklyUsage.Row> rows =
+          find(
+              threeCalls(
+                  String.format(rule[1], "a"),
+                  String.format(rule[1], "b"),
+                  String.format(rule[1], "a")));
+      assertEquals(3, rows.size(), rule[0]);
+      String path = rows.get(0).sourcePath;
+      assertEquals(Fingerprint.of(rule[0], path, "a", 0), rows.get(0).fingerprint, rule[0]);
+      assertEquals(Fingerprint.of(rule[0], path, "b", 0), rows.get(1).fingerprint, rule[0]);
+      assertEquals(Fingerprint.of(rule[0], path, "a", 1), rows.get(2).fingerprint, rule[0]);
+    }
+  }
+
+  @Test
+  void dynamicKeyAndBulkReportsStayKeyless() {
+    String src =
+        HEADER
+            + "    void f(LDClient ld, LDContext ctx, String k) {\n"
+            + "        ld.boolVariationDetail(k, ctx, false);\n"
+            + "        ld.allFlagsState(ctx);\n"
+            + "    }\n}\n";
+    List<LaunchDarklyUsage.Row> rows = find(src);
+    assertEquals(2, rows.size());
+    String path = rows.get(0).sourcePath;
+    assertEquals(Fingerprint.of("bool-variation-detail", path, null, 0), rows.get(0).fingerprint);
+    assertEquals(Fingerprint.of("all-flags-state", path, null, 0), rows.get(1).fingerprint);
+  }
 }
