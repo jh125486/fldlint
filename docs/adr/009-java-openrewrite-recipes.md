@@ -91,3 +91,23 @@ rewrite plugin conventions (no new exit codes or flags).
 - `rewrite:run` cannot express skips; they appear only in `dryRun` markers, patch and
   data tables. Rule ids `java-int-variation` and `java-json-variation` are fingerprint
   inputs, fixed here (#7).
+
+## Addendum (issue #10, bool-variation)
+
+- Static keys are `String` literals only (text blocks included). Treating a
+  compile-time constant (`static final String`) as static is a possible later
+  widening and needs fixtures; today it is `dynamic-key`.
+- Skip order is the shared ADR 010 order. The issue text put the `LDUser`
+  overload first (as `context-unproven`); the planner runs `dynamic-key` first
+  like JS and Go, so a v6 call with a dynamic key is `dynamic-key`.
+- The client proof is `ClientBindingProof`: innermost scope with an accessible
+  `Client`, exactly one, no shadowing declaration or pattern binding of the same
+  name, effectively final when captured, no instance field from a static
+  context. The default is proven by static type (`boolean` exactly).
+- The converted context is `new ImmutableContext(<key>)`, composed into the same
+  `JavaTemplate` as the call (placeholders bind by order of appearance), not
+  applied as a second template. Template whitespace is OpenRewrite's autoformat;
+  only the copied argument elements are exact.
+- Template parsing uses `dependsOn` stubs of `Client`, `EvaluationContext` and
+  `ImmutableContext` (spike F4), checked by compiling every fixture against the
+  real OpenFeature jar.

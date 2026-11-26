@@ -1,0 +1,8 @@
+package com.launchdarkly.sdk.server.interfaces;
+
+import com.launchdarkly.sdk.LDUser;
+
+/** Stub of the v6 LDClientInterface with its LDUser overload, for the java-ld-user fixture only. */
+public interface LDClientInterface {
+    boolean boolVariation(String featureKey, LDUser user, boolean defaultValue);
+}

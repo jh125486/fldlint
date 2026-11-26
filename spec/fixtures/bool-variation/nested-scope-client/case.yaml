@@ -4,3 +4,4 @@ tags: [nested-scope-client]
 description: The only OpenFeature client is declared in a function that does not enclose the call, so no binding is visible and the call is skipped as unbound-client.
 expect:
   js: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, skip: unbound-client}], output: false}
+  java: {diagnostics: [{line: 15, col: 16, ruleId: bool-variation, skip: unbound-client}], output: false}

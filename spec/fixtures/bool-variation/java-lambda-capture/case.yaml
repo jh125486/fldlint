@@ -1,0 +1,6 @@
+id: java-lambda-capture
+rule: bool-variation
+tags: [java, lambda-capture]
+description: The only OpenFeature client is a local that is reassigned, so it is not effectively final and cannot be captured by the lambda; the call is skipped as unbound-client.
+expect:
+  java: {diagnostics: [{line: 13, col: 22, ruleId: bool-variation, skip: unbound-client}], output: false}

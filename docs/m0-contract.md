@@ -352,7 +352,10 @@ There are two kinds of skip. Do not conflate them:
   M0.4), `receiver-unproven` (amendment M0.5). A diagnostic on a rewriting rule either
   carries no `skip` (it is rewritten; `output: true` for that language) or
   carries one of those five call-site categories (`output: false` for that
-  language).
+  language), or carries `noFix: comment` with no `skip` (`output: false`): the
+  call is rewritable but a comment inside it has no home, so it is reported
+  with no fix (placeholders.md, issue #31). `noFix` is rejected with
+  `output: true`, together with `skip`, and on a report-only rule.
 
 Consequences: a rewriting rule's skip fixtures (`complex-context`, `dynamic-key`,
 `shadowed-client`, `goctx-shadowed-context`) assert their `skip` category again
@@ -619,8 +622,11 @@ now carries `argCount: {min, max}`.
   the wrong-count behaviour is covered by the analyzer's `fork` tests.
   Go `AllFlagsState(ctx, opts...)` is still reported as `bulk`; JS
   `allFlagsState(ctx, ...opts)` stays unrecognized because the count may exceed `max`.
-- Java: only the generated table carries it (`Binding.getArgCountMin/Max`);
-  the Java engine is issue #10. No report-only rule has a Java binding yet.
+- Java: the generated table carries it (`Binding.getArgCountMin/Max`) and the
+  detector enforces it through `Planner.recognizesArgCount` (a count outside the
+  range is an unrecognized call, no finding); a rewriting binding must carry
+  every positional argument its template reads. No report-only rule has a Java
+  binding yet (#11), so the report-only range is covered by unit tests only.
 - Values (verified): JS `@launchdarkly/js-server-sdk-common` 2.26.8
   `LDClient.d.ts`: typed variation and detail methods and `migrationVariation`
   3..3; `variation` and `variationDetail` 3..4 (optional callback);

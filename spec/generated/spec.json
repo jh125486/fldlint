@@ -72,7 +72,11 @@
             "methods": [
               "boolVariation"
             ],
-            "template": "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"
+            "requires": [
+              "context-unproven",
+              "default-type-unproven"
+            ],
+            "template": "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context}).booleanValue()"
           }
         }
       },
@@ -575,6 +579,16 @@
               }
             ],
             "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
           }
         }
       }
@@ -766,6 +780,17 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -849,6 +874,17 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -884,6 +920,17 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "dynamic-key"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -903,6 +950,16 @@
               {
                 "line": 17,
                 "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 17,
+                "col": 16,
                 "ruleId": "bool-variation"
               }
             ],
@@ -1048,6 +1105,142 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 16,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "receiver-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/java-ambiguous-client",
+      "case": {
+        "id": "java-ambiguous-client",
+        "rule": "bool-variation",
+        "tags": [
+          "java",
+          "ambiguous-client"
+        ],
+        "description": "Two OpenFeature clients are fields of the same class, so the proof is ambiguous and the call is skipped as unbound-client.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 13,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/java-comment-no-fix",
+      "case": {
+        "id": "java-comment-no-fix",
+        "rule": "bool-variation",
+        "tags": [
+          "java",
+          "comments"
+        ],
+        "description": "A comment between the receiver and the method name has no home in the Java rewrite (only argument elements are copied), so the call is reported with no fix and left untouched.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "noFix": "comment"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/java-lambda-capture",
+      "case": {
+        "id": "java-lambda-capture",
+        "rule": "bool-variation",
+        "tags": [
+          "java",
+          "lambda-capture"
+        ],
+        "description": "The only OpenFeature client is a local that is reassigned, so it is not effectively final and cannot be captured by the lambda; the call is skipped as unbound-client.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 13,
+                "col": 22,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/java-ld-user",
+      "case": {
+        "id": "java-ld-user",
+        "rule": "bool-variation",
+        "tags": [
+          "java",
+          "ld-user"
+        ],
+        "description": "The v6 LDUser overload (removed in 7.x, so this case is parsed against a stub of the v6 interface) is skipped as context-unproven.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "context-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/java-static-context",
+      "case": {
+        "id": "java-static-context",
+        "rule": "bool-variation",
+        "tags": [
+          "java",
+          "static-context"
+        ],
+        "description": "The OpenFeature client is an instance field and the call is in a static method, where the field is not accessible; the call is skipped as unbound-client.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -1072,6 +1265,16 @@
               {
                 "line": 20,
                 "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 18,
+                "col": 16,
                 "ruleId": "bool-variation"
               }
             ],
@@ -1105,6 +1308,16 @@
               {
                 "line": 20,
                 "col": 11,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 13,
+                "col": 32,
                 "ruleId": "bool-variation"
               }
             ],
@@ -1156,6 +1369,17 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 15,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -1185,6 +1409,16 @@
               {
                 "line": 20,
                 "col": 32,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 33,
                 "ruleId": "bool-variation"
               }
             ],
@@ -1247,6 +1481,17 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 17,
+                "col": 16,
+                "ruleId": "bool-variation",
+                "skip": "unbound-client"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -1277,6 +1522,17 @@
               {
                 "line": 12,
                 "col": 11,
+                "ruleId": "bool-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
                 "ruleId": "bool-variation",
                 "skip": "default-type-unproven"
               }
@@ -1479,6 +1735,16 @@
               {
                 "line": 16,
                 "col": 13,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 27,
                 "ruleId": "bool-variation"
               }
             ],

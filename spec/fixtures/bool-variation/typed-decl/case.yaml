@@ -5,3 +5,4 @@ description: A client declared with an explicit LDClient type annotation is stil
 expect:
   js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation}], output: true}
   go: {diagnostics: [{line: 16, col: 13, ruleId: bool-variation}], output: true}
+  java: {diagnostics: [{line: 12, col: 27, ruleId: bool-variation}], output: true}

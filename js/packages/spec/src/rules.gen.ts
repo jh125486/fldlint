@@ -63,7 +63,11 @@ export const rules: readonly Rule[] = [
         "methods": [
           "boolVariation"
         ],
-        "template": "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context})"
+        "requires": [
+          "context-unproven",
+          "default-type-unproven"
+        ],
+        "template": "#{any(dev.openfeature.sdk.Client)}.getBooleanValue(#{key}, #{default}, #{context}).booleanValue()"
       },
       "js": {
         "async": true,

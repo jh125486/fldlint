@@ -22,14 +22,14 @@ function write(root: string, rel: string, body: string): void {
 
 const CASE = "fixtures/bool-variation/static-key-double-quote";
 
-function caseYaml(over: { rule?: string; ruleId?: string; output?: boolean; langs?: string } = {}): string {
+function caseYaml(over: { rule?: string; ruleId?: string; output?: boolean; langs?: string; extra?: string } = {}): string {
   return [
     "id: static-key-double-quote",
     `rule: ${over.rule ?? "bool-variation"}`,
     "tags: [quote-double]",
     "description: d",
     "expect:",
-    `  js: {diagnostics: [{line: 3, col: 18, ruleId: ${over.ruleId ?? "bool-variation"}}], output: ${over.output ?? true}}`,
+    `  js: {diagnostics: [{line: 3, col: 18, ruleId: ${over.ruleId ?? "bool-variation"}${over.extra ?? ""}}], output: ${over.output ?? true}}`,
     over.langs ?? "",
   ].join("\n");
 }
@@ -82,6 +82,30 @@ describe("semantic validation", () => {
     const rules = join(dir, "rules.yaml");
     writeFileSync(rules, `${cpSyncRead(rules)}  - id: other-rule\n    risk: low\n    skip: dynamic-key\n    languages:\n      js: {methods: [otherVariation]}\n`);
     expect(validateSpec(dir).errors.join("\n")).toContain('does not match its directory name "other-rule"');
+  });
+
+  it("rejects noFix with output: true", () => {
+    const dir = copyStub();
+    write(dir, `${CASE}/case.yaml`, caseYaml({ extra: ", noFix: comment" }));
+    expect(validateSpec(dir).errors.join("\n")).toContain('has noFix "comment" but output is true');
+  });
+
+  it("rejects a diagnostic with both skip and noFix", () => {
+    const dir = copyStub();
+    write(dir, `${CASE}/case.yaml`, caseYaml({ output: false, extra: ", skip: dynamic-key, noFix: comment" }));
+    expect(validateSpec(dir).errors.join("\n")).toContain('has both skip "dynamic-key" and noFix "comment"');
+  });
+
+  it("rejects noFix on a report-only rule", () => {
+    const dir = copyStub();
+    const rules = join(dir, "rules.yaml");
+    writeFileSync(
+      rules,
+      `${cpSyncRead(rules)}  - id: rpt\n    risk: low\n    skip: dynamic-key\n    languages:\n      js: {methods: [rptVariation]}\n`,
+    );
+    write(dir, "fixtures/rpt/c1/case.yaml", caseYaml({ rule: "rpt", ruleId: "rpt", output: false, extra: ", noFix: comment" }).replace("id: static-key-double-quote", "id: c1"));
+    write(dir, "fixtures/rpt/c1/js/input.ts", "x\n");
+    expect(validateSpec(dir).errors.join("\n")).toContain('has noFix but rule "rpt" is report-only');
   });
 
   it("rejects ctxArg keys that are not in methods", () => {

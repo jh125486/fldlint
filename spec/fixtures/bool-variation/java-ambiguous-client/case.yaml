@@ -1,0 +1,6 @@
+id: java-ambiguous-client
+rule: bool-variation
+tags: [java, ambiguous-client]
+description: Two OpenFeature clients are fields of the same class, so the proof is ambiguous and the call is skipped as unbound-client.
+expect:
+  java: {diagnostics: [{line: 13, col: 16, ruleId: bool-variation, skip: unbound-client}], output: false}

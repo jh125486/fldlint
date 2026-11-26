@@ -1,7 +1,6 @@
 # Template placeholders and conversion policy
 
-Applies to every engine (JS, Go, later Java). Status: planned; M0 ships only
-the data and the harness, no engine rewrites anything yet.
+Applies to every engine (JS, Go, Java).
 
 A rewriting rule in `spec/rules.yaml` carries a per-language `template`. The
 only placeholders allowed are the closed enum below; the schema rejects any
@@ -17,10 +16,13 @@ other `{{...}}`. A rule's human `message` may use `{{key}}` only.
 | `{{context}}` | JS | The converted evaluation context, per the JS policy below. |
 | `{{evalctx}}` | Go | The converted evaluation context, per the Go policy below. |
 | `{{goctx}}` | Go | The `context.Context` argument. For `*Ctx` variants: the source text of argument 0. For plain variants: the enclosing function's `context.Context` parameter name if there is exactly one, otherwise `context.TODO()` (and `"context"` is added to the imports if absent). |
-| `#{...}` | Java | OpenRewrite template parameters (`#{any(dev.openfeature.sdk.Client)}`, `#{key}`, `#{default}`, `#{context}`). **Unverified**: written down for M3 and not exercised by anything yet. They may change when the Java recipe is built. |
+| `#{...}` | Java | OpenRewrite template parameters (`#{any(dev.openfeature.sdk.Client)}`, `#{key}`, `#{default}`, `#{context}`). They bind by order of appearance. The recipe types each one before use (`#{key}` is `#{any(java.lang.String)}`, `#{default}` the rule's primitive, `#{context}` its own template `new ImmutableContext(#{any(java.lang.String)})`), and the client parameter is the proven client's declaration name. |
 
 Substitution is textual and exact: an engine never reformats the argument
-text it copies.
+text it copies. In Java the arguments are the original syntax-tree elements
+passed to `JavaTemplate.apply`, so their text is copied unchanged; the
+whitespace of the template itself (around `,` and `(`) is whatever OpenRewrite's
+autoformat produces, which is the one place Java is not textually exact.
 
 ## Comments inside a call
 
@@ -50,6 +52,13 @@ own text are copied with it. The others:
   `eslint-disable*`, `eslint-enable`, `nolint`, `//go:`, `lint:ignore`,
   `istanbul ignore`) outside an argument's own text has no home either: moving
   it would change which line or argument it governs.
+- Java: only the argument elements are copied, so any comment outside an
+  argument's own text has no home: in the receiver, between the receiver and
+  the name, before the `(`, beside an argument (before it or before its
+  separating comma), or in `LDContext.create(..)` around its key. The call is
+  then a finding with no fix (`[no-fix: comment]`); homing comments by moving
+  them with their arguments is not implemented in Java. A comment inside an
+  argument's own text is copied with it.
 - JS only: a comment inside a parenthesized callee, `(ld).boolVariation(...)`
   or any callee whose `(` cannot be located behind trivia, is conservatively
   unfixable. JS argument text is copied from the argument node, so parentheses
@@ -71,11 +80,56 @@ Identical in every language; the first matching step decides the call:
 
 Rationale and the receiver/stranded-local rules: [ADR 010](../../docs/adr/010-planner-step-order-and-receiver-removal.md).
 
+## Argument evaluation order
+
+The Go and Java (and JS) templates reorder arguments: the LaunchDarkly call
+evaluates the key, then the context (`LDContext.create(..)`, `ldcontext.New(..)`),
+then the default, while the OpenFeature call evaluates the key, the default and then
+the context. A side effect in the default or in the context key expression
+therefore runs in a different order after a rewrite. This is a known, accepted
+reordering, the same in every engine; the engines do not try to prove the
+expressions pure.
+
 ## Static key
 
 A flag key is static only if it is a string literal, or (JS/TS) a template
 literal with zero `${}` expressions. In Go only a string literal counts,
 interpreted (`"x"`) or raw (`` `x` ``); a named constant is `dynamic-key`.
+In Java only a `String` literal counts (a text block is one); a concatenation,
+a `static final String` constant and a method call are `dynamic-key`.
+
+## Java planner notes
+
+The step order above is the Java order too, with these Java facts:
+
+- Match: the receiver type must be an `LDClientInterface` (overrides included)
+  and the argument count must fit the binding (M0.10). An unresolved method
+  type yields no finding.
+- `context-unproven`: the context argument must be `LDContext.create(<String>)`
+  (static import allowed). The v6 `LDUser` overload is `context-unproven` too,
+  but only after `dynamic-key`: the step order is the same for every call.
+- `default-type-unproven`: proven by static type, like Go. The argument's type
+  must be exactly `boolean` for `bool-variation`; a boxed `Boolean` is not
+  proven (the rewrite would unbox it and could throw on `null`).
+- `unbound-client`: the innermost scope that declares an accessible
+  `dev.openfeature.sdk.Client` must declare exactly one; an inner declaration
+  of the same name (any type, a pattern binding included) shadows it; an
+  instance field is not accessible from a static context; a captured local
+  must be effectively final. Inherited fields are not looked at. Scopes follow
+  the language: a local is in scope inside its own initializer (and so are the
+  declarators before it), classic `switch` case groups share the switch block's
+  scope, try-with-resources variables are in scope in the try body and later
+  resources only (not in `catch` or `finally`), a field is not usable by simple
+  name in an initializer at or before its own declaration (forward reference),
+  and record components shadow. A variable that is in scope but not yet usable
+  still shadows an outer client of the same name.
+- Name clash: the rewrite writes `new ImmutableContext(..)` and imports
+  `dev.openfeature.sdk.ImmutableContext`. If the file imports or declares
+  another type of that simple name, the call is `unbound-client` (a
+  same-package type in another file is not detected).
+- `receiver-unproven`: the receiver must be absent (implicit `this`), an
+  identifier or a field-access chain of identifiers. Unused Java locals compile,
+  so nothing is ever stranded (ADR 010 item 6).
 
 ## Context-conversion policy
 
@@ -103,6 +157,22 @@ ofClient.getBooleanValue('new-ui', false, { targetingKey: user.id })
 Skipped as `context-unproven`: an identifier (`ctx`), a spread, any extra
 attribute (`{ key, email }`), a kind other than `"user"`, a multi-kind
 context, or any other expression.
+
+### Java
+
+Rewritten only for a direct `LDContext.create(<expr>)` call; the engine emits
+`new ImmutableContext(<expr>)` and the rewrite ends in `.booleanValue()` (ADR 009 D8).
+
+```java
+// input
+boolean on = ldClient.boolVariation("new-ui", LDContext.create(userKey), false);
+// output (client is the proven OpenFeature Client)
+boolean on = client.getBooleanValue("new-ui", false, new ImmutableContext(userKey)).booleanValue();
+```
+
+Skipped as `context-unproven`: a variable, `LDContext.builder(..)`,
+`LDContext.createMulti(..)`, `LDContext.create(kind, key)`, or the v6 `LDUser`
+overload.
 
 ### Go
 

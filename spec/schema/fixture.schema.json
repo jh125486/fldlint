@@ -43,6 +43,7 @@
               "line": { "type": "integer", "minimum": 1 },
               "col": { "type": "integer", "minimum": 1 },
               "ruleId": { "type": "string", "pattern": "^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$" },
+              "noFix": { "description": "The call is rewritable but a comment inside it has no home, so it is reported with no fix (placeholders.md). Only with output false and no skip.", "enum": ["comment"] },
               "skip": { "enum": ["detail", "bulk", "dynamic-key", "unbound-client", "type-mismatch", "context-unproven", "default-type-unproven", "receiver-unproven"] }
             }
           }

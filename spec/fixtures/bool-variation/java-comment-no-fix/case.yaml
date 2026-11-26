@@ -1,0 +1,6 @@
+id: java-comment-no-fix
+rule: bool-variation
+tags: [java, comments]
+description: A comment between the receiver and the method name has no home in the Java rewrite (only argument elements are copied), so the call is reported with no fix and left untouched.
+expect:
+  java: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, noFix: comment}], output: false}

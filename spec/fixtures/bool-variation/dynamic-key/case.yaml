@@ -5,3 +5,4 @@ description: A flag key computed at runtime cannot be rewritten and is reported 
 expect:
   js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation, skip: dynamic-key}], output: false}
   go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation, skip: dynamic-key}], output: false}
+  java: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, skip: dynamic-key}], output: false}

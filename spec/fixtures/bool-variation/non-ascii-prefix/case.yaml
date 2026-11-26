@@ -5,3 +5,4 @@ description: Multi-byte characters (an accented letter and an astral emoji) prec
 expect:
   js: {diagnostics: [{line: 8, col: 44, ruleId: bool-variation}], output: true}
   go: {diagnostics: [{line: 20, col: 32, ruleId: bool-variation}], output: true}
+  java: {diagnostics: [{line: 12, col: 33, ruleId: bool-variation}], output: true}

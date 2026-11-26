@@ -5,3 +5,4 @@ description: A multi-kind or builder-made LD context cannot be converted to an E
 expect:
   js: {diagnostics: [{line: 13, col: 16, ruleId: bool-variation, skip: context-unproven}], output: false}
   go: {diagnostics: [{line: 15, col: 11, ruleId: bool-variation, skip: context-unproven}], output: false}
+  java: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, skip: context-unproven}], output: false}

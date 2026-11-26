@@ -5,3 +5,4 @@ description: A default value whose type cannot be proven to match the rule's val
 expect:
   js: {diagnostics: [{line: 8, col: 16, ruleId: bool-variation, skip: default-type-unproven}], output: false}
   go: {diagnostics: [{line: 14, col: 11, ruleId: bool-variation, skip: default-type-unproven}], output: false}
+  java: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, skip: default-type-unproven}], output: false}

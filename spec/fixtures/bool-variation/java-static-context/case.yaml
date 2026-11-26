@@ -1,0 +1,6 @@
+id: java-static-context
+rule: bool-variation
+tags: [java, static-context]
+description: The OpenFeature client is an instance field and the call is in a static method, where the field is not accessible; the call is skipped as unbound-client.
+expect:
+  java: {diagnostics: [{line: 12, col: 16, ruleId: bool-variation, skip: unbound-client}], output: false}
