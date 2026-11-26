@@ -101,7 +101,9 @@ jobs:
         uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go/go.mod
-          cache-dependency-path: go/go.sum
+          cache-dependency-path: |
+            go/go.sum
+            go/golangci/go.sum
       - if: env.SETUP == 'true'
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
@@ -155,6 +157,38 @@ jobs:
           version: 3.54.0
           repo-token: ${{ secrets.GITHUB_TOKEN }}
       - run: task java:lint java:test java:smoke
+
+  # golangci-lint module plugin smoke (issue #18): builds a custom golangci-lint
+  # with the plugin and runs it on one fixture. Not a required check. Steps are
+  # gated on the `go` flag (fail-open `!= 'false'`), not the job, so the job
+  # always reports.
+  golangci-plugin:
+    needs: changes
+    if: ${{ !cancelled() }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SETUP: ${{ needs.changes.result != 'success' || needs.changes.outputs.go != 'false' }}
+    steps:
+      - if: env.SETUP == 'true'
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - if: env.SETUP == 'true'
+        uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: |
+            go/go.sum
+            go/golangci/go.sum
+      - if: env.SETUP == 'true'
+        uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
+        with:
+          version: 3.54.0
+          repo-token: ${{ secrets.GITHUB_TOKEN }}
+      - name: go:plugin-smoke
+        if: env.SETUP == 'true'
+        run: task go:plugin-smoke
 
   # ESLint 9 is in the plugin's peer range, so keep it tested (the main job runs ESLint 10).
   eslint-9:
