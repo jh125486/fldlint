@@ -22,3 +22,4 @@ java/smoke/target/
 
 # Local agent state and worktrees
 /.claude/
+/go/golangci/testdata/custom-gcl
