@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Compatibility smoke project (ADR 009 D1 risk, issue #11). Not a module of ../pom.xml and not
+     built by `task java:test`; the CI job of #12 runs it with the published-style jar, see
+     README.md for the commands and what to expect. -->
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <groupId>io.github.jh125486.fldlint</groupId>
+  <artifactId>fldlint-smoke</artifactId>
+  <version>0.0.0</version>
+  <packaging>jar</packaging>
+  <name>fldlint-smoke</name>
+
+  <properties>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+    <maven.compiler.release>11</maven.compiler.release>
+    <launchdarkly.version>7.18.1</launchdarkly.version>
+    <openfeature.version>1.23.0</openfeature.version>
+    <rewrite-maven-plugin.version>6.46.1</rewrite-maven-plugin.version>
+    <fldlint.version>0.1.0-SNAPSHOT</fldlint.version>
+  </properties>
+
+  <dependencies>
+    <dependency>
+      <groupId>com.launchdarkly</groupId>
+      <artifactId>launchdarkly-java-server-sdk</artifactId>
+      <version>${launchdarkly.version}</version>
+    </dependency>
+    <dependency>
+      <groupId>dev.openfeature</groupId>
+      <artifactId>sdk</artifactId>
+      <version>${openfeature.version}</version>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <plugin>
+        <groupId>org.openrewrite.maven</groupId>
+        <artifactId>rewrite-maven-plugin</artifactId>
+        <version>${rewrite-maven-plugin.version}</version>
+        <configuration>
+          <activeRecipes>
+            <recipe>io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature</recipe>
+          </activeRecipes>
+        </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>io.github.jh125486</groupId>
+            <artifactId>fldlint-rewrite</artifactId>
+            <version>${fldlint.version}</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+</project>

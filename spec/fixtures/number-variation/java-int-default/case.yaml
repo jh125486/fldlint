@@ -1,0 +1,6 @@
+id: java-int-default
+rule: number-variation
+tags: [java, default-type-unproven]
+description: An int literal default widens to double for doubleVariation, but getDoubleValue(String, Double, ..) does not accept an int, so the default type is not proven and the call is skipped as default-type-unproven.
+expect:
+  java: {diagnostics: [{line: 12, col: 16, ruleId: number-variation, skip: default-type-unproven}], output: false}

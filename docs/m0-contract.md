@@ -366,6 +366,12 @@ consistent. Coverage for a rewriting rule counts only cases with `output: true`
 and no `skip`.
 
 ### M0.2b correction (coverage languages)
+Update (#11): `java` is now in the coverage languages (`COVERAGE_LANGUAGES` in
+`js/packages/spec/src/tags.ts`), so a rewriting rule with a `java` template needs
+a Java rewrite case like any other language. The paragraph below is the M0
+history. The Go tools do not check coverage (the JS loader is the only
+validator, ADR 011), so there is no Go list to change.
+
 In M0 the fixture languages are `js` and `go` only. `java` templates in
 rules.yaml are unverified and Java fixtures arrive in M3, so rewrite-coverage
 (`spec:tags`, the Go/JS validators and every checker) requires a rewrite case

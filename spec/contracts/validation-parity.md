@@ -243,7 +243,8 @@ what is missing, when coverage is not met:
 - `bool-variation` (the reference rule) covers the seven shape tags.
 - Every rewriting rule (no `skip`) needs at least one rewrite case
   (`output: true`, at least one diagnostic) for **each language that has a
-  template**.
+  template** (`js`, `go` and `java`; the Java lift of M0.2b is #11). A
+  report-only binding needs no case.
 
 There is no separate skip-case requirement
 ([ADR 007](../../docs/adr/007-shape-tag-coverage-reference-rule-only.md)).

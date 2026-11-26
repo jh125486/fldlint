@@ -270,7 +270,8 @@ final class LaunchDarklyCall {
       case "number":
         return type == JavaType.Primitive.Double;
       case "string":
-        return TypeUtils.isString(type);
+        // A null literal is fine: getStringValue(String, String, ..) accepts null.
+        return TypeUtils.isString(type) || type == JavaType.Primitive.Null;
       default:
         return false;
     }

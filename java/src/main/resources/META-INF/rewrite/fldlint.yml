@@ -9,3 +9,6 @@ description: >-
   source (ADR 009 D5).
 recipeList:
   - io.github.jh125486.fldlint.BoolVariationToOpenFeature
+  - io.github.jh125486.fldlint.StringVariationToOpenFeature
+  - io.github.jh125486.fldlint.NumberVariationToOpenFeature
+  - io.github.jh125486.fldlint.IntVariationToOpenFeature

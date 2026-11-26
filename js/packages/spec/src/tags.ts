@@ -6,8 +6,8 @@ import { type Language } from "./types.js";
 
 /** The reference rule that must cover every shape tag. */
 export const REFERENCE_RULE = "bool-variation";
-/** Rewrite coverage is required for js and go only (M0.2b); java arrives in M3. */
-export const COVERAGE_LANGUAGES: readonly Language[] = ["js", "go"];
+/** Rewrite coverage is required for js, go and java (M0.2b limited it to js and go until Java shipped, #11). */
+export const COVERAGE_LANGUAGES: readonly Language[] = ["js", "go", "java"];
 export const MANDATORY_TAGS: readonly string[] = [
   "quote-single",
   "quote-double",

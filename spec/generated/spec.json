@@ -111,6 +111,16 @@
             "requires": [
               "context-unproven"
             ]
+          },
+          "java": {
+            "methods": [
+              "stringVariation"
+            ],
+            "requires": [
+              "context-unproven",
+              "default-type-unproven"
+            ],
+            "template": "#{any(dev.openfeature.sdk.Client)}.getStringValue(#{key}, #{default}, #{context})"
           }
         }
       },
@@ -145,6 +155,37 @@
             "requires": [
               "context-unproven"
             ]
+          },
+          "java": {
+            "methods": [
+              "doubleVariation"
+            ],
+            "requires": [
+              "context-unproven",
+              "default-type-unproven"
+            ],
+            "template": "#{any(dev.openfeature.sdk.Client)}.getDoubleValue(#{key}, #{default}, #{context}).doubleValue()"
+          }
+        }
+      },
+      {
+        "id": "java-int-variation",
+        "message": "Migrate integer flag {{key}} to OpenFeature",
+        "valueType": "integer",
+        "risk": "low",
+        "keyArg": 0,
+        "defaultArg": 2,
+        "contextArg": 1,
+        "languages": {
+          "java": {
+            "methods": [
+              "intVariation"
+            ],
+            "requires": [
+              "context-unproven",
+              "default-type-unproven"
+            ],
+            "template": "#{any(dev.openfeature.sdk.Client)}.getIntegerValue(#{key}, #{default}, #{context}).intValue()"
           }
         }
       },
@@ -214,6 +255,24 @@
         "skip": "type-mismatch"
       },
       {
+        "id": "java-json-variation",
+        "valueType": "object",
+        "risk": "medium",
+        "keyArg": 0,
+        "languages": {
+          "java": {
+            "methods": [
+              "jsonValueVariation"
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
+          }
+        },
+        "skip": "type-mismatch"
+      },
+      {
         "id": "variation",
         "risk": "medium",
         "keyArg": 0,
@@ -256,6 +315,15 @@
               "min": 3,
               "max": 3
             }
+          },
+          "java": {
+            "methods": [
+              "migrationVariation"
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           }
         },
         "skip": "type-mismatch"
@@ -282,6 +350,15 @@
             "ctxArg": {
               "BoolVariationDetailCtx": 0
             },
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
+          },
+          "java": {
+            "methods": [
+              "boolVariationDetail"
+            ],
             "argCount": {
               "min": 3,
               "max": 3
@@ -316,6 +393,15 @@
               "min": 3,
               "max": 3
             }
+          },
+          "java": {
+            "methods": [
+              "stringVariationDetail"
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           }
         },
         "skip": "detail"
@@ -346,6 +432,15 @@
               "min": 3,
               "max": 3
             }
+          },
+          "java": {
+            "methods": [
+              "doubleVariationDetail"
+            ],
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
           }
         },
         "skip": "detail"
@@ -363,6 +458,15 @@
             "ctxArg": {
               "IntVariationDetailCtx": 0
             },
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
+          },
+          "java": {
+            "methods": [
+              "intVariationDetail"
+            ],
             "argCount": {
               "min": 3,
               "max": 3
@@ -393,6 +497,15 @@
             "ctxArg": {
               "JSONVariationDetailCtx": 0
             },
+            "argCount": {
+              "min": 3,
+              "max": 3
+            }
+          },
+          "java": {
+            "methods": [
+              "jsonValueVariationDetail"
+            ],
             "argCount": {
               "min": 3,
               "max": 3
@@ -438,6 +551,14 @@
             "argCount": {
               "min": 1
             }
+          },
+          "java": {
+            "methods": [
+              "allFlagsState"
+            ],
+            "argCount": {
+              "min": 1
+            }
           }
         },
         "skip": "bulk"
@@ -469,6 +590,17 @@
               {
                 "line": 14,
                 "col": 11,
+                "ruleId": "all-flags-state",
+                "skip": "bulk"
+              }
+            ],
+            "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 10,
+                "col": 16,
                 "ruleId": "all-flags-state",
                 "skip": "bulk"
               }
@@ -541,6 +673,17 @@
               {
                 "line": 14,
                 "col": 18,
+                "ruleId": "bool-variation-detail",
+                "skip": "detail"
+              }
+            ],
+            "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 16,
                 "ruleId": "bool-variation-detail",
                 "skip": "detail"
               }
@@ -1246,6 +1389,23 @@
       }
     },
     {
+      "path": "bool-variation/java-unrelated-method",
+      "case": {
+        "id": "java-unrelated-method",
+        "rule": "bool-variation",
+        "tags": [
+          "java"
+        ],
+        "description": "A boolVariation method on a user class that is not an LDClientInterface is not an SDK call, so there is no diagnostic and no rewrite.",
+        "expect": {
+          "java": {
+            "diagnostics": [],
+            "output": false
+          }
+        }
+      }
+    },
+    {
       "path": "bool-variation/ldcontext-shared-import",
       "case": {
         "id": "ldcontext-shared-import",
@@ -1798,6 +1958,53 @@
       }
     },
     {
+      "path": "java-int-variation/java-int-static-key",
+      "case": {
+        "id": "java-int-static-key",
+        "rule": "java-int-variation",
+        "tags": [
+          "java"
+        ],
+        "description": "A static integer flag is rewritten to getIntegerValue and unboxed with intValue to keep the primitive int.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "java-int-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "java-json-variation/java-json-type-mismatch",
+      "case": {
+        "id": "java-json-type-mismatch",
+        "rule": "java-json-variation",
+        "tags": [
+          "java"
+        ],
+        "description": "Java jsonValueVariation takes and returns LDValue while OpenFeature getObjectValue uses Value, so the call is skipped as type-mismatch.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 9,
+                "col": 16,
+                "ruleId": "java-json-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
       "path": "json-variation/json-static-key",
       "case": {
         "id": "json-static-key",
@@ -1875,6 +2082,42 @@
               }
             ],
             "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 10,
+                "col": 40,
+                "ruleId": "migration-variation",
+                "skip": "type-mismatch"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
+      "path": "number-variation/java-int-default",
+      "case": {
+        "id": "java-int-default",
+        "rule": "number-variation",
+        "tags": [
+          "java",
+          "default-type-unproven"
+        ],
+        "description": "An int literal default widens to double for doubleVariation, but getDoubleValue(String, Double, ..) does not accept an int, so the default type is not proven and the call is skipped as default-type-unproven.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "number-variation",
+                "skip": "default-type-unproven"
+              }
+            ],
+            "output": false
           }
         }
       }
@@ -1906,6 +2149,39 @@
               }
             ],
             "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "number-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "string-variation/java-null-default",
+      "case": {
+        "id": "java-null-default",
+        "rule": "string-variation",
+        "tags": [
+          "java"
+        ],
+        "description": "A null default is a String; getStringValue accepts null, so the call is rewritten.",
+        "expect": {
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
+                "ruleId": "string-variation"
+              }
+            ],
+            "output": true
           }
         }
       }
@@ -1933,6 +2209,16 @@
               {
                 "line": 16,
                 "col": 15,
+                "ruleId": "string-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 16,
                 "ruleId": "string-variation"
               }
             ],

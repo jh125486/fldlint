@@ -1,0 +1,14 @@
+# @name io.github.jh125486.fldlint.LaunchDarklyUsage
+# @instanceName LaunchDarkly usage
+# @group 
+sourcePath,line,col,ruleId,skip,noFix,message,fingerprint
+java/smoke/src/main/java/smoke/SmokeFlags.java,22,22,bool-variation,,,Migrate boolean flag "smoke-bool" to OpenFeature,e8d5c7ac74cf0273806f5d24dc614adc
+java/smoke/src/main/java/smoke/SmokeFlags.java,23,25,string-variation,,,Migrate string flag "smoke-string" to OpenFeature,046f4c40bd2ff0b9ebd1f7bb2e4dbf76
+java/smoke/src/main/java/smoke/SmokeFlags.java,24,23,number-variation,,,Migrate number flag "smoke-number" to OpenFeature,418929fee9405690c05ea458e39bf2cf
+java/smoke/src/main/java/smoke/SmokeFlags.java,25,20,java-int-variation,,,Migrate integer flag "smoke-int" to OpenFeature,2f73b62c1ae2d6977c27d6a40f9d62a4
+java/smoke/src/main/java/smoke/SmokeFlags.java,31,30,number-variation,default-type-unproven,,Default value type not proven [skip: default-type-unproven],2fb60352fc430fce0d2a7b65df0a1c7b
+java/smoke/src/main/java/smoke/SmokeFlags.java,32,27,bool-variation,dynamic-key,,Flag key is not a static string [skip: dynamic-key],2a0706bf4c73541424eb5d53ea2541ed
+java/smoke/src/main/java/smoke/SmokeFlags.java,33,25,bool-variation-detail,detail,,Detail call; reason/variation metadata has no 1:1 rewrite [skip: detail],d0030d3cbc06a06a226729ff581b6579
+java/smoke/src/main/java/smoke/SmokeFlags.java,34,23,java-json-variation,type-mismatch,,Return/default type differs between SDKs [skip: type-mismatch],b4a1278a827949b944883bb1e503bc5c
+java/smoke/src/main/java/smoke/SmokeFlags.java,36,17,migration-variation,type-mismatch,,Return/default type differs between SDKs [skip: type-mismatch],aaeef3725fd9490837c6c4695c10cc76
+java/smoke/src/main/java/smoke/SmokeFlags.java,37,33,all-flags-state,bulk,,Bulk evaluation; migrate manually [skip: bulk],2157f1f4c922da89a34e21800669072e

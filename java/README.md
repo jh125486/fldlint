@@ -31,9 +31,20 @@ instead of the LaunchDarkly jars. To regenerate `After.java` files from the
 recipe: `./mvnw -B test -Dtest='ConformanceTest#fixtures' -Dfldlint.updateFixtures=true`,
 then review the diff.
 
-Not done yet: the other rules (#11), homing comments inside a call (Java reports
-such a call with no fix, `[no-fix: comment]`), constants as static keys, inherited
-client fields, and a CLI or plugin run (only `RewriteTest`).
+Issue #11 adds the rest of the Java column of `spec/rules.yaml`. Rewriting rules
+(one recipe class each over the abstract `VariationToOpenFeature`, all in the composite
+recipe): `bool-variation`, `string-variation` (`stringVariation`, a `null` default is
+proven), `number-variation` (`doubleVariation`) and `java-int-variation` (`intVariation`).
+Report-only rules, never rewritten, reported with the rule's skip after the receiver and
+`argCount` proof: the five `*-detail` rules, `java-json-variation` (`jsonValueVariation`),
+`migration-variation` and `all-flags-state` (variadic). A method of the same name on a
+class that is not an `LDClientInterface` is no finding. The default is proven by its exact
+static type (`int` literal for `doubleVariation` is `default-type-unproven`). The smoke
+project for the published-style jar is in [smoke/](smoke/) (CI wiring is #12).
+
+Not done yet: homing comments inside a call (Java reports such a call with no fix,
+`[no-fix: comment]`), constants as static keys, inherited client fields, and a CLI or
+plugin run other than the smoke project (the tests use `RewriteTest`).
 
 Plan (see [ADR 009](../docs/adr/009-java-openrewrite-recipes.md), status Accepted):
 
@@ -57,5 +68,6 @@ Argument counts: report-only rules carry `argCount` (`min`, and `max` unless var
 each language binding, exposed as `Binding.getArgCountMin()` / `getArgCountMax()`
 (null when absent). `Planner.recognizesArgCount` enforces them: a call whose argument
 count is outside the range is an unrecognized call (no finding), as in the JS and Go
-engines. No report-only rule has a Java binding today (#11), so every Java `argCount`
-is currently null and the range is covered by unit tests only.
+engines. Java counts (launchdarkly-java-server-sdk 7.18.1): 3 for every variation, detail and
+`migrationVariation` method; `allFlagsState(LDContext, FlagsStateOption...)` is variadic
+(`min: 1`).

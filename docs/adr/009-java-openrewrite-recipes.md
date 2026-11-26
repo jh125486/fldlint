@@ -92,6 +92,26 @@ rewrite plugin conventions (no new exit codes or flags).
   data tables. Rule ids `java-int-variation` and `java-json-variation` are fingerprint
   inputs, fixed here (#7).
 
+## Addendum (issue #11, remaining Java rules)
+
+- The rules table drives the planner and the matchers: `LaunchDarklyCall` builds
+  one `MethodMatcher` per Java method name in `RulesGen` (receiver
+  `LDClientInterface`, parameters `(..)`, so the v6 `LDUser` overload still
+  matches; the argument count is enforced by `argCount` instead of parameter types).
+- Recipes: one small concrete class per rewriting rule
+  (`BoolVariationToOpenFeature`, `StringVariationToOpenFeature`,
+  `NumberVariationToOpenFeature`, `IntVariationToOpenFeature`) over the abstract
+  `VariationToOpenFeature`, which reads the template from `RulesGen`. A
+  parameterized recipe with an `@Option` rule id was rejected: it needs
+  serializable options and gives every rule the same display name.
+- `java-int-variation` and `java-json-variation` are Java-only rules because
+  `skip` and the template are rule-level (JS `numberVariation` and Go `IntVariation`
+  cannot share one with `intVariation`). Report-only Java bindings carry `argCount`
+  (`allFlagsState` is variadic: `min: 1`, no `max`).
+- The default-type check keeps the #10 category `default-type-unproven` (option (b)
+  of the issue); no new skip category and no change to M0.2a.
+- Java is now a coverage language (`task spec:tags`).
+
 ## Addendum (issue #10, bool-variation)
 
 - Static keys are `String` literals only (text blocks included). Treating a

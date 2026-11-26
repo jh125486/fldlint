@@ -1,0 +1,6 @@
+id: java-unrelated-method
+rule: bool-variation
+tags: [java]
+description: A boolVariation method on a user class that is not an LDClientInterface is not an SDK call, so there is no diagnostic and no rewrite.
+expect:
+  java: {diagnostics: [], output: false}

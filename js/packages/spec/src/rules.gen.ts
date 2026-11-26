@@ -103,6 +103,16 @@ export const rules: readonly Rule[] = [
         ],
         "template": "{{client}}.StringValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"
       },
+      "java": {
+        "methods": [
+          "stringVariation"
+        ],
+        "requires": [
+          "context-unproven",
+          "default-type-unproven"
+        ],
+        "template": "#{any(dev.openfeature.sdk.Client)}.getStringValue(#{key}, #{default}, #{context})"
+      },
       "js": {
         "async": true,
         "methods": [
@@ -137,6 +147,16 @@ export const rules: readonly Rule[] = [
         ],
         "template": "{{client}}.FloatValue({{goctx}}, {{key}}, {{default}}, {{evalctx}})"
       },
+      "java": {
+        "methods": [
+          "doubleVariation"
+        ],
+        "requires": [
+          "context-unproven",
+          "default-type-unproven"
+        ],
+        "template": "#{any(dev.openfeature.sdk.Client)}.getDoubleValue(#{key}, #{default}, #{context}).doubleValue()"
+      },
       "js": {
         "async": true,
         "methods": [
@@ -151,6 +171,27 @@ export const rules: readonly Rule[] = [
     "message": "Migrate number flag {{key}} to OpenFeature",
     "risk": "low",
     "valueType": "number"
+  },
+  {
+    "contextArg": 1,
+    "defaultArg": 2,
+    "id": "java-int-variation",
+    "keyArg": 0,
+    "languages": {
+      "java": {
+        "methods": [
+          "intVariation"
+        ],
+        "requires": [
+          "context-unproven",
+          "default-type-unproven"
+        ],
+        "template": "#{any(dev.openfeature.sdk.Client)}.getIntegerValue(#{key}, #{default}, #{context}).intValue()"
+      }
+    },
+    "message": "Migrate integer flag {{key}} to OpenFeature",
+    "risk": "low",
+    "valueType": "integer"
   },
   {
     "contextArg": 1,
@@ -218,6 +259,24 @@ export const rules: readonly Rule[] = [
     "valueType": "object"
   },
   {
+    "id": "java-json-variation",
+    "keyArg": 0,
+    "languages": {
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "jsonValueVariation"
+        ]
+      }
+    },
+    "risk": "medium",
+    "skip": "type-mismatch",
+    "valueType": "object"
+  },
+  {
     "id": "variation",
     "keyArg": 0,
     "languages": {
@@ -251,6 +310,15 @@ export const rules: readonly Rule[] = [
           "MigrationVariationCtx"
         ]
       },
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "migrationVariation"
+        ]
+      },
       "js": {
         "argCount": {
           "max": 3,
@@ -279,6 +347,15 @@ export const rules: readonly Rule[] = [
         "methods": [
           "BoolVariationDetail",
           "BoolVariationDetailCtx"
+        ]
+      },
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "boolVariationDetail"
         ]
       },
       "js": {
@@ -311,6 +388,15 @@ export const rules: readonly Rule[] = [
           "StringVariationDetailCtx"
         ]
       },
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "stringVariationDetail"
+        ]
+      },
       "js": {
         "argCount": {
           "max": 3,
@@ -339,6 +425,15 @@ export const rules: readonly Rule[] = [
         "methods": [
           "Float64VariationDetail",
           "Float64VariationDetailCtx"
+        ]
+      },
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "doubleVariationDetail"
         ]
       },
       "js": {
@@ -370,6 +465,15 @@ export const rules: readonly Rule[] = [
           "IntVariationDetail",
           "IntVariationDetailCtx"
         ]
+      },
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "intVariationDetail"
+        ]
       }
     },
     "risk": "high",
@@ -390,6 +494,15 @@ export const rules: readonly Rule[] = [
         "methods": [
           "JSONVariationDetail",
           "JSONVariationDetailCtx"
+        ]
+      },
+      "java": {
+        "argCount": {
+          "max": 3,
+          "min": 3
+        },
+        "methods": [
+          "jsonValueVariationDetail"
         ]
       },
       "js": {
@@ -431,6 +544,14 @@ export const rules: readonly Rule[] = [
         },
         "methods": [
           "AllFlagsState"
+        ]
+      },
+      "java": {
+        "argCount": {
+          "min": 1
+        },
+        "methods": [
+          "allFlagsState"
         ]
       },
       "js": {

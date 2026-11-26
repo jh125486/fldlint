@@ -117,6 +117,13 @@ class ConformanceTest implements RewriteTest {
   }
 
   private void checkDiagnostics(String path, JsonNode expected, String before) {
+    if (expected.size() == 0) {
+      // Nothing is found, so nothing is marked and no data table row exists.
+      rewriteRun(
+          s -> s.parser(FixtureParsers.forCase(path)).recipe(new FindLaunchDarklyUsage()),
+          java(before));
+      return;
+    }
     final List<LaunchDarklyUsage.Row> rows = new ArrayList<LaunchDarklyUsage.Row>();
     rewriteRun(
         s ->

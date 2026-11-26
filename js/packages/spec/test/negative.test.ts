@@ -302,10 +302,27 @@ describe("spec:tags coverage", () => {
     expect(checkTags(r).errors.join("\n")).toContain('rule "js-only": no rewrite case for language "js"');
   });
 
-  it("does not require java rewrite cases for a java template", () => {
+  it("requires a java rewrite case for a java template", () => {
     const r = mkSpec();
     withShapeTags(r);
     w(r, "rules.yaml", RULES.replace('go: {methods: [BoolVariation],', 'java: {methods: [boolVariation], template: "#{key}"}\n      go: {methods: [BoolVariation],'));
+    expect(checkTags(r).errors.join("\n")).toContain('rule "bool-variation": no rewrite case for language "java"');
+  });
+
+  it("is satisfied by a java rewrite case", () => {
+    const r = mkSpec();
+    withShapeTags(r);
+    w(r, "rules.yaml", RULES.replace('go: {methods: [BoolVariation],', 'java: {methods: [boolVariation], template: "#{key}"}\n      go: {methods: [BoolVariation],'));
+    w(r, "fixtures/bool-variation/rw/case.yaml", caseYaml("rw", "bool-variation", `  js: {diagnostics: [${D()}], output: true}\n  go: {diagnostics: [${D()}], output: true}\n  java: {diagnostics: [${D()}], output: true}`));
+    w(r, "fixtures/bool-variation/rw/java/Before.java", "a\n");
+    w(r, "fixtures/bool-variation/rw/java/After.java", "b\n");
+    expect(checkTags(r).errors).toEqual([]);
+  });
+
+  it("does not ask for a java case from a java report-only binding", () => {
+    const r = mkSpec();
+    withShapeTags(r);
+    w(r, "rules.yaml", RULES.replace("js: {methods: [boolVariationDetail]}", "js: {methods: [boolVariationDetail]}\n      java: {methods: [boolVariationDetail]}"));
     expect(checkTags(r).errors).toEqual([]);
   });
 
