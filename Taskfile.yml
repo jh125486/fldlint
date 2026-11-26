@@ -19,14 +19,33 @@ tasks:
       - task --list
 
   check:
-    desc: Everything a good commit needs (spec:check, lint, test, parity, js:types-floor)
+    desc: Everything a good commit needs (check:shared, check:go, check:js, Java lint and tests)
     cmds:
       # Serial: spec:check regenerates files and js:types-floor swaps @types/node.
+      - task: check:shared
+      - task: check:go
+      - task: check:js
+      - task: java:lint
+      - task: java:test
+
+  check:shared:
+    desc: Language-independent checks (spec:check, workflows:test, parity); CI runs it on any non-docs change
+    cmds:
       - task: spec:check
       - task: workflows:test
-      - task: lint
-      - task: test
       - task: parity
+
+  check:go:
+    desc: Go lint and race tests
+    cmds:
+      - task: go:lint
+      - task: go:test
+
+  check:js:
+    desc: JS lint, tests and the @types/node floor
+    cmds:
+      - task: js:lint
+      - task: js:test
       - task: js:types-floor
 
   check:node:
@@ -140,14 +159,25 @@ tasks:
         if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:smoke skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
         set -e
         cd java && ./mvnw -B -DskipTests install
-        cd smoke && ../mvnw -B \
+        ver=$(./mvnw -q -B help:evaluate -Dexpression=project.version -DforceStdout)
+        cd smoke && rm -rf target/rewrite && ../mvnw -B -Dfldlint.version="$ver" \
           org.openrewrite.maven:rewrite-maven-plugin:6.46.1:dryRun \
-          -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:0.1.0-SNAPSHOT \
+          -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:"$ver" \
           -Drewrite.activeRecipes=io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature,io.github.jh125486.fldlint.FindLaunchDarklyUsage
         patch=target/rewrite/rewrite.patch
-        test -s "$patch" || { echo "java:smoke: $patch is missing or empty" >&2; exit 1; }
-        grep -q 'getBooleanValue' "$patch" || { echo "java:smoke: no rewrite in $patch" >&2; exit 1; }
-        grep -q '\[skip: ' "$patch" || { echo "java:smoke: no skip marker in $patch" >&2; exit 1; }
+        fail() { echo "java:smoke: $1" >&2; exit 1; }
+        test -s "$patch" || fail "$patch is missing or empty"
+        # The four rewritten calls (added lines).
+        for t in Boolean String Double Integer; do
+          grep -Eq "^\+.*get${t}Value" "$patch" || fail "no rewrite to get${t}Value in $patch"
+        done
+        # One skip marker per reported call, by category.
+        for c in default-type-unproven dynamic-key detail bulk; do
+          [ "$(grep -c "\[skip: $c\]" "$patch")" -eq 1 ] || fail "expected exactly one [skip: $c] in $patch"
+        done
+        [ "$(grep -c '\[skip: type-mismatch\]' "$patch")" -eq 2 ] || fail "expected two [skip: type-mismatch] (json, migration) in $patch"
+        # The unrelated class must not be touched or marked.
+        if grep -E '^[-+].*(toggles\.boolVariation|smoke-unrelated)' "$patch"; then fail "unrelated call changed or marked in $patch"; fi
 
   workflows:test:
     desc: Table test for the CI change classifier (.github/scripts/classify-changes.sh)

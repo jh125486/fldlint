@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # Classify a list of changed paths (one per line, stdin) into CI scope flags.
-# Prints go=, js=, java= and docs_only= lines (true/false), ready to append to
+# Prints go=, js=, java= and shared= lines (true/false), ready to append to
 # $GITHUB_OUTPUT. Fails safe: an empty list or any unrecognized path turns on
-# every language. Used by the `changes` job in ci.yml; tested by
+# every language. shared=true means any non-documentation change (spec:check,
+# the workflow tests and parity are language-independent and run on it). Used by the `changes` job in ci.yml; tested by
 # classify-changes.test.sh (task workflows:test).
 #
 # Feed it `git diff --no-renames --name-only`: a rename is then a delete plus an
@@ -17,6 +18,11 @@ while IFS= read -r p || [ -n "$p" ]; do
   [ -n "$p" ] || continue
   n=$((n + 1))
   case $p in
+    # Generated files (Taskfile GEN_FILES), shared fixtures and the spec generator:
+    # every language consumes them, and spec:check must see them.
+    js/packages/spec/* | go/conformance/testdata/* | spec/generated/spec.json \
+      | go/internal/spec/rules_gen.go | go/internal/spec/testdata/spec.json \
+      | java/src/main/java/io/github/jh125486/fldlint/spec/RulesGen.java) all ;;
     # The Java rule table is generated from the spec by go/internal/spec/gen.
     go/internal/spec/*) go=true java=true ;;
     go/*) go=true ;;
@@ -37,7 +43,7 @@ done
 # Empty input: run everything.
 if [ "$n" -eq 0 ]; then all; fi
 
-docs_only=false
-if [ "$n" -gt 0 ] && [ "$nondocs" -eq 0 ]; then docs_only=true; fi
+shared=true
+if [ "$n" -gt 0 ] && [ "$nondocs" -eq 0 ]; then shared=false; fi
 
-printf 'go=%s\njs=%s\njava=%s\ndocs_only=%s\n' "$go" "$js" "$java" "$docs_only"
+printf 'go=%s\njs=%s\njava=%s\nshared=%s\n' "$go" "$js" "$java" "$shared"

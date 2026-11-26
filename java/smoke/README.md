@@ -2,7 +2,7 @@
 
 A tiny Maven project that runs the published-style `fldlint-rewrite` jar through the
 current `rewrite-maven-plugin` (ADR 009 D1 risk). It is not a module of `java/pom.xml`
-and `task java:test` does not build it; the CI job of #12 runs it.
+and `task java:test` does not build it; the CI job of #12 runs it (`task java:smoke`, which reads the version from `java/pom.xml` and passes it as `-Dfldlint.version`).
 
 ```sh
 cd java && ./mvnw -B -DskipTests install          # a local snapshot of the recipes

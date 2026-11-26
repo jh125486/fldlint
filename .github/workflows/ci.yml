@@ -13,11 +13,13 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  # Per-language path scoping. Pushes to main, merge groups and manual runs always
-  # run everything; on a PR the classifier script maps the changed paths to
-  # go/js/java flags (shared inputs such as spec/**, Taskfile.yml and
-  # .github/** turn on all three; an empty or unrecognized list fails safe to all).
-  # Jobs gate their steps, not the jobs, on these flags where a check is required.
+  # Per-language path scoping. Anything that is not a pull_request (today only
+  # pushes to main) runs everything; on a PR the classifier script maps the changed
+  # paths to go/js/java flags plus `shared` (any non-docs change). Shared inputs
+  # such as spec/**, generated files, Taskfile.yml and .github/** turn on all
+  # three; an empty or unrecognized list fails safe to all. Gates test
+  # `!= 'false'`, so a missing or empty output means run. Jobs gate their steps,
+  # not the jobs, where a check is required.
   changes:
     runs-on: ubuntu-latest
     timeout-minutes: 5
@@ -25,8 +27,7 @@ jobs:
       go: ${{ steps.filter.outputs.go }}
       js: ${{ steps.filter.outputs.js }}
       java: ${{ steps.filter.outputs.java }}
-      docs_only: ${{ steps.filter.outputs.docs_only }}
-      check: ${{ steps.filter.outputs.check }}
+      shared: ${{ steps.filter.outputs.shared }}
       workflows: ${{ steps.filter.outputs.workflows }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -44,8 +45,7 @@ jobs:
               echo "go=true"
               echo "js=true"
               echo "java=true"
-              echo "docs_only=false"
-              echo "check=true"
+              echo "shared=true"
               echo "workflows=true"
             } >> "$GITHUB_OUTPUT"
             exit 0
@@ -55,26 +55,24 @@ jobs:
           cat flags.txt
           {
             cat flags.txt
-            # task check / parity cover Go and JS together, so run them when either is set.
-            if grep -Eq '^(go|js)=true$' flags.txt; then echo "check=true"; else echo "check=false"; fi
             if grep -Eq '^(\.github/|Taskfile\.yml$|go/go\.(mod|sum)$)' changed.txt; then echo "workflows=true"; else echo "workflows=false"; fi
           } >> "$GITHUB_OUTPUT"
 
-  # Single entry point: the same `task check` developers run locally. The Java
-  # tasks run in the separate path-filtered `java` job (needs a JDK).
+  # Same tasks developers run locally (`task check` = check:shared + check:go +
+  # check:js + Java). The Java tasks run in the separate `java` job (needs a JDK).
   #
   # Where things run (the matrix keeps its names because they are required checks):
-  #   Node 22 leg (the 22.13.0 engines floor): full `task check` = spec:check,
-  #     lint (JS + Go), tests (JS + Go -race), parity, js:types-floor. Go, lint,
-  #     spec and the @types/node floor do not depend on the Node version, so they
-  #     run once, here.
-  #   Node 24 and 26 legs: `task check:node` = only the Node-version-dependent
-  #     parts: JS typecheck + ESLint, JS tests, and the JS side of parity.
-  # spec:check (and everything else in `task check`) now runs only on the Node
-  # 22.13 leg.
-  # On a PR that touches neither Go nor JS (see `changes`) every step is skipped but the job still
-  # reports success under the same name, which a job-level `if` would not do
-  # for matrix legs.
+  #   Node 22 leg (the 22.13.0 engines floor):
+  #     check:shared (spec:check, workflows:test, parity) when `shared` is set,
+  #     check:go (lint + race tests) when `go` is set,
+  #     check:js (lint, tests, js:types-floor) when `js` is set.
+  #     Go, spec and the @types/node floor do not depend on the Node version, so
+  #     they run once, here. Node and npm ci stay on this leg because the spec
+  #     generator is JS.
+  #   Node 24 and 26 legs: `task check:node` (JS typecheck + ESLint, JS tests, the
+  #     JS side of parity), only when `js` is set.
+  # A step that does not apply is skipped but the job still reports success under
+  # the same name, which a job-level `if` would not do for matrix legs.
   check:
     needs: changes
     # Run even if `changes` failed, so a classifier failure fails the required
@@ -84,34 +82,46 @@ jobs:
     timeout-minutes: 20
     env:
       FLDLINT_SKIP_JAVA: "1"
+      # Whether this leg needs the toolchain at all.
+      SETUP: ${{ needs.changes.result == 'success' && ((matrix.node == 22 && needs.changes.outputs.shared != 'false') || (matrix.node != 22 && needs.changes.outputs.js != 'false')) }}
     strategy:
       fail-fast: false
       matrix:
         node: [22, 24, 26]
     steps:
-      - if: needs.changes.result == 'success' && needs.changes.outputs.check == 'true'
+      - if: env.SETUP == 'true'
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - if: needs.changes.result == 'success' && needs.changes.outputs.check == 'true'
+      - if: env.SETUP == 'true'
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           # 22 means the engines floor itself, so js:types-floor runs on Node 22.13.0 (M0.6)
           node-version: ${{ matrix.node == 22 && '22.13.0' || matrix.node }}
           cache: npm
           cache-dependency-path: js/package-lock.json
-      - if: needs.changes.result == 'success' && needs.changes.outputs.check == 'true'
+      - if: env.SETUP == 'true'
         uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
         with:
           go-version-file: go/go.mod
           cache-dependency-path: go/go.sum
-      - if: needs.changes.result == 'success' && needs.changes.outputs.check == 'true'
+      - if: env.SETUP == 'true'
         uses: arduino/setup-task@c0bc642852239c2689f73f4ea6459c29405f3c52 # v3.0.0
         with:
           version: 3.54.0
           repo-token: ${{ secrets.GITHUB_TOKEN }}
-      - if: needs.changes.result == 'success' && needs.changes.outputs.check == 'true'
-        run: ${{ matrix.node == 22 && 'task check' || 'task check:node' }}
+      - name: check:shared
+        if: env.SETUP == 'true' && matrix.node == 22 && needs.changes.outputs.shared != 'false'
+        run: task check:shared
+      - name: check:go
+        if: env.SETUP == 'true' && matrix.node == 22 && needs.changes.outputs.go != 'false'
+        run: task check:go
+      - name: check:js
+        if: env.SETUP == 'true' && matrix.node == 22 && needs.changes.outputs.js != 'false'
+        run: task check:js
+      - name: check:node
+        if: env.SETUP == 'true' && matrix.node != 22 && needs.changes.outputs.js != 'false'
+        run: task check:node
       - name: Fail if the change classifier failed
         if: needs.changes.result != 'success'
         run: echo "::error::the changes job did not succeed, so nothing was checked" && exit 1
@@ -120,7 +130,7 @@ jobs:
   # (ADR 009 D7: JDK 21 builds, release 8 targets). Runs when the java flag is set.
   java:
     needs: changes
-    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.java == 'true') }}
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.java != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -134,7 +144,9 @@ jobs:
           distribution: temurin
           java-version: 21
           cache: maven
-          cache-dependency-path: java/pom.xml
+          cache-dependency-path: |
+            java/pom.xml
+            java/smoke/pom.xml
       # setup-java's cache covers ~/.m2/repository only; cache the wrapper's Maven
       # distribution too so mvnw does not re-download it every run.
       - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
@@ -150,7 +162,7 @@ jobs:
   # ESLint 9 is in the plugin's peer range, so keep it tested (the main job runs ESLint 10).
   eslint-9:
     needs: changes
-    if: needs.changes.outputs.js == 'true'
+    if: needs.changes.outputs.js != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -173,7 +185,7 @@ jobs:
   # once typescript-eslint supports TS 7 and we adopt it).
   typescript-next:
     needs: changes
-    if: needs.changes.outputs.js == 'true'
+    if: needs.changes.outputs.js != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
@@ -197,7 +209,7 @@ jobs:
   # (it needs uv). Whether it is a required check is an owner decision.
   workflows:
     needs: changes
-    if: needs.changes.outputs.workflows == 'true'
+    if: needs.changes.outputs.workflows != 'false'
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
