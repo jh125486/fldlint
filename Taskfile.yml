@@ -153,13 +153,13 @@ tasks:
         cd java && ./mvnw -B -q -Plint test-compile
 
   java:smoke:
-    desc: Run the published-style recipes through rewrite-maven-plugin dryRun in java/smoke (installs a local snapshot first; FLDLINT_SKIP_JAVA=1 skips)
+    desc: Run the published-style recipes through rewrite-maven-plugin dryRun in java/smoke (installs a local snapshot first; FLDLINT_SKIP_JAVA=1 skips). Not part of 'task check'; CI runs it in the java job
     cmds:
       - |
         if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:smoke skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
         set -e
         cd java && ./mvnw -B -DskipTests install
-        ver=$(./mvnw -q -B help:evaluate -Dexpression=project.version -DforceStdout)
+        ver=$(./mvnw -q -B org.apache.maven.plugins:maven-help-plugin:3.6.0:evaluate -Dexpression=project.version -DforceStdout)
         cd smoke && rm -rf target/rewrite && ../mvnw -B -Dfldlint.version="$ver" \
           org.openrewrite.maven:rewrite-maven-plugin:6.46.1:dryRun \
           -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:"$ver" \
@@ -167,9 +167,10 @@ tasks:
         patch=target/rewrite/rewrite.patch
         fail() { echo "java:smoke: $1" >&2; exit 1; }
         test -s "$patch" || fail "$patch is missing or empty"
-        # The four rewritten calls (added lines).
-        for t in Boolean String Double Integer; do
-          grep -Eq "^\+.*get${t}Value" "$patch" || fail "no rewrite to get${t}Value in $patch"
+        # The four rewritten calls (added lines), by flag key.
+        for pair in Boolean:smoke-bool String:smoke-string Double:smoke-number Integer:smoke-int; do
+          t=${pair%%:*}; k=${pair#*:}
+          grep -Eq "^\+.*get${t}Value\(\"${k}\"" "$patch" || fail "no rewrite to get${t}Value(\"${k}\") in $patch"
         done
         # One skip marker per reported call, by category.
         for c in default-type-unproven dynamic-key detail bulk; do

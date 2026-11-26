@@ -50,13 +50,10 @@ jobs:
             } >> "$GITHUB_OUTPUT"
             exit 0
           fi
-          git diff --no-renames --name-only HEAD^1 HEAD > changed.txt
+          git -c core.quotePath=false diff --no-renames --name-only HEAD^1 HEAD > changed.txt
           .github/scripts/classify-changes.sh < changed.txt > flags.txt
           cat flags.txt
-          {
-            cat flags.txt
-            if grep -Eq '^(\.github/|Taskfile\.yml$|go/go\.(mod|sum)$)' changed.txt; then echo "workflows=true"; else echo "workflows=false"; fi
-          } >> "$GITHUB_OUTPUT"
+          cat flags.txt >> "$GITHUB_OUTPUT"
 
   # Same tasks developers run locally (`task check` = check:shared + check:go +
   # check:js + Java). The Java tasks run in the separate `java` job (needs a JDK).
@@ -162,7 +159,7 @@ jobs:
   # ESLint 9 is in the plugin's peer range, so keep it tested (the main job runs ESLint 10).
   eslint-9:
     needs: changes
-    if: needs.changes.outputs.js != 'false'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.js != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -185,7 +182,7 @@ jobs:
   # once typescript-eslint supports TS 7 and we adopt it).
   typescript-next:
     needs: changes
-    if: needs.changes.outputs.js != 'false'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.js != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     continue-on-error: true
@@ -209,7 +206,7 @@ jobs:
   # (it needs uv). Whether it is a required check is an owner decision.
   workflows:
     needs: changes
-    if: needs.changes.outputs.workflows != 'false'
+    if: ${{ !cancelled() && (needs.changes.result != 'success' || needs.changes.outputs.workflows != 'false') }}
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
