@@ -21,9 +21,9 @@ OpenFeature project.
 
 | Ecosystem | What exists on `main` | Published |
 |-----------|-----------------------|-----------|
-| JS/TS | ESLint plugin ([`eslint-plugin-fldlint`](js/packages/eslint-plugin/README.md)), codemod package ([`@fldlint/codemod`](js/packages/codemod/README.md)) over a shared planner (`@fldlint/core`). The ESLint plugin runs through `eslint` itself; there is no separate fldlint CLI planned for the first release (`@fldlint/cli` is an unimplemented placeholder; issue #16 was closed as not planned). | No: every package is `private`; npm names are planned |
+| JS/TS | ESLint plugin ([`eslint-plugin-fldlint`](js/packages/eslint-plugin/README.md)), codemod package ([`@fldlint/codemod`](js/packages/codemod/README.md)) over a shared planner (`@fldlint/core`). The ESLint plugin runs through `eslint` itself. There is no separate fldlint CLI planned for the first release; `@fldlint/cli` is an unimplemented placeholder. | No: every package is `private`; npm names are planned |
 | Go | `go/analysis` analyzer (`go/analyzer`) with suggested fixes, and two binaries: `go/cmd/fldlint` (standalone) and `go/cmd/fldlint-fix` (`go vet -vettool`). Handles go-server-sdk v7 only. | No: not tagged, not on the Go proxy |
-| Java | OpenRewrite recipes (`io.github.jh125486.fldlint`): a rewrite recipe set for the variation methods and a search recipe, `FindLaunchDarklyUsage`, which is `dryRun`-only. Details in [java/README.md](java/README.md). | No: the artifact `io.github.jh125486:fldlint-rewrite` is planned, not on Maven Central |
+| Java | OpenRewrite recipes (`io.github.jh125486.fldlint`): four rewrite recipes (`BoolVariationToOpenFeature`, `StringVariationToOpenFeature`, `NumberVariationToOpenFeature`, `IntVariationToOpenFeature`, grouped as `MigrateLaunchDarklyToOpenFeature`) and a search recipe, `FindLaunchDarklyUsage`, which is `dryRun`-only. Details in [java/README.md](java/README.md). | No: the artifact `io.github.jh125486:fldlint-rewrite` is planned, not on Maven Central |
 
 Each ecosystem has its own detection engine; they share data, not code
 ([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)), and each tool
@@ -48,7 +48,8 @@ gets the same category everywhere. Anything unproven is reported, not rewritten,
 with one of the skip categories in [`spec/rules.yaml`](spec/rules.yaml):
 `detail`, `bulk`, `dynamic-key`, `unbound-client`, `type-mismatch`,
 `context-unproven`, `default-type-unproven`, `receiver-unproven`. Some rules
-(detail calls, bulk evaluation, migration flags, and JSON values in Go and Java) are report-only; JS `json-variation` is rewritable.
+(detail calls, bulk evaluation, migration flags, and JSON values in Go and
+Java) are report-only; JS `json-variation` is rewritable.
 
 ## Try it from source
 
