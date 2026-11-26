@@ -16,7 +16,7 @@
 - Sign off every commit (Developer Certificate of Origin): `git commit -s`.
 - PR titles and commit messages use conventional commits (`feat:`, `fix:`,
   `docs:`, `chore:`, `test:`, ...).
-- Do your work on a branch (ideally a git worktree); open a PR rather than
+- Do your work on a branch (always a git worktree); open a PR rather than
   pushing to `main`.
 
 ## Tasks

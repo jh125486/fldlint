@@ -1,8 +1,15 @@
 # AGENTS.md
 
 Instructions for coding agents (Codex, Claude Code, others) working in
-`jh125486/fldlint`. Humans: see [CONTRIBUTING.md](CONTRIBUTING.md), which this
-file does not duplicate (task table, approved dependencies, spec-change rules).
+`jh125486/fldlint`. Read [CONTRIBUTING.md](CONTRIBUTING.md) first: it holds the
+task table, approved dependencies, Go test conventions and spec-change rules.
+This file adds agent-specific rules and does not repeat those.
+
+## Who merges
+
+The owner (`jh125486`) merges. An agent merges only when the owner explicitly
+authorizes it. Squash merge is the only allowed method. Never enable
+auto-merge or squash auto-merge.
 
 ## Repo map
 
@@ -30,111 +37,95 @@ YAML, run `task spec:gen`, commit the output. `task spec:check` fails on drift.
 
 ## Commands
 
-Run from the repo root. `task --list` shows all tasks.
+Run from the repo root; `task --list` shows all tasks (table in CONTRIBUTING.md).
 
-- `task check`: full gate (spec:check, lint, test, parity, js:types-floor).
-- `task check:node`: Node-dependent subset (js:lint, js:test, parity).
+- `task check`: the full gate (see the `check` task in `Taskfile.yml`).
+- `task check:node`: Node-dependent subset.
 - `task parity`: JS and Go fingerprint/baseline output must be byte-identical.
 - `task spec:gen`, `task spec:check`, `task spec:tags`.
 - `task java:lint`, `task java:test` (JDK 21 and `unzip` required).
-  There is no `java:smoke` task.
-- `task go:test`, `task go:lint`, `task js:test`, `task js:lint`.
-- `task workflows:lint`: only when you change `.github/workflows` (needs `uv`).
-- No JDK: `FLDLINT_SKIP_JAVA=1 task check` skips the Java tasks. CI's
-  required `check` job does this; Java runs in a separate path-filtered job.
-- If the `task` shim lacks a version: `mise x task@<ver> -- task <name>`
-  (CI pins go-task 3.54.0).
+- `task workflows:lint`: only when you change `.github/workflows`.
+- No JDK: `FLDLINT_SKIP_JAVA=1 task check` skips the Java tasks. The CI
+  `check (N)` matrix legs run with `FLDLINT_SKIP_JAVA=1`; the Node 22 leg runs
+  `task check`, the others `task check:node`. Java runs in a separate
+  path-filtered job.
+- Optional, if your `task` shim lacks the needed version:
+  `mise x task@<ver> -- task <name>`.
 
 Docs-only changes need no task run.
 
 ## Workflow rules
 
 - Always work in a git worktree on a branch. Never commit to `main`.
-- Open a PR. Never enable auto-merge or squash auto-merge. Merge is squash
-  only.
-- Merge `origin/main` into your branch before pushing; the branch must be up
-  to date with `main`.
-- Required checks: `check (22)`, `check (24)`, `check (26)`, `validate`,
-  `dco`.
-- PR titles and commit messages use conventional commits (`feat:`, `fix:`,
-  `docs:`, `chore:`, `test:`).
-- Sign off every commit (DCO): `git commit -s`. Commits are also
-  cryptographically signed. If signing or ssh fails, retry a few times. Never
-  disable signing, switch remotes, or otherwise work around it; report it to
-  the owner.
-- Actions minutes are scarce: batch changes, avoid extra pushes.
+- Open a PR. Merge `origin/main` into your branch before pushing (the ruleset
+  requires the branch to be up to date).
+- Required checks are those in the repo ruleset (currently `check (22)`,
+  `check (24)`, `check (26)` and `dco`). `validate` (PR title) is also
+  expected to pass. Review threads must be resolved before merge.
+- Owner policy: sign commits (`-S`, gpg or ssh) in addition to the DCO
+  sign-off (`-s`). If signing or ssh fails, retry a few times. Never disable
+  signing, switch remotes or otherwise work around a signing failure; report
+  it to the owner.
+- Actions minutes are scarce: do not re-trigger reviews or update the branch
+  without need, and avoid extra pushes.
 
 ## Review loop
 
-1. After opening the PR, wait for Copilot, CodeRabbit and Greptile to review
-   the current head commit (not an earlier one).
+1. After opening the PR, wait for all configured review bots (currently
+   Copilot, CodeRabbit and, if installed, Greptile) to review the current head
+   commit, not an earlier one.
 2. Address every comment. Fix with a code commit, then reply to AND resolve
    each thread (a reply alone leaves it unresolved).
-3. Batch all fixes of a round into one push. Each push re-runs CI and
+3. Batch all fixes of a round into one push; each push re-runs CI and
    re-triggers the reviews.
-4. Do not post `@greptileai review` or run `gh pr update-branch` unless
-   needed.
-5. Repeat until a round comes back clean.
-6. Merge only when Greptile approved the current head, required checks pass,
-   merge state is CLEAN and no threads are unresolved. The owner merges or
-   explicitly authorizes the merge.
+4. Repeat until a round comes back clean.
+5. Merge (when authorized, see above) only when every configured review bot
+   has reviewed the current head, required checks pass, merge state is CLEAN
+   and no threads are unresolved.
 
 ## Issues
 
 Assign the issue to the owner (`jh125486`) when you start work. Issues track
-the roadmap in #6.
+the roadmap; see the roadmap issue.
 
 ## Orchestration
 
 - Plan before coding. Implement in a worktree.
-- Use the cheapest capable model for mechanical, read-only polling and status
-  checks.
-- Get a fresh-context review of the diff before opening the PR. Use the
-  strongest model for parsers, rewrite engines and security-sensitive code; a
-  mid-tier model for CI config, docs and dependency changes.
+- If your harness supports subagents or model tiers: use the cheapest capable
+  model for mechanical, read-only polling and status checks; get a
+  fresh-context review of the diff before opening the PR (strongest model for
+  parsers, rewrite engines and security-sensitive code; a mid-tier model for
+  CI config, docs and dependency changes).
 - The reviewer and the implementer must be different sessions.
 
 ## Dependencies
 
 Adding any dependency, GitHub Action or tool needs owner approval first, and
-it must be the latest stable version. Pin Actions as the repo does: full
-commit SHA with a version comment (see `.github/workflows/ci.yml`). The
-approved list is in CONTRIBUTING.md.
+it must be the latest stable version. Pin Actions as the repo already does
+(see `.github/workflows/ci.yml`).
 
 ## Decisions
 
 When a decision belongs to the owner (naming, versioning, publishing, repo
 settings, new dependencies), stop and ask one explicit question with options
 and a recommendation. Do not bury it in status text. Do not re-ask resolved
-decisions: check `docs/adr/` first (for example ADR 010 fixes the planner
-step order).
+decisions: check `docs/adr/` first.
 
 ## Go tests
 
-Follow CONTRIBUTING.md "Go test conventions":
-
-- Table-driven; `t.Parallel()` in tests and subtests.
-- Blackbox in `package foo_test`; whitebox only in `*_internal_test.go` with
-  `package foo`.
-- One test function per exported function.
-- `t.Context()`, not `context.Background()`.
-- `testing/synctest` for anything timing-related.
-- Stdlib `testing` only (no testify).
+Follow "Go test conventions" in CONTRIBUTING.md (and the `go-test-conventions`
+skill if your harness has it).
 
 ## Correctness invariants
 
 - Rewrite a call only when the flag key is static, the value type is known,
   any context conversion is provable, and the OpenFeature client binding is
-  proven in scope. Otherwise report it with a skip category and do not edit
-  (ADR 006, ADR 010). Step order, first match wins: rule-level skip,
-  `dynamic-key`, `context-unproven`, `default-type-unproven`,
-  `unbound-client`, `receiver-unproven`, rewrite.
-- Never delete declarations, insert `_ = x`, or add `Close()` calls (ADR 010).
+  proven in scope. Otherwise report it with a skip category and do not edit.
+  Skip order and receiver rules: ADR 006 and ADR 010.
 - Positions: 1-based line, `col` in UTF-16 code units, tab counts as 1
   (`spec/contracts/output-format.md`).
-- Fingerprint and baseline formats are defined in `spec/contracts/`
-  (`fingerprint.md`, `baseline.md`, `fingerprint-vectors.json`); JS and Go
-  must stay byte-identical (`task parity`).
+- Fingerprint and baseline contract: `spec/contracts/` (`fingerprint.md`,
+  `baseline.md`); JS and Go must stay byte-identical (`task parity`).
 
 ## Never, without owner approval
 
