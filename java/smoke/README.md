@@ -12,7 +12,7 @@ cd smoke && ../mvnw -B \
   -Drewrite.activeRecipes=io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature,io.github.jh125486.fldlint.FindLaunchDarklyUsage
 ```
 
-Expected (checked against plugin 6.46.1): `BUILD SUCCESS` and `target/rewrite/rewrite.patch` for
+Expected (checked against plugin 6.46.1): `BUILD SUCCESS` and `rewrite.patch` (under `target/rewrite/` of the directory Maven is run from, `java/smoke/` for the commands above) for
 `SmokeFlags.java` with
 
 - the four calls in `rewritten` (bool, string, double, int) replaced by

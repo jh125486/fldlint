@@ -18,3 +18,4 @@ scratch/
 java/target/
 java/target-lint/
 java/smoke/target/
+/target/

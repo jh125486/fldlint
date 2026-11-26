@@ -1,5 +1,0 @@
-# @name org.openrewrite.table.SourcesFileResults
-# @instanceName Source files that had results
-# @group 
-sourcePath,afterSourcePath,parentRecipe,recipe,estimatedTimeSaving,cycle
-java/smoke/src/main/java/smoke/SmokeFlags.java,java/smoke/src/main/java/smoke/SmokeFlags.java,,io.github.jh125486.fldlint.FindLaunchDarklyUsage,300,1
