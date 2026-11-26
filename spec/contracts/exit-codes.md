@@ -103,8 +103,39 @@ Consequences for the Go tools:
 Commands were run from a scratch module outside this repository; the
 throwaway code is not part of the repo.
 
-Unverified: behaviour under golangci-lint (plugin/module mode) and gopls, and
-anything on Go versions other than go1.27.4.
+### Observed with the real analyzer
+
+The same behaviour, re-observed with the real `fldlint` (`singlechecker`) and
+`fldlint-fix` (`unitchecker`) binaries built from `go/cmd/*` (go1.27.4
+darwin/arm64, `golang.org/x/tools v0.53.0`). Target: a throwaway module with
+the conformance fixture `bool-variation/aliased-import` against the SDK stubs
+(one rewritable `BoolVariation` call). The fixed output equals the fixture's
+`output.go.golden`. The "go1.26.0" column reruns the vet/fix rows with
+`GOTOOLCHAIN=go1.26.0` (the `go.mod` floor) driving the same binaries.
+
+| Command | Exit (go1.27.4) | Exit (go1.26.0) | Observed |
+|---------|-----------------|-----------------|----------|
+| `fldlint ./...` | **3** | 3 | `file:21:11: Migrate boolean flag "dark-mode" to OpenFeature` |
+| `fldlint -json ./...` | 0 | not run | framework JSON; `category` is the rule id, with `suggested_fixes` |
+| `fldlint -fix ./...` | 0 | not run | file rewritten to the golden; a rerun is clean (exit 0) |
+| `fldlint -fix -diff ./...` | 0 | not run | unified diff, file untouched |
+| `fldlint ./nonexistent` | 1 | not run | `directory not found`, `analysis skipped due to errors in package` |
+| `fldlint -bogus ./...` | 2 | not run | `flag provided but not defined`, then usage |
+| `go vet -vettool=fldlint-fix ./...` | **1** | 1 | `flags/input.go:21:11: Migrate boolean ...` |
+| `go vet -vettool=fldlint-fix -json ./...` | 0 | not run | same JSON shape |
+| `go vet -vettool=fldlint-fix -fix ./...` | 0 | not run | file rewritten to the golden |
+| `go vet -vettool=fldlint-fix -fldlint=false ./...` | 0 | not run | analyzer disabled by its name flag |
+| `go fix -fixtool=fldlint-fix ./...` | 0 | 0 | file rewritten to the golden; `go vet` is clean afterwards |
+| `go fix -diff -fixtool=fldlint-fix ./...` | **1** | **0** | diff printed, file untouched; see below |
+| `fldlint-fix ./...` (direct) | 1 | not run | `invoking "go tool fldlint-fix" directly is unsupported; use "go fldlint-fix"` |
+
+`go fix -diff` exits non-zero on a non-empty diff on go1.27.4 only: on go1.26.0
+it printed the same diff and exited `0`, and `go help fix` there has no
+"non-zero" sentence. Do not rely on the exit code of `go fix -diff` on the
+`go.mod` floor (1.26.0); check for a non-empty diff instead.
+
+Still unverified: golangci-lint (plugin/module mode) and gopls, and any Go
+version other than go1.27.4 and go1.26.0.
 
 ## Java (OpenRewrite, M3): placeholder
 
