@@ -1,6 +1,7 @@
 package fingerprint_test
 
 import (
+	"math"
 	"regexp"
 	"strings"
 	"testing"
@@ -23,6 +24,11 @@ var pathSeeds = []string{
 // normalizing twice equals normalizing once, the result has none of the
 // shapes normalization removes, and a fingerprint does not change when its
 // path is normalized first (so re-normalization is harmless).
+//
+// NormalizePath is only claimed for paths relative to the scan root: an
+// absolute input such as "/./x" legitimately keeps its leading "/" (the
+// contract's "never starts with / or ./" describes scanned, relative paths),
+// so the property does not assert that.
 // Explore with `go test -run=^$ -fuzz=FuzzNormalizePath -fuzztime=30s ./internal/fingerprint`.
 func FuzzNormalizePath(f *testing.F) {
 	for _, p := range pathSeeds {
@@ -49,9 +55,7 @@ func FuzzNormalizePath(f *testing.F) {
 			t.Fatalf("trailing / left in %q (from %q)", n, path)
 		}
 
-		if occ < 0 {
-			occ = -occ
-		}
+		occ &= math.MaxInt // occ is a non-negative ordinal (-MinInt would stay negative)
 		in := fingerprint.Input{RuleID: "bool-variation", Path: path, Key: &key, Occ: occ}
 		got := fingerprint.Fingerprint(in)
 		if !hex32.MatchString(got) {

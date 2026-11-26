@@ -6,6 +6,7 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"slices"
 	"strconv"
 	"strings"
 	"testing"
@@ -217,75 +218,116 @@ func (p plannerCase) source() string {
 	return string(out)
 }
 
-func (p plannerCase) flags() uint8 {
-	var f uint8
-	if p.badDefault {
-		f |= 1
+// Each fuzz byte is mapped through a weighted table, so the rewrite path is
+// common (a uniform byte hits a skip almost every time: the receiver, the
+// context and the client must all be provable). Every dimension value appears
+// at least once in its table.
+var (
+	recvW   = []uint8{0, 0, 0, 1, 2, 4, 3}
+	keyW    = []uint8{0, 0, 0, 1, 2, 3, 0, 4, 5}
+	ctxW    = []uint8{0, 0, 0, 1, 1, 3, 2, 4, 5}
+	bindW   = []uint8{1, 1, 1, 1, 2, 0, 3, 4}
+	shadowW = []uint8{0, 0, 0, 0, 1, 2, 3, 4}
+	methodW = []uint8{0, 0, 0, 1, 2, 3, 4, 5}
+)
+
+// pick maps a fuzz byte to a dimension value.
+func pick(table []uint8, b uint8) uint8 { return table[int(b)%len(table)] }
+
+// Flag bits of the last fuzz byte: a bad default on 1 of 8, then two bits.
+const (
+	flagBadDefault = 1 // flags%8 == 1
+	flagTwo        = 8
+	flagStranded   = 16
+)
+
+// decodePlanner maps the fuzz bytes to a grammar point.
+func decodePlanner(recv, key, ctx, bind, shadow, method, flags uint8, keyLit string) plannerCase {
+	return plannerCase{
+		recv: pick(recvW, recv), key: pick(keyW, key), ctx: pick(ctxW, ctx), bind: pick(bindW, bind),
+		shadow: pick(shadowW, shadow), method: pick(methodW, method),
+		badDefault: flags%8 == flagBadDefault, two: flags&flagTwo != 0, stranded: flags&flagStranded != 0,
+		keyLit: keyLit,
 	}
-	if p.two {
-		f |= 2
-	}
-	if p.stranded {
-		f |= 4
-	}
-	return f
 }
 
-// plannerSeeds covers every value of every dimension at least once, plus the
-// interesting pairs (shadowed `context` with a rewritable call, ambiguous
-// clients, impure receivers) and a few awkward literal keys.
-var plannerSeeds = []plannerCase{
-	{stranded: true, bind: 1, keyLit: "stranded"},                    // local receiver only used by the call
-	{bind: 1, keyLit: "basic"},                                       // local receiver, literal key, rewrite
-	{recv: 1, bind: 1, keyLit: "pkg-recv"},                           // package var receiver + package client
-	{recv: 2, bind: 2, ctx: 1, keyLit: "field"},                      // struct field receiver, local client
-	{recv: 3, bind: 1, keyLit: "impure"},                             // call-result receiver
-	{recv: 4, bind: 1, ctx: 3, keyLit: "param"},                      // parameter receiver, ldcontext param
-	{key: 1, bind: 1, keyLit: ""},                                    // const key identifier
-	{key: 2, bind: 1, keyLit: ""},                                    // raw string key
-	{key: 3, bind: 1, keyLit: ""},                                    // concatenated key
-	{key: 4, bind: 1, keyLit: ""},                                    // dynamic key
-	{key: 5, bind: 1, keyLit: ""},                                    // call key
-	{ctx: 2, bind: 1, keyLit: "builder"},                             // unproven context
-	{ctx: 4, bind: 1, keyLit: "kind"},                                // non-user kind
-	{ctx: 5, bind: 1, keyLit: "concat-ctx"},                          // computed context key
-	{bind: 0, keyLit: "no-client"},                                   // no OpenFeature client
-	{bind: 2, keyLit: "local-client"},                                // function-local client
-	{bind: 3, keyLit: "shadowed-client"},                             // `client` shadowed by an int
-	{bind: 4, keyLit: "two-clients"},                                 // two package clients
-	{bind: 1, shadow: 1, keyLit: "ctx-pkg-shadowed"},                 // `context` is a string param
-	{bind: 1, shadow: 2, keyLit: "ctx-local-shadowed"},               // `context` is a local
-	{bind: 1, shadow: 3, keyLit: "go-ctx-param"},                     // ctx param, plain method
-	{bind: 1, shadow: 4, keyLit: "ctx-named-context"},                // param `context context.Context`
-	{bind: 1, shadow: 1, method: 1, keyLit: "ctx-method-shadowed"},   // Ctx method, `context` shadowed
-	{bind: 1, method: 1, keyLit: "ctx-method"},                       // Ctx method
-	{bind: 1, method: 2, keyLit: "string"},                           // string flag
-	{bind: 1, method: 3, keyLit: "float"},                            // number flag
-	{bind: 1, method: 4, keyLit: "int"},                              // report-only rule
-	{bind: 1, method: 5, keyLit: "bulk"},                             // bulk rule, no key
-	{bind: 1, badDefault: true, keyLit: "bad-default"},               // default type unproven
-	{bind: 1, two: true, keyLit: "two-calls"},                        // a skip next to a rewrite
-	{bind: 1, two: true, method: 2, shadow: 1, keyLit: "two-shadow"}, // two calls, shadowed context
-	{bind: 1, keyLit: "café \U0001F600"},                             // non-ASCII key
-	{bind: 1, keyLit: "a\x00b\"c\\d\n"},                              // key needing escapes
-	{bind: 1, keyLit: "bad-\xff-utf8"},                               // key that is not valid UTF-8
+// plannerSeed is one point of the grammar with the outcome the analyzer must
+// produce for it, one entry per finding in source order: "rewrite" (a fix is
+// offered) or the skip category.
+type plannerSeed struct {
+	name string
+	plannerCase
+	want []string
+}
+
+const (
+	rewrite = "rewrite"
+	ctxUnpr = "context-unproven"
+)
+
+var plannerSeeds = []plannerSeed{
+	{name: "stranded local client", plannerCase: plannerCase{stranded: true, bind: 1, keyLit: "stranded"}, want: []string{"receiver-unproven"}},
+	{name: "basic rewrite", plannerCase: plannerCase{bind: 1, keyLit: "basic"}, want: []string{rewrite}},
+	{name: "package var receiver", plannerCase: plannerCase{recv: 1, bind: 1, keyLit: "pkg-recv"}, want: []string{rewrite}},
+	{name: "struct field receiver, local client", plannerCase: plannerCase{recv: 2, bind: 2, ctx: 1, keyLit: "field"}, want: []string{rewrite}},
+	{name: "call-result receiver", plannerCase: plannerCase{recv: 3, bind: 1, keyLit: "impure"}, want: []string{"receiver-unproven"}},
+	{name: "parameter receiver rewrites", plannerCase: plannerCase{recv: 4, bind: 1, keyLit: "param"}, want: []string{rewrite}},
+	{name: "parameter receiver, ldcontext param", plannerCase: plannerCase{recv: 4, bind: 1, ctx: 3, keyLit: "param"}, want: []string{ctxUnpr}},
+	{name: "raw string key", plannerCase: plannerCase{key: 2, bind: 1}, want: []string{rewrite}},
+	{name: "concatenated key", plannerCase: plannerCase{key: 3, bind: 1}, want: []string{"dynamic-key"}},
+	{name: "dynamic key param", plannerCase: plannerCase{key: 4, bind: 1}, want: []string{"dynamic-key"}},
+	{name: "builder context", plannerCase: plannerCase{ctx: 2, bind: 1, keyLit: "builder"}, want: []string{ctxUnpr}},
+	{name: "no OpenFeature client", plannerCase: plannerCase{bind: 0, keyLit: "no-client"}, want: []string{"unbound-client"}},
+	{name: "function-local client", plannerCase: plannerCase{bind: 2, keyLit: "local-client"}, want: []string{rewrite}},
+	{name: "client shadowed by an int", plannerCase: plannerCase{bind: 3, keyLit: "shadowed-client"}, want: []string{"unbound-client"}},
+	{name: "two package clients", plannerCase: plannerCase{bind: 4, keyLit: "two-clients"}, want: []string{"unbound-client"}},
+	{name: "context shadowed by a string param: no context.TODO", plannerCase: plannerCase{bind: 1, shadow: 1, keyLit: "ctx-pkg-shadowed"}, want: []string{ctxUnpr}},
+	{name: "context shadowed by a local: no context.TODO", plannerCase: plannerCase{bind: 1, shadow: 2, keyLit: "ctx-local-shadowed"}, want: []string{ctxUnpr}},
+	{name: "ctx param, plain method", plannerCase: plannerCase{bind: 1, shadow: 3, keyLit: "go-ctx-param"}, want: []string{rewrite}},
+	{name: "param named context", plannerCase: plannerCase{bind: 1, shadow: 4, keyLit: "ctx-named-context"}, want: []string{rewrite}},
+	{name: "Ctx method rewrites although context is shadowed", plannerCase: plannerCase{bind: 1, shadow: 1, method: 1, keyLit: "ctx-method-shadowed"}, want: []string{rewrite}},
+	{name: "Ctx method", plannerCase: plannerCase{bind: 1, method: 1, keyLit: "ctx-method"}, want: []string{rewrite}},
+	{name: "string flag", plannerCase: plannerCase{bind: 1, method: 2, keyLit: "string"}, want: []string{rewrite}},
+	{name: "number flag", plannerCase: plannerCase{bind: 1, method: 3, keyLit: "float"}, want: []string{rewrite}},
+	{name: "report-only rule", plannerCase: plannerCase{bind: 1, method: 4, keyLit: "int"}, want: []string{"type-mismatch"}},
+	{name: "bulk rule", plannerCase: plannerCase{bind: 1, method: 5, keyLit: "bulk"}, want: []string{"bulk"}},
+	{name: "dflt parameter default still rewrites", plannerCase: plannerCase{bind: 1, badDefault: true, keyLit: "bad-default"}, want: []string{rewrite}},
+	{name: "rewrite next to a context skip", plannerCase: plannerCase{bind: 1, two: true, keyLit: "two-calls"}, want: []string{rewrite, ctxUnpr}},
+	{name: "context shadowed, Ctx method rewrites next to a skip", plannerCase: plannerCase{bind: 1, two: true, method: 1, shadow: 2, keyLit: "two-shadow-local"}, want: []string{rewrite, ctxUnpr}},
+	{name: "two calls, Ctx method, context shadowed", plannerCase: plannerCase{bind: 1, two: true, method: 1, shadow: 1, keyLit: "two-shadow"}, want: []string{rewrite, ctxUnpr}},
+	{name: "non-ASCII key", plannerCase: plannerCase{bind: 1, keyLit: "café \U0001F600"}, want: []string{rewrite}},
+	{name: "key needing escapes", plannerCase: plannerCase{bind: 1, keyLit: "a\x00b\"c\\d\n"}, want: []string{rewrite}},
+	{name: "key that is not valid UTF-8", plannerCase: plannerCase{bind: 1, keyLit: "bad-\xff-utf8"}, want: []string{rewrite}},
 }
 
 // FuzzPlanner is the planner/analyzer property fuzzer (issue #21, part 1).
 func FuzzPlanner(f *testing.F) {
-	for _, s := range plannerSeeds {
-		f.Add(s.recv, s.key, s.ctx, s.bind, s.shadow, s.method, s.flags(), s.keyLit)
-	}
+	// The initial corpus is testdata/fuzz/FuzzPlanner (kept small: every
+	// input costs several package loads); TestPlannerSeeds holds the full
+	// seed table with expected outcomes.
 	f.Fuzz(func(t *testing.T, recv, key, ctx, bind, shadow, method, flags uint8, keyLit string) {
-		checkPlanner(t, plannerCase{
-			recv: recv, key: key, ctx: ctx, bind: bind, shadow: shadow, method: method,
-			badDefault: flags&1 != 0, two: flags&2 != 0, stranded: flags&4 != 0, keyLit: keyLit,
-		})
+		t.Parallel()
+		checkPlanner(t, decodePlanner(recv, key, ctx, bind, shadow, method, flags, keyLit))
 	})
 }
 
-// checkPlanner asserts the planner properties for one generated file.
-func checkPlanner(t *testing.T, p plannerCase) {
+// TestPlannerSeeds runs every seed and pins the outcome the analyzer must
+// reach for it, so a seed cannot silently stop covering the path it names.
+func TestPlannerSeeds(t *testing.T) {
+	t.Parallel()
+	for _, s := range plannerSeeds {
+		t.Run(s.name, func(t *testing.T) {
+			t.Parallel()
+			if got := checkPlanner(t, s.plannerCase); !slices.Equal(got, s.want) {
+				t.Errorf("outcomes = %q, want %q\n%s", got, s.want, s.source())
+			}
+		})
+	}
+}
+
+// checkPlanner asserts the planner properties for one generated file and
+// returns the outcome of each finding in source order.
+func checkPlanner(t *testing.T, p plannerCase) []string {
 	t.Helper()
 	text := p.source()
 	src := []byte(text)
@@ -295,53 +337,43 @@ func checkPlanner(t *testing.T, p plannerCase) {
 
 	// runSource fails the test unless the generated input type-checks against
 	// the stubs, then runs the analyzer: a panic or analysis error is a crash.
-	got, _ := runSource(t, src, ".", false)
+	got, offset := runSource(t, src, ".", false)
 
 	var fixes int
+	var outcomes []string
 	for _, f := range got {
-		if f.skip != "" && f.hasFix {
+		switch {
+		case f.hasFix && f.skip != "":
 			t.Errorf("%d:%d: skip %q carries a fix", f.line, f.col, f.skip)
-		}
-		if f.hasFix {
+		case f.hasFix:
 			fixes++
+			outcomes = append(outcomes, rewrite)
+		default:
+			outcomes = append(outcomes, f.skip)
 		}
 	}
 
-	// Rewrite to a fixed point: every step parses and compiles (converge).
-	// With no fix on offer the file is, by definition, unchanged: check that
-	// no edits are attached either.
+	// Rewrite to a fixed point: every step parses and compiles, and converge
+	// only returns after a run that offers no fix (so the result is
+	// idempotent). With no fix on offer the file is unchanged by definition.
 	final := src
-	if fixes == 0 {
-		for _, f := range got {
-			if len(f.edits) != 0 {
-				t.Errorf("%d:%d: no fix offered but %d edits attached", f.line, f.col, len(f.edits))
-			}
-		}
-	} else {
-		final = converge(t, src, ".")
+	if fixes > 0 {
+		final = convergeFrom(t, src, ".", got, offset)
 	}
 
-	// A skipped call's line survives verbatim, even when another call in the
-	// same file is rewritten.
-	lines := strings.Split(text, "\n")
+	// A skipped call is byte-identical in the output, even when another call
+	// in the same file is rewritten: its exact text (the diagnostic's range)
+	// survives.
 	for _, f := range got {
 		if f.skip == "" {
 			continue
 		}
-		if line := lines[f.line-1]; !bytes.Contains(final, []byte(line)) {
-			t.Errorf("skipped call at %d:%d was altered: line %q missing from\n%s", f.line, f.col, line, final)
+		if call := src[f.start:f.end]; !bytes.Contains(final, call) {
+			t.Errorf("skipped call at %d:%d was altered: %q missing from\n%s", f.line, f.col, call, final)
 		}
 	}
-
-	// Idempotent: the converged file offers no fix (nothing left to rewrite,
-	// so a further run changes no byte). Skipped-only files are their own
-	// fixed point.
-	if fixes > 0 {
-		again, _ := runSource(t, final, ".", false)
-		for _, f := range again {
-			if f.hasFix {
-				t.Errorf("converged file still offers a fix at %d:%d (%s)\n%s", f.line, f.col, f.ruleID, final)
-			}
-		}
+	if fixes == 0 && !bytes.Equal(final, src) {
+		t.Errorf("only skips, but the file changed")
 	}
+	return outcomes
 }

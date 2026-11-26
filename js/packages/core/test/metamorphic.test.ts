@@ -112,10 +112,10 @@ const withRenamedClient: Transform = (source) => {
     const variable = refs.get(id)?.resolved as { identifiers: Node[]; references: { identifier: Node }[] } | null | undefined;
     if (!variable || done.has(variable) || variable.identifiers.length === 0) continue;
     const ids = [...variable.identifiers, ...variable.references.map((r) => r.identifier)];
-    // A shorthand property or an export specifier would change meaning.
+    // A shorthand property, an export or an import specifier would change meaning.
     if (ids.some((x) => {
       const p = parents.get(x);
-      return (p?.type === AST_NODE_TYPES.Property && p.shorthand) || p?.type === AST_NODE_TYPES.ExportSpecifier;
+      return (p?.type === AST_NODE_TYPES.Property && p.shorthand) || p?.type === AST_NODE_TYPES.ExportSpecifier || p?.type === AST_NODE_TYPES.ImportSpecifier;
     })) continue;
     done.add(variable);
     const name = `ldRenamed${n++}`;

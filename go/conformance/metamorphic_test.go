@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/parser"
+	"go/printer"
 	"go/token"
 	"go/types"
 	"os"
@@ -12,8 +13,14 @@ import (
 	"slices"
 	"sort"
 	"strings"
+	"sync/atomic"
 	"testing"
 
+	"golang.org/x/tools/go/analysis"
+	"golang.org/x/tools/go/analysis/checker"
+	"golang.org/x/tools/go/packages"
+
+	"github.com/jh125486/fldlint/go/analyzer"
 	"github.com/jh125486/fldlint/go/internal/detect"
 	"github.com/jh125486/fldlint/go/internal/fingerprint"
 	"github.com/jh125486/fldlint/go/internal/planner"
@@ -27,7 +34,8 @@ import (
 //
 //   - blank lines and comments added elsewhere in the file (fingerprint.md,
 //     "Stability");
-//   - a consistent rename of the LaunchDarkly client variable.
+//   - a consistent rename of the LaunchDarkly client variable;
+//   - reformatting (go/printer with space indentation instead of gofmt's tabs).
 //
 // Positions may change and are not compared.
 
@@ -48,7 +56,7 @@ func (i identity) String() string {
 
 // identities runs detection and planning exactly as the analyzer does and
 // returns each finding with its key (the engine's fingerprint input).
-func identities(t *testing.T, src []byte, caseDir string, tolerate bool) []identity {
+func identities(t *testing.T, src []byte, caseDir string, tolerate, check bool) ([]identity, *packages.Package) {
 	t.Helper()
 	pkg := newWorkspace(t, "input.go", src, caseDir).load(t)
 	if !tolerate && len(pkg.Errors) > 0 {
@@ -80,7 +88,51 @@ func identities(t *testing.T, src []byte, caseDir string, tolerate bool) []ident
 			out = append(out, id)
 		}
 	}
-	return out
+	if check {
+		crossCheck(t, pkg, out, tolerate)
+	}
+	return out, pkg
+}
+
+// crossCheck runs the real analyzer on the same loaded package and requires
+// the same (ruleId, skip, line, col) per finding, so the detect/planner calls
+// above cannot drift from analyzer.run unnoticed.
+func crossCheck(t *testing.T, pkg *packages.Package, ids []identity, tolerate bool) {
+	t.Helper()
+	a := *analyzer.Analyzer
+	a.RunDespiteErrors = tolerate
+	g, err := checker.Analyze([]*analysis.Analyzer{&a}, []*packages.Package{pkg}, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(pkg.CompiledGoFiles[0])
+	if err != nil {
+		t.Fatal(err)
+	}
+	var want, got []string
+	for _, id := range ids {
+		want = append(want, fmt.Sprintf("%d:%d %s skip=%s", id.line, id.col, id.ruleID, id.skip))
+	}
+	for _, act := range g.Roots {
+		if act.Err != nil {
+			t.Fatalf("analysis failed: %v", act.Err)
+		}
+		for _, d := range act.Diagnostics {
+			p := act.Package.Fset.Position(d.Pos)
+			skip := ""
+			if _, rest, ok := strings.Cut(d.Message, "[skip: "); ok {
+				skip = strings.TrimSuffix(rest, "]")
+			} else if strings.Contains(d.Message, "[no-fix: comment]") {
+				skip = "no-fix"
+			}
+			got = append(got, fmt.Sprintf("%d:%d %s skip=%s", p.Line, position.UTF16Col(src, p.Offset), d.Category, skip))
+		}
+	}
+	sort.Strings(want)
+	sort.Strings(got)
+	if !slices.Equal(got, want) {
+		t.Fatalf("the harness's detect+planner run drifted from the analyzer\n analyzer: %q\n harness:  %q", got, want)
+	}
 }
 
 // summary returns the sorted identity multiset and the sorted fingerprints.
@@ -101,7 +153,7 @@ func summary(ids []identity) (multiset, fingerprints []string) {
 
 // withNoise adds blank lines and comments before every top-level declaration
 // and at the end of the file, never inside a call.
-func withNoise(t *testing.T, src []byte, _ string) ([]byte, bool) {
+func withNoise(t *testing.T, src []byte, _ *packages.Package) ([]byte, bool) {
 	t.Helper()
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "input.go", src, parser.ParseComments)
@@ -142,9 +194,8 @@ func withNoise(t *testing.T, src []byte, _ string) ([]byte, bool) {
 // withRenamedClient renames every LD client variable (or struct field) that
 // an SDK call is made on, consistently, to a name no fixture uses. ok is false
 // when the file has no such variable.
-func withRenamedClient(t *testing.T, src []byte, caseDir string) ([]byte, bool) {
+func withRenamedClient(t *testing.T, src []byte, pkg *packages.Package) ([]byte, bool) {
 	t.Helper()
-	pkg := newWorkspace(t, "input.go", src, caseDir).load(t)
 	info := pkg.TypesInfo
 	names := map[types.Object]string{}
 	for _, f := range pkg.Syntax {
@@ -204,6 +255,23 @@ func withRenamedClient(t *testing.T, src []byte, caseDir string) ([]byte, bool) 
 	return out, true
 }
 
+// withReformat reprints the file with go/printer using spaces instead of
+// tabs (gofmt's layout), so every line's indentation and the column of every
+// call change. The printer keeps comments and token text.
+func withReformat(t *testing.T, src []byte, _ *packages.Package) ([]byte, bool) {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "input.go", src, parser.ParseComments)
+	if err != nil {
+		t.Fatalf("fixture does not parse: %v", err)
+	}
+	var buf bytes.Buffer
+	if err := (&printer.Config{Mode: printer.UseSpaces, Tabwidth: 4}).Fprint(&buf, fset, f); err != nil {
+		t.Fatal(err)
+	}
+	return buf.Bytes(), true
+}
+
 func TestMetamorphic(t *testing.T) {
 	t.Parallel()
 	specJSON, fixtures, err := locate(*specRoot, specExplicit())
@@ -219,45 +287,63 @@ func TestMetamorphic(t *testing.T) {
 	}
 	transforms := []struct {
 		name string
-		fn   func(*testing.T, []byte, string) ([]byte, bool)
+		fn   func(*testing.T, []byte, *packages.Package) ([]byte, bool)
 	}{
-		{"blank lines and comments elsewhere", withNoise},
+		// Noise and reformatting are applied together: each extra variant costs
+		// a full package load, and the properties compose.
+		{"reformatted with spaces, plus blank lines and comments elsewhere", func(t *testing.T, src []byte, pkg *packages.Package) ([]byte, bool) {
+			re, _ := withReformat(t, src, pkg)
+			return withNoise(t, re, pkg)
+		}},
 		{"renamed LD client variable", withRenamedClient},
 	}
-	for _, lc := range sp.Cases {
-		want, ok := lc.Case.Expect["go"]
-		if !ok {
-			continue
+	applied := make([]atomic.Int32, len(transforms))
+	// The group makes the parallel subtests finish before the guard below.
+	t.Run("fixtures", func(t *testing.T) {
+		for _, lc := range sp.Cases {
+			want, ok := lc.Case.Expect["go"]
+			if !ok {
+				continue
+			}
+			dir := lc.Dir(fixtures)
+			tolerate := slices.ContainsFunc(want.Diagnostics, func(d spec.Diagnostic) bool { return d.Skip == "default-type-unproven" })
+			t.Run(lc.Path, func(t *testing.T) {
+				t.Parallel()
+				src, err := os.ReadFile(filepath.Join(dir, "go", "input.go"))
+				if err != nil {
+					t.Fatal(err)
+				}
+				ids, base := identities(t, src, dir, tolerate, true)
+				wantSet, wantFP := summary(ids)
+				for i, tr := range transforms {
+					t.Run(tr.name, func(t *testing.T) {
+						t.Parallel()
+						changed, ok := tr.fn(t, src, base)
+						if !ok {
+							t.Skip("transformation does not apply to this fixture")
+						}
+						applied[i].Add(1)
+						if bytes.Equal(changed, src) {
+							t.Fatal("transformation changed nothing")
+						}
+						changedIDs, _ := identities(t, changed, dir, tolerate, false)
+						gotSet, gotFP := summary(changedIDs)
+						if !slices.Equal(gotSet, wantSet) {
+							t.Errorf("(ruleId, skip, key) multiset changed\n got: %s\nwant: %s\n--- transformed source ---\n%s",
+								strings.Join(gotSet, "\n      "), strings.Join(wantSet, "\n      "), changed)
+						}
+						if !slices.Equal(gotFP, wantFP) {
+							t.Errorf("fingerprints changed\n got: %v\nwant: %v", gotFP, wantFP)
+						}
+					})
+				}
+			})
 		}
-		dir := lc.Dir(fixtures)
-		tolerate := slices.ContainsFunc(want.Diagnostics, func(d spec.Diagnostic) bool { return d.Skip == "default-type-unproven" })
-		t.Run(lc.Path, func(t *testing.T) {
-			t.Parallel()
-			src, err := os.ReadFile(filepath.Join(dir, "go", "input.go"))
-			if err != nil {
-				t.Fatal(err)
-			}
-			wantSet, wantFP := summary(identities(t, src, dir, tolerate))
-			for _, tr := range transforms {
-				t.Run(tr.name, func(t *testing.T) {
-					t.Parallel()
-					changed, ok := tr.fn(t, src, dir)
-					if !ok {
-						t.Skip("transformation does not apply to this fixture")
-					}
-					if bytes.Equal(changed, src) {
-						t.Fatal("transformation changed nothing")
-					}
-					gotSet, gotFP := summary(identities(t, changed, dir, tolerate))
-					if !slices.Equal(gotSet, wantSet) {
-						t.Errorf("(ruleId, skip, key) multiset changed\n got: %s\nwant: %s\n--- transformed source ---\n%s",
-							strings.Join(gotSet, "\n      "), strings.Join(wantSet, "\n      "), changed)
-					}
-					if !slices.Equal(gotFP, wantFP) {
-						t.Errorf("fingerprints changed\n got: %v\nwant: %v", gotFP, wantFP)
-					}
-				})
-			}
-		})
+	})
+	// Each transformation must have been exercised, or it proves nothing.
+	for i, tr := range transforms {
+		if applied[i].Load() == 0 {
+			t.Errorf("transformation %q applied to no fixture", tr.name)
+		}
 	}
 }
