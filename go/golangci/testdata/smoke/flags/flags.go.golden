@@ -1,0 +1,23 @@
+package flags
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	ld "github.com/launchdarkly/go-server-sdk/v7"
+	"github.com/open-feature/go-sdk/openfeature"
+)
+
+var client = openfeature.NewClient("theme")
+
+func DarkMode() bool {
+	ldClient, err := ld.MakeClient("sdk-key", 5*time.Second)
+	if err != nil {
+		fmt.Println("init error:", err)
+		return false
+	}
+	defer ldClient.Close()
+	on, _ := client.BooleanValue(context.TODO(), "dark-mode", false, openfeature.NewEvaluationContext("user", nil))
+	return on
+}
