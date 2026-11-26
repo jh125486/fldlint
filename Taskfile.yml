@@ -28,6 +28,13 @@ tasks:
       - task: parity
       - task: js:types-floor
 
+  check:node:
+    desc: Node-version-dependent subset of check (JS typecheck/ESLint, JS tests, JS side of parity); CI runs it on the non-floor Node legs
+    cmds:
+      - task: js:lint
+      - task: js:test
+      - task: parity
+
   spec:check:
     desc: Validate spec, regenerate code, fail on drift, check fixture tags
     cmds:
