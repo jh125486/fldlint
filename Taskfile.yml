@@ -23,6 +23,7 @@ tasks:
     cmds:
       # Serial: spec:check regenerates files and js:types-floor swaps @types/node.
       - task: spec:check
+      - task: workflows:test
       - task: lint
       - task: test
       - task: parity
@@ -132,9 +133,31 @@ tasks:
         if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:lint skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
         cd java && ./mvnw -B -q -Plint test-compile
 
-  workflows:lint:
-    desc: Lint .github/workflows with actionlint (go run) and zizmor (uvx, needs uv)
+  java:smoke:
+    desc: Run the published-style recipes through rewrite-maven-plugin dryRun in java/smoke (installs a local snapshot first; FLDLINT_SKIP_JAVA=1 skips)
     cmds:
+      - |
+        if [ "$FLDLINT_SKIP_JAVA" = "1" ]; then echo "java:smoke skipped (FLDLINT_SKIP_JAVA=1)"; exit 0; fi
+        set -e
+        cd java && ./mvnw -B -DskipTests install
+        cd smoke && ../mvnw -B \
+          org.openrewrite.maven:rewrite-maven-plugin:6.46.1:dryRun \
+          -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:0.1.0-SNAPSHOT \
+          -Drewrite.activeRecipes=io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature,io.github.jh125486.fldlint.FindLaunchDarklyUsage
+        patch=target/rewrite/rewrite.patch
+        test -s "$patch" || { echo "java:smoke: $patch is missing or empty" >&2; exit 1; }
+        grep -q 'getBooleanValue' "$patch" || { echo "java:smoke: no rewrite in $patch" >&2; exit 1; }
+        grep -q '\[skip: ' "$patch" || { echo "java:smoke: no skip marker in $patch" >&2; exit 1; }
+
+  workflows:test:
+    desc: Table test for the CI change classifier (.github/scripts/classify-changes.sh)
+    cmds:
+      - bash .github/scripts/classify-changes.test.sh
+
+  workflows:lint:
+    desc: Test the change classifier, then lint .github/workflows with actionlint (go run) and zizmor (uvx, needs uv)
+    cmds:
+      - task: workflows:test
       - cd go && go run {{.ACTIONLINT}} -color ../.github/workflows/*.yml
       - uvx {{.ZIZMOR}} --persona=regular .github/workflows
 
