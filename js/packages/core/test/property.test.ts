@@ -12,6 +12,13 @@ function parses(code: string): void {
   parseForESLint(code, { sourceType: "module", range: true, loc: true, comment: true, filePath: "input.ts" });
 }
 
+/** Independent oracle: the 1-based column counted explicitly in UTF-16 code units (not String.length). */
+function utf16Col(prefix: string): number {
+  let units = 0;
+  for (const ch of prefix) units += (ch.codePointAt(0) as number) > 0xffff ? 2 : 1;
+  return units + 1;
+}
+
 /** Throw with the seed and program attached, so a failure is reproducible. */
 function fail(seed: number, source: string, what: string): never {
   throw new Error(`seed ${seed}: ${what}\n--- source ---\n${source}`);
@@ -24,6 +31,27 @@ describe("generator", () => {
     const a = mulberry32(1);
     const b = mulberry32(1);
     expect([a(), a(), a()]).toEqual([b(), b(), b()]);
+  });
+
+  it("generates same-line Unicode prefixes whose calls are found at UTF-16 columns", () => {
+    let found = 0;
+    for (const seed of SEEDS) {
+      const g = generate(seed);
+      if (!g.choices.uniPrefix) continue;
+      const lines = g.source.split("\n");
+      const idx = lines.findIndex((l) => l.includes("label = "));
+      expect(idx, `seed ${seed}: prefix line missing`).toBeGreaterThan(-1);
+      const line = lines[idx] as string;
+      expect(line).toContain("caf\u00e9 \u{1F600}");
+      const prefix = line.slice(0, line.indexOf("v = "));
+      for (const f of analyze(g.source).filter((x) => x.site.line === idx + 1)) {
+        // The call starts after the prefix: UTF-16 units exceed code points, which exceed nothing less.
+        expect(f.site.col).toBe(utf16Col(line.slice(0, f.site.range[0] - g.source.split("\n").slice(0, idx).join("\n").length - 1)));
+        expect(f.site.col).toBeGreaterThan([...prefix].length + 1);
+        found++;
+      }
+    }
+    expect(found).toBeGreaterThan(5);
   });
 
   it("covers every outcome the planner can produce", () => {
@@ -74,7 +102,7 @@ describe("planner properties over generated programs", () => {
     for (const f of findings) {
       const before = source.slice(0, f.site.range[0]);
       const lines = before.split("\n");
-      if (f.site.line !== lines.length || f.site.col !== (lines.at(-1) as string).length + 1) {
+      if (f.site.line !== lines.length || f.site.col !== utf16Col(lines.at(-1) as string)) {
         fail(seed, source, `position ${f.site.line}:${f.site.col} does not match range start ${f.site.range[0]}`);
       }
     }

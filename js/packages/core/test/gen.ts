@@ -79,6 +79,9 @@ export function generate(seed: number): Generated {
   const two = r.bool();
   const quote = r.pick(['"', "'"]);
   const awaited = r.int(5) !== 0;
+  // A same-line prefix with a 2-byte and an astral character before the call,
+  // so the reported column differs between UTF-16 units, code points and bytes.
+  const uniPrefix = r.int(3) === 0;
 
   const q = (s: string) => `${quote}${s}${quote}`;
   const header: string[] = [`import { init } from ${q("@launchdarkly/node-server-sdk")};`];
@@ -181,7 +184,7 @@ export function generate(seed: number): Generated {
 
   const lines = [`export async function f(${params.join(", ")}) {`];
   for (const b of body) lines.push(`  ${b}`);
-  lines.push(`  const v = ${mkCall(keyExpr, ctxExpr)};`);
+  lines.push(`  const ${uniPrefix ? `label = ${q("caf\u00e9 \u{1F600}")}, ` : ""}v = ${mkCall(keyExpr, ctxExpr)};`);
   if (two) lines.push(`  const w = ${mkCall(q("second"), "{ key: u, extra: true }")};`, "  return [v, w];");
   else lines.push("  return v;");
   lines.push("}");
@@ -190,7 +193,7 @@ export function generate(seed: number): Generated {
   return {
     seed,
     source,
-    choices: { method: method.name, recv, key, ctx, bind, comment, badDefault, two, awaited },
+    choices: { method: method.name, recv, key, ctx, bind, comment, badDefault, two, awaited, uniPrefix },
   };
 }
 
