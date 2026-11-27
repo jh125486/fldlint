@@ -277,14 +277,21 @@ bin=$(go env GOBIN)
 go vet -vettool="${bin:-$(go env GOPATH)/bin}/fldlint" ./...
 ```
 
-Install the golangci-lint module plugin from its independent submodule tag.
+Build a golangci-lint binary with the fldlint module plugin. Set the version
+to the released `go/golangci` module tag.
 
-```sh
-go install github.com/jh125486/fldlint/go/golangci@v0.1.0
+```yaml
+# .custom-gcl.yml
+version: v2.15.0
+plugins:
+  - module: github.com/jh125486/fldlint/go/golangci
+    import: github.com/jh125486/fldlint/go/golangci
+    version: v0.1.0
 ```
 
-Configure `github.com/jh125486/fldlint/go/golangci` as a module plugin in
-`.custom-gcl.yml`. See [go/golangci/README.md](go/golangci/README.md) for configuration.
+Run `golangci-lint custom`, then enable `fldlint` in `.golangci.yml` and run
+`./custom-gcl run ./...`. See [go/golangci/README.md](go/golangci/README.md)
+for the complete configuration.
 
 ### Java
 

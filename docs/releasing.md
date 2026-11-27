@@ -71,10 +71,8 @@ Markdown on GitHub.
    ```sh
    metadata=$(mktemp -d)
    export FLDLINT_RELEASE_METADATA="$metadata"
-   npm exec --yes --package=release-please@17.6.0 -- \
-     node .github/scripts/prepare-release-pr.cjs \
-     "$(find "$(npm config get cache)/_npx" -path '*/release-please/build/src/bin/release-please.js' -print -quit)" \
-     "$FLDLINT_RELEASE_METADATA"
+   npm exec --yes --package=release-please@17.6.0 -- sh -c \
+     'node .github/scripts/prepare-release-pr.cjs "$(command -v release-please)" "$FLDLINT_RELEASE_METADATA"'
    git diff
    git status --short
    ```

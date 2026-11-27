@@ -56,9 +56,9 @@ jobs:
           import { readFileSync } from "node:fs";
 
           const components = [
-            ["spec", "@fldlint/spec"],
-            ["core", "@fldlint/core"],
-            ["eslint-plugin", "eslint-plugin-fldlint"],
+            ["spec", "spec", "@fldlint/spec", []],
+            ["core", "core", "@fldlint/core", ["@fldlint/spec"]],
+            ["eslint-plugin", "eslint-plugin-fldlint", "eslint-plugin-fldlint", ["@fldlint/core", "@fldlint/spec"]],
           ];
           const version = process.env.RELEASE_TAG.slice("eslint-plugin-fldlint-v".length);
           const resolve = (ref) => execFileSync("git", ["rev-parse", "--verify", ref], { encoding: "utf8" }).trim();
@@ -66,7 +66,7 @@ jobs:
           // npm uses the caller's GITHUB_SHA in the provenance statement.
           assert.equal(commit, process.env.GITHUB_SHA, "Release tag must match the provenance commit");
 
-          for (const [workspace, name] of components) {
+          for (const [workspace, component, name, dependencies] of components) {
             const directory = `js/packages/${workspace}`;
             const tag = `${component}-v${version}`;
             assert.equal(resolve(`refs/tags/${tag}^{commit}`), commit, `${tag} must point to the release commit`);
@@ -113,6 +113,7 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    environment: release
     permissions:
       contents: read
       id-token: write
