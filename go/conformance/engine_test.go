@@ -108,6 +108,7 @@ type finding struct {
 	start, end int
 	ruleID     string
 	skip       string
+	noFix      string
 	hasFix     bool
 	edits      []analysis.TextEdit
 }
@@ -144,6 +145,9 @@ func runSource(t *testing.T, src []byte, caseDir string, tolerateTypeErrors bool
 		for _, d := range act.Diagnostics {
 			p := act.Package.Fset.Position(d.Pos)
 			f := finding{line: p.Line, col: position.UTF16Col(src, p.Offset), start: p.Offset, end: act.Package.Fset.Position(d.End).Offset, ruleID: d.Category}
+			if strings.HasSuffix(d.Message, " [no-fix: comment]") {
+				f.noFix = "comment"
+			}
 			if _, rest, ok := strings.Cut(d.Message, "[skip: "); ok {
 				f.skip = strings.TrimSuffix(rest, "]")
 			}
@@ -210,21 +214,28 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 
 	var gotS, wantS []string
 	for _, f := range got {
-		gotS = append(gotS, fmt.Sprintf("%d:%d %s skip=%s", f.line, f.col, f.ruleID, f.skip))
+		gotS = append(gotS, fmt.Sprintf("%d:%d %s skip=%s noFix=%s", f.line, f.col, f.ruleID, f.skip, f.noFix))
 	}
 	for _, d := range want.Diagnostics {
-		wantS = append(wantS, fmt.Sprintf("%d:%d %s skip=%s", d.Line, d.Col, d.RuleID, d.Skip))
+		wantS = append(wantS, fmt.Sprintf("%d:%d %s skip=%s noFix=%s", d.Line, d.Col, d.RuleID, d.Skip, d.NoFix))
 	}
 	if !slices.Equal(gotS, wantS) {
 		t.Fatalf("diagnostics differ\n got: %q\nwant: %q", gotS, wantS)
 	}
 	for _, f := range got {
-		if f.hasFix == (f.skip != "") {
-			t.Errorf("%d:%d: hasFix=%v for skip=%q (a fix is offered exactly for rewritten calls)", f.line, f.col, f.hasFix, f.skip)
+		// A fix is offered exactly for rewritten calls: not for a skip and
+		// not for a rewritable call withheld for a comment with no home.
+		if f.hasFix == (f.skip != "" || f.noFix != "") {
+			t.Errorf("%d:%d: hasFix=%v for skip=%q noFix=%q (a fix is offered exactly for rewritten calls)", f.line, f.col, f.hasFix, f.skip, f.noFix)
 		}
 	}
 
 	if !want.Output {
+		for _, f := range got {
+			if len(f.edits) > 0 {
+				t.Errorf("%d:%d: output is false but a fix is offered", f.line, f.col)
+			}
+		}
 		return
 	}
 

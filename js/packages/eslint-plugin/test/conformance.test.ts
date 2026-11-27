@@ -2,12 +2,12 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { discoverCases, resolveSpecRoot } from "@fldlint/spec";
-import { fix, lint, skipOf, type ParserName } from "./helpers.js";
+import { fix, lint, noFixOf, skipOf, type ParserName } from "./helpers.js";
 
 const root = resolveSpecRoot();
 
 interface Expected {
-  diagnostics: { line: number; col: number; ruleId: string; skip?: string }[];
+  diagnostics: { line: number; col: number; ruleId: string; skip?: string; noFix?: string }[];
   output: boolean;
 }
 
@@ -36,12 +36,13 @@ describe(`eslint-plugin fixture conformance (spec root: ${root})`, () => {
             col: m.column,
             ruleId: (m.ruleId ?? "").replace(/^fldlint\//, ""),
             ...(skipOf(m) !== undefined && { skip: skipOf(m) }),
+            ...(noFixOf(m) !== undefined && { noFix: noFixOf(m) }),
           }));
           expect([...got].sort(cmp)).toEqual(expected.diagnostics.map((d) => ({ ...d })).sort(cmp));
           // Every finding is a warning under the recommended preset.
           expect(new Set(msgs.map((m) => m.severity))).toEqual(new Set(msgs.length ? [1] : []));
-          // Skips carry no fix; only provable rewrites do.
-          for (const m of msgs) expect(m.fix !== undefined).toBe(skipOf(m) === undefined);
+          // Skips and no-fix findings carry no fix; only provable rewrites do.
+          for (const m of msgs) expect(m.fix !== undefined).toBe(skipOf(m) === undefined && noFixOf(m) === undefined);
         });
 
         if (output !== undefined) {

@@ -1,0 +1,6 @@
+id: go-method-expression
+rule: bool-variation
+tags: [go, method-expression]
+description: A method expression, (*ldclient.LDClient).BoolVariation(c, "k", ...), reads the key after the receiver argument, but its receiver is a type, not a proven client expression, so the call is reported as receiver-unproven and not rewritten.
+expect:
+  go: {diagnostics: [{line: 20, col: 18, ruleId: bool-variation, skip: receiver-unproven}], output: false}
