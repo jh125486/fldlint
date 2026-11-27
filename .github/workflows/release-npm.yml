@@ -1,0 +1,248 @@
+name: Publish npm packages
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release Please tag for eslint-plugin-fldlint
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+
+    steps:
+      - name: Validate release input
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          REPOSITORY_IS_PRIVATE: ${{ toJSON(github.event.repository.private) }}
+        run: |
+          if [[ "$GITHUB_REPOSITORY" != jh125486/fldlint || "$REPOSITORY_IS_PRIVATE" != false ]]; then
+            echo 'npm provenance requires the public jh125486/fldlint repository' >&2
+            exit 1
+          fi
+          if [[ ! "$RELEASE_TAG" =~ ^eslint-plugin-fldlint-v(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)$ || "$RELEASE_TAG" == eslint-plugin-fldlint-v0.0.0 ]]; then
+            echo 'Expected an eslint-plugin-fldlint tag with a stable release version' >&2
+            exit 1
+          fi
+
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Verify linked release tags and package manifests
+        shell: bash
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { execFileSync } from "node:child_process";
+          import { readFileSync } from "node:fs";
+
+          const components = [
+            ["spec", "@fldlint/spec"],
+            ["core", "@fldlint/core"],
+            ["eslint-plugin", "eslint-plugin-fldlint"],
+          ];
+          const version = process.env.RELEASE_TAG.slice("eslint-plugin-fldlint-v".length);
+          const resolve = (ref) => execFileSync("git", ["rev-parse", "--verify", ref], { encoding: "utf8" }).trim();
+          const commit = resolve("HEAD");
+          // npm uses the caller's GITHUB_SHA in the provenance statement.
+          assert.equal(commit, process.env.GITHUB_SHA, "Release tag must match the provenance commit");
+
+          for (const [workspace, name] of components) {
+            const directory = `js/packages/${workspace}`;
+            const tag = `${component}-v${version}`;
+            assert.equal(resolve(`refs/tags/${tag}^{commit}`), commit, `${tag} must point to the release commit`);
+            const pkg = JSON.parse(readFileSync(`${directory}/package.json`, "utf8"));
+            assert.equal(pkg.name, name, directory);
+            assert.equal(pkg.version, version, name);
+            assert.ok(!pkg.private, `${name} must be publishable`);
+            assert.equal(pkg.repository?.url, `git+https://github.com/${process.env.GITHUB_REPOSITORY}.git`, name);
+            assert.equal(pkg.repository?.directory, directory, name);
+            assert.equal(pkg.publishConfig?.registry, "https://registry.npmjs.org/", name);
+            assert.equal(pkg.publishConfig?.access, "public", name);
+            assert.equal(pkg.publishConfig?.provenance, true, name);
+            for (const dependency of dependencies) {
+              assert.equal(pkg.dependencies?.[dependency], version, `${name} must depend on ${dependency}@${version}`);
+            }
+          }
+          NODE
+
+      - name: Build and pack npm packages
+        working-directory: js
+        shell: bash
+        run: |
+          npm ci --ignore-scripts
+          npm run build --workspace eslint-plugin-fldlint
+          for package in spec core eslint-plugin; do
+            cp ../LICENSE "packages/$package/LICENSE"
+            # All three package allowlists already include dist.
+            cp ../NOTICE "packages/$package/dist/NOTICE"
+          done
+          mkdir "$RUNNER_TEMP/fldlint-npm"
+          npm pack --ignore-scripts --json --pack-destination "$RUNNER_TEMP/fldlint-npm" \
+            --workspace @fldlint/spec --workspace @fldlint/core --workspace eslint-plugin-fldlint \
+            > "$RUNNER_TEMP/fldlint-npm/pack.json"
+
+      - name: Upload verified npm tarballs
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: fldlint-npm-${{ inputs.tag }}
+          path: ${{ runner.temp }}/fldlint-npm/
+          if-no-files-found: error
+          retention-days: 1
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    environment: release
+    concurrency:
+      group: release-npm
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: refs/tags/${{ inputs.tag }}
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: '26'
+          registry-url: https://registry.npmjs.org/
+          package-manager-cache: false
+
+      - name: Download verified npm tarballs
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
+        with:
+          name: fldlint-npm-${{ inputs.tag }}
+          path: ${{ runner.temp }}/fldlint-npm
+
+      - name: Verify release tarballs
+        env:
+          RELEASE_TAG: ${{ inputs.tag }}
+          RELEASE_SHA: ${{ github.sha }}
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { execFileSync } from "node:child_process";
+          import { readFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const directory = join(process.env.RUNNER_TEMP, "fldlint-npm");
+          const packed = JSON.parse(readFileSync(join(directory, "pack.json"), "utf8"));
+          const version = process.env.RELEASE_TAG.slice("eslint-plugin-fldlint-v".length);
+          const commit = execFileSync("git", ["rev-parse", "HEAD"], { encoding: "utf8" }).trim();
+          assert.equal(commit, process.env.RELEASE_SHA, "Release tag must match the OIDC provenance commit");
+          const expected = ["@fldlint/spec", "@fldlint/core", "eslint-plugin-fldlint"];
+          assert.equal(packed.length, expected.length);
+          for (let index = 0; index < expected.length; index += 1) {
+            const name = expected[index];
+            const entry = packed[index];
+            assert.equal(entry.name, name);
+            assert.equal(entry.version, version);
+            assert.ok(entry.files.some(({ path }) => path === "dist/NOTICE"), `Missing NOTICE for ${name}`);
+            assert.match(entry.integrity, /^sha512-[A-Za-z0-9+/]{86}==$/);
+          }
+          NODE
+
+      - name: Publish missing versions in dependency order
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          import { execFileSync } from "node:child_process";
+          import { readFileSync } from "node:fs";
+          import { join } from "node:path";
+
+          const directory = join(process.env.RUNNER_TEMP, "fldlint-npm");
+          const packed = JSON.parse(readFileSync(join(directory, "pack.json"), "utf8"));
+          const pending = [];
+          const registry = "https://registry.npmjs.org";
+          const provenanceType = "https://slsa.dev/provenance/v1";
+          const repository = `https://github.com/${process.env.GITHUB_REPOSITORY}`;
+          const registryFetch = (url) => fetch(url, {
+            headers: { "Cache-Control": "no-cache" },
+            redirect: "error",
+            signal: AbortSignal.timeout(30_000),
+          });
+
+          // npm verifies public provenance at publish time. Trust the registry's
+          // attestation response and check that its statement matches this release.
+          async function requireProvenance(metadata, entry, version) {
+            assert.equal(metadata?.provenance?.predicateType, provenanceType, `Missing SLSA v1 provenance for ${version}`);
+            const url = new URL(metadata.url);
+            assert.equal(url.origin, registry, `Unexpected attestation origin for ${version}`);
+            assert.equal(decodeURIComponent(url.pathname), `/-/npm/v1/attestations/${version}`);
+            const response = await registryFetch(`${registry}${url.pathname}`);
+            assert.ok(response.ok, `Attestation lookup for ${version} returned HTTP ${response.status}`);
+            const { attestations } = await response.json();
+            const envelope = attestations.find(({ predicateType }) => predicateType === provenanceType)?.bundle?.dsseEnvelope;
+            assert.equal(envelope?.payloadType, "application/vnd.in-toto+json", `Missing in-toto payload for ${version}`);
+            const statement = JSON.parse(Buffer.from(envelope.payload, "base64").toString("utf8"));
+            assert.equal(statement._type, "https://in-toto.io/Statement/v1", version);
+            assert.equal(statement.predicateType, provenanceType, version);
+            const [subject] = statement.subject;
+            assert.equal(statement.subject.length, 1, version);
+            assert.equal(subject.name, `pkg:npm/${version.replace(/^@/, "%40")}`, version);
+            const digest = Buffer.from(entry.integrity.slice("sha512-".length), "base64").toString("hex");
+            assert.equal(subject.digest?.sha512, digest, `Provenance tarball digest differs for ${version}`);
+            const build = statement.predicate?.buildDefinition;
+            assert.equal(build?.externalParameters?.workflow?.repository, repository, `Provenance repository differs for ${version}`);
+            const [source] = build.resolvedDependencies;
+            assert.ok(source?.uri?.startsWith(`git+${repository}@`), `Provenance source differs for ${version}`);
+            assert.equal(source.digest?.gitCommit, process.env.GITHUB_SHA, `Provenance commit differs for ${version}`);
+          }
+
+          // Check every version before uploading anything. A mismatch or registry error
+          // requires investigation. Only an absent version is eligible to publish.
+          for (const name of ["@fldlint/spec", "@fldlint/core", "eslint-plugin-fldlint"]) {
+            const entry = packed.find((candidate) => candidate.name === name);
+            assert.match(entry?.integrity ?? "", /^sha512-[A-Za-z0-9+/]{86}==$/, `Missing SHA-512 integrity for ${name}`);
+            assert.ok(entry.files.some(({ path }) => path === "dist/NOTICE"), `Missing packed NOTICE for ${name}`);
+            const version = `${name}@${entry.version}`;
+            const url = `${registry}/${name.replace("/", "%2f")}/${entry.version}`;
+            const response = await registryFetch(url);
+            if (response.status === 404) {
+              pending.push(join(directory, entry.filename));
+              continue;
+            }
+            assert.ok(response.ok, `Registry lookup for ${version} returned HTTP ${response.status}`);
+            const manifest = await response.json();
+            assert.equal(manifest.name, name, version);
+            assert.equal(manifest.version, entry.version, version);
+            assert.equal(manifest.dist?.integrity, entry.integrity, `Registry tarball differs for ${version}`);
+            await requireProvenance(manifest.dist.attestations, entry, version);
+            console.log(`Skipping ${version}: registry tarball and provenance match this release`);
+          }
+
+          // Use npm's default latest tag behavior, which rejects an older version
+          // when a newer version has already been published.
+          for (const tarball of pending) {
+            execFileSync("npm", ["publish", tarball, "--ignore-scripts", "--access", "public", "--provenance"], {
+              stdio: "inherit",
+            });
+          }
+          NODE

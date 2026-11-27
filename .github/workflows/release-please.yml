@@ -1,0 +1,54 @@
+name: Release Please
+
+on:
+  push:
+    branches: [main]
+    paths: [.release-please-manifest.json]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: release-please
+  cancel-in-progress: false
+
+jobs:
+  tag:
+    if: >-
+      github.event_name == 'push' &&
+      github.repository == 'jh125486/fldlint' &&
+      github.event.repository.private == false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: release
+    permissions:
+      contents: write
+      pull-requests: write
+      issues: write
+    outputs:
+      npm-release-created: ${{ steps.release.outputs['js/packages/eslint-plugin--release_created'] }}
+      npm-tag: ${{ steps.release.outputs['js/packages/eslint-plugin--tag_name'] }}
+    steps:
+      - uses: googleapis/release-please-action@45996ed1f6d02564a971a2fa1b5860e934307cf7 # v5.0.0
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+          target-branch: main
+          # The maintainer opens release PRs with the Release Please CLI and gh.
+          skip-github-pull-request: true
+
+  npm:
+    needs: tag
+    if: >-
+      !cancelled() && github.repository == 'jh125486/fldlint' &&
+      github.event.repository.private == false &&
+      (needs.tag.outputs.npm-release-created == 'true' ||
+        (github.event_name == 'workflow_dispatch' && startsWith(github.ref, 'refs/tags/eslint-plugin-fldlint-v')))
+    permissions:
+      contents: read
+      id-token: write
+    # The pinned actionlint does not recognize the equivalent $/ syntax.
+    uses: ./.github/workflows/release-npm.yml # zizmor: ignore[self-repository]
+    with:
+      tag: ${{ needs.tag.outputs.npm-tag || github.ref_name }}

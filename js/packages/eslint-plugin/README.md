@@ -10,11 +10,8 @@ Requires ESLint 9 or 10 (flat config) and Node 22.13 or newer.
 
 ## Install
 
-> The package is `private` until the first release (#20), so it is not on the npm
-> registry yet. Until then, use it from a checkout of this repository
-> (`npm install --save-dev /path/to/fldlint/js/packages/eslint-plugin` after
-> `npm ci && npm run build` in `js/`). The command below is the install line
-> that will apply once it is published.
+These install commands apply after the first npm release. The
+[release checklist](../../../docs/releasing.md) tracks registry setup.
 
 ```sh
 npm install --save-dev eslint eslint-plugin-fldlint
