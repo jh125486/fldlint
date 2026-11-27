@@ -89,13 +89,14 @@ same rewrite as the ESLint fixer.
 
 The Go analyzer's tests use SDK stubs (a GOPATH tree under
 `go/analyzer/testdata/src`), so the fixture compiles without the real SDKs.
-This is the same setup as the example in [go/README.md](../go/README.md#example).
+This is the same stub setup as the SARIF example in [go/README.md](../go/README.md#example).
 
 ```sh
 W=<tmp>/gow; mkdir -p $W/src/flags $W/src/skips
 cp -r <repo>/go/analyzer/testdata/src/github.com $W/src/
 cp <repo>/spec/fixtures/bool-variation/aliased-import/go/input.go $W/src/flags/
 cp <repo>/spec/fixtures/bool-variation/dynamic-key/go/input.go $W/src/skips/
+# the build runs before GOPATH is exported, on purpose (module mode)
 (cd <repo>/go && go build -o $W/bin/fldlint ./cmd/fldlint)
 cd $W/src
 export GOPATH=$W GO111MODULE=off GOWORK=off
@@ -114,7 +115,30 @@ $ $W/bin/fldlint -fix ./flags            # exit 0, file rewritten
 ```
 
 After `-fix`, `flags/input.go` equals the fixture's `go/output.go.golden`
-(checked with `diff`). The diff printed by `-fix -diff` is in the README.
+(checked with `diff`). The diff printed by `-fix -diff` (the `---`/`+++` header paths omitted):
+
+```diff
+@@ -1,10 +1,10 @@
+ package flags
+ 
+ import (
++	"context"
+ 	"fmt"
+ 	"time"
+ 
+-	"github.com/launchdarkly/go-sdk-common/v3/ldcontext"
+ 	ld "github.com/launchdarkly/go-server-sdk/v7"
+ 	"github.com/open-feature/go-sdk/openfeature"
+ )
+@@ -18,6 +18,6 @@
+ 		return false
+ 	}
+ 	defer ldClient.Close()
+-	on, _ := ldClient.BoolVariation("dark-mode", ldcontext.New("user"), false)
++	on, _ := client.BooleanValue(context.TODO(), "dark-mode", false, openfeature.NewEvaluationContext("user", nil))
+ 	return on
+ }
+```
 
 ## Java
 

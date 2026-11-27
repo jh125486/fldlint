@@ -26,12 +26,12 @@ Install it once: `brew install go-task`, or `mise use -g go-task`, or
 `go install github.com/go-task/task/v3/cmd/task@latest`. CI pins go-task 3.54.0 (bumped deliberately in `.github/workflows/ci.yml`); any recent 3.x works locally. It is a developer
 tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 
-`task check` runs everything a good commit needs and is exactly what the required CI `check` job runs. The separate non-required `typescript-next` canary runs `task js:ts-next`, which `task check` does not include.
+`task check` runs `check:shared`, `check:go`, `check:js`, `java:lint` and `java:test`; the required `check` jobs run these per changed area on the Node 22 leg, and `check:node` on the Node 24 and 26 legs. The separate non-required `typescript-next` canary runs `task js:ts-next`, which `task check` does not include.
 
 | Task | Does |
 |------|------|
 | `task` / `task --list` | Lists tasks |
-| `task check` | `spec:check`, `lint`, `test`, then `js:types-floor` (what the required CI `check` job runs) |
+| `task check` | `check:shared`, `check:go`, `check:js`, `java:lint`, `java:test` (the full local gate; CI runs it per area, see above) |
 | `task spec:check` | Validates `rules.yaml` and every `case.yaml` (the one YAML loader), runs the codegens including `spec/generated/spec.json`, fails on drift, then runs `spec:tags` |
 | `task spec:gen` | Validates the spec and regenerates `spec/generated/spec.json` and the committed JS and Go rule tables |
 | `task spec:tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template (`ALLOW_EMPTY=1` tolerates missing fixtures) |

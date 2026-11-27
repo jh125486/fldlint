@@ -57,8 +57,9 @@ it is converted only when it is a simple single-kind literal; anything else is
 
 - JS/TS: `{ key: x }` or `{ kind: "user", key: x }` becomes `{ targetingKey: x }`.
 - Go: `ldcontext.New(x)` becomes `openfeature.NewEvaluationContext(x, nil)`, and
-  the OpenFeature call gets a leading `context.Context` (the enclosing
-  function's only `context.Context` parameter, else `context.TODO()`).
+  the OpenFeature call gets a leading `context.Context`: for `*Ctx` methods, the
+  call's own first argument; for the plain methods, the enclosing function's
+  only `context.Context` parameter, else `context.TODO()`.
 - Java: `LDContext.create(x)` becomes `new ImmutableContext(x)`.
 
 The call is replaced by a call on the OpenFeature client that is already in
@@ -90,8 +91,8 @@ return await ldClient.boolVariation("dark-mode", { kind: "user", key: userKey },
 return await client.getBooleanValue("dark-mode", false, { targetingKey: userKey });
 ```
 
-`npx eslint src` on that file plus fixture `dynamic-key/js/input.ts` (exit 0:
-the preset sets `warn`, and warnings do not fail ESLint):
+`npx eslint src` (paths shortened), with `darkmode.ts` from fixture
+`aliased-import` and `feature.ts` from fixture `dynamic-key` (exit 0: the preset sets `warn`, and warnings do not fail ESLint):
 
 ```text
 src/darkmode.ts
@@ -118,8 +119,8 @@ on, _ := ldClient.BoolVariation("dark-mode", ldcontext.New("user"), false)
 on, _ := client.BooleanValue(context.TODO(), "dark-mode", false, openfeature.NewEvaluationContext("user", nil))
 ```
 
-`fldlint ./flags ./skips` on that file plus fixture `dynamic-key/go/input.go`,
-against the SDK stubs in `go/analyzer/testdata`. It exits **3** because there are
+`fldlint ./flags ./skips` (paths shortened) on that file plus fixture
+`dynamic-key/go/input.go`, against the SDK stubs in `go/analyzer/testdata`. It exits **3** because there are
 findings (Go framework exit codes; see [go/README.md](go/README.md)):
 
 ```text
@@ -177,9 +178,9 @@ flowchart LR
   cases["spec/fixtures/*/*/case.yaml"] --> loader
   schema["spec/schema JSON Schemas"] --> loader
   loader -->|"task spec:gen"| json["spec/generated/spec.json"]
-  json --> js["JS engine: @fldlint/core"]
-  json --> go["Go engine: go/analyzer"]
-  json --> java["Java engine: OpenRewrite recipes"]
+  json -->|"generated tables"| js["JS engine: @fldlint/core"]
+  json -->|"generated tables"| go["Go engine: go/analyzer"]
+  json -->|"generated tables"| java["Java engine: OpenRewrite recipes"]
   cases -.->|"conformance tests"| js
   cases -.-> go
   cases -.-> java
@@ -221,14 +222,14 @@ but skipped as `receiver-unproven` in Go (fixture `stranded-local-client`).
 
 ## Try it from source
 
-Requirements: Node `>=22.13`, the Go version in `go/go.mod`, and JDK 21 for
-Java. Dev tasks run through [go-task](https://taskfile.dev); `task --list`
+Requirements: Node `>=22.13`, the Go version in `go/go.mod`, and JDK 21 and
+`unzip` for Java (`java/mvnw` needs it). Dev tasks run through [go-task](https://taskfile.dev); `task --list`
 shows them (table in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 - ESLint plugin: `cd js && npm ci && npm run build`, then in your project
   `npm install --save-dev eslint @typescript-eslint/parser <repo>/js/packages/eslint-plugin`
   and an `eslint.config.js` as in the [plugin README](js/packages/eslint-plugin/README.md).
-- Codemod: `cd js && npm run build -w @fldlint/codemod`, then
+- Codemod: `cd js && npm ci && npm run build -w @fldlint/codemod`, then
   `npx codemod@1.18.7 workflow run -w js/packages/codemod -t <target> --no-interactive`
   from the repository root. The target must be a clean Git tree or use `--allow-dirty`.
 - Go: `cd go && go install ./cmd/fldlint ./cmd/fldlint-fix ./cmd/fldlint-sarif`,
@@ -239,8 +240,9 @@ shows them (table in [CONTRIBUTING.md](CONTRIBUTING.md)).
 
 `task test` runs the JS, Go and Java tests. `task check` is the full local gate
 (shared checks, Go, JS, and Java lint and tests). CI does not run it as one job:
-it runs `check:shared`, `check:go` and `check:js` per changed area, Java in its
-own job, and the required checks also include `dco`, CodeQL and dependency
+on the Node 22 leg it runs `check:shared`, `check:go` and `check:js` per
+changed area, and the Node 24 and 26 legs run `check:node`. Java runs in its own
+non-required job. The required checks also include `dco`, CodeQL and dependency
 review. `task spec:check` validates the spec and checks generated code for drift.
 
 ## Shared spec
