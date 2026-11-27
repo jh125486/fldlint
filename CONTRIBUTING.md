@@ -52,8 +52,8 @@ CI calls `task check` (required `check` job, with `FLDLINT_SKIP_JAVA=1` because 
 Java needs JDK 21 (`maven.compiler.release=8` targets Java 8 bytecode, ADR 009 D7) and `unzip` on the PATH (the wrapper uses it to unpack the pinned Maven zip; without it `mvnw` falls back to the `.tar.gz` and fails with a `distributionSha256Sum` mismatch error): `java/mvnw` downloads a pinned Maven (script-only wrapper, checksum verified). Run the harness against another spec root with `cd java && ./mvnw verify -Dfldlint.specRoot=<dir>` (the root must contain `generated/spec.json`; an explicit missing root fails). Java never parses YAML; it reads `spec/generated/spec.json` ([ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)), and `task spec:gen` also regenerates `RulesGen.java`. Requires Node `>=22.13` (CI runs 22, 24 and 26; also typechecks on Node 22.13.0 against `@types/node` 22.13.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);
-a maintainer sets it (Settings > Secrets and variables > Actions > Variables)
-when the repo goes public. If you change `spec/rules.yaml`, run
+a maintainer sets it (Settings > Secrets and variables > Actions > Variables).
+If you change `spec/rules.yaml`, run
 `task spec:gen` and commit the generated files.
 
 ## Dependencies

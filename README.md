@@ -4,9 +4,9 @@ fldlint finds LaunchDarkly server-SDK flag evaluations in JavaScript/TypeScript,
 Go and Java, and migrates the ones it can prove safe to OpenFeature. Calls it
 cannot prove safe are reported with a skip category and left alone.
 
-> Status: **not released.** The repository is public, but there are no releases
-> and no tags, and nothing is published to npm, Maven Central or the Go module
-> proxy. Use it from a checkout of this repository.
+> Status: **not released.** There are no releases and no tags, and nothing is
+> published to npm, Maven Central or the Go module proxy. Use it from a checkout
+> of this repository.
 
 **This is a separate project from [flaglint](https://github.com/flaglint)
 (similar name).** It is derived in part from flaglint-js and flaglint-go under
