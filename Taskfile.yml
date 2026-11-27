@@ -33,6 +33,7 @@ tasks:
     cmds:
       - task: spec:check
       - task: workflows:test
+      - task: corpus:test
       - task: parity
 
   check:go:
@@ -41,6 +42,7 @@ tasks:
       - task: go:lint
       - task: go:test
       - task: go:plugin-test
+      - task: corpus:selftest:go
 
   check:js:
     desc: JS lint, tests and the @types/node floor
@@ -223,6 +225,55 @@ tasks:
     cmds:
       - task: java:smoke
         vars: {UPDATE: "1"}
+
+  corpus:
+    desc: Real-repo corpus (spec/corpus.json; needs network, git, Go, Node, JDK 21), read-only dry runs, fixes applied in temp copies only, then compare with spec/corpus-snapshot.json. Not part of 'task check'. Extra args go to the runner, e.g. 'task corpus -- --only hello-go'
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs run --out tmp/corpus/result.json {{.CLI_ARGS}}
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
+
+  corpus:js:
+    desc: Corpus, JS repos only (extra args after --, e.g. --only hello-node-server)
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs run --lang js --out tmp/corpus/result.json {{.CLI_ARGS}}
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
+
+  corpus:go:
+    desc: Corpus, Go repos only, including weaviate (about 1 GB); narrow with 'task corpus:go -- --only hello-go,ld-sample-app-go'
+    cmds:
+      - node scripts/corpus/run.mjs run --lang go --out tmp/corpus/result.json {{.CLI_ARGS}}
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
+
+  corpus:java:
+    desc: Corpus, Java repos only (JDK 21; extra args after --, e.g. --only ld-sample-app-java)
+    cmds:
+      - node scripts/corpus/run.mjs run --lang java --out tmp/corpus/result.json {{.CLI_ARGS}}
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
+
+  corpus:test:
+    desc: Unit tests of the corpus pass/fail logic and child-environment allowlist (node:test, offline)
+    cmds:
+      - node --test scripts/corpus/*.test.mjs
+
+  corpus:selftest:
+    desc: Run the corpus apply-fix-then-build path on local fixture projects (Go offline with SDK stubs, JS via npm, Java via Maven; needs network or warm caches, about 40s). Not part of 'task check' except the offline Go case (corpus:selftest:go)
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs selftest
+
+  corpus:selftest:go:
+    desc: Corpus self-test, Go case only (offline, about 2s); part of check:go
+    cmds:
+      - node scripts/corpus/run.mjs selftest --lang go
+
+  corpus:update:
+    desc: Re-run the whole corpus and rewrite spec/corpus-snapshot.json (review the diff; a rewrite-count rise needs a fixture)
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs run --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs snapshot tmp/corpus/result.json
 
   workflows:test:
     desc: Table test for the CI change classifier (.github/scripts/classify-changes.sh)
