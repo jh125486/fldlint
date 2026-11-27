@@ -426,6 +426,24 @@ func TestConvert(t *testing.T) {
 			check: wantFP("bool-variation", "a.go", strp("mexpr-ctx")),
 		},
 		{
+			name:  "method expression of a report-only rule",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (*ldclient.LDClient).IntVariation(c, \"iv-key\", u, 1)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"int-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("int-variation", "a.go", strp("iv-key")),
+		},
+		{
+			name:  "Ctx method expression of a report-only rule",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (*ldclient.LDClient).IntVariationCtx(c, ctx, \"ivc-key\", u, 1)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"int-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("int-variation", "a.go", strp("ivc-key")),
+		},
+		{
+			name:  "method expression of a detail rule",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (*ldclient.LDClient).BoolVariationDetail(c, \"bd-key\", u, false)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation-detail", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("bool-variation-detail", "a.go", strp("bd-key")),
+		},
+		{
 			name:  "multi-line raw key with a no-fix suffix",
 			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = c.BoolVariation(`raw\nmulti`, ldcontext.New(/* c */ \"user\"), false)\n}\n"},
 			in: func(r string) string {

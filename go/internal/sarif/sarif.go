@@ -448,10 +448,15 @@ func staticKey(s *source, rule spec.Rule, off, endOff int) *string {
 			}
 		}
 		// Without type information a method expression, (*T).M(recv, ...),
-		// is recognised by its extra leading argument: every keyed Go rule
-		// has a fixed arity (the highest of its key, default and context
-		// positions, plus the optional leading context.Context).
-		if len(call.Args) == max(rule.KeyArg, rule.DefaultArg, rule.ContextArg)+1+shift+1 {
+		// is recognised by its extra leading argument. Every keyed Go rule has
+		// a fixed arity: argCount (min == max, report-only rules) or else the
+		// highest of its key, default and context positions, plus the
+		// optional leading context.Context.
+		arity := max(rule.KeyArg, rule.DefaultArg, rule.ContextArg) + 1
+		if ac := rule.Go.ArgCount; ac != nil {
+			arity = ac.Min
+		}
+		if len(call.Args) == arity+shift+1 {
 			i++
 		}
 		if i >= len(call.Args) {

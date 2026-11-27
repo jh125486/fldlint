@@ -28,7 +28,9 @@ autoformat produces, which is the one place Java is not textually exact.
 
 Rewriting replaces the whole call range, so comments inside it are placed
 explicitly, identically in JS and Go (issue #31). Comments inside an argument's
-own text are copied with it. The others:
+own text are copied with it, except a comment inside the parentheses around a
+static key (see Static key): only the key literal is copied, so Go has no home
+for it and reports the call with no fix. The others:
 
 - A comment touching an argument (before the separating comma, trailing it on
   its line, or on or above its line ahead of it) moves with that argument when
@@ -58,7 +60,9 @@ own text are copied with it. The others:
   separating comma), or in `LDContext.create(..)` around its key. The call is
   then a finding with no fix (`[no-fix: comment]`); homing comments by moving
   them with their arguments is not implemented in Java. A comment inside an
-  argument's own text is copied with it.
+  argument's own text is copied with it, except a comment inside the
+  parentheses around a static key: only the literal is copied, so the call is a
+  finding with no fix.
 - JS only: a comment inside a parenthesized callee, `(ld).boolVariation(...)`
   or any callee whose `(` cannot be located behind trivia, is conservatively
   unfixable. JS argument text is copied from the argument node, so parentheses
@@ -104,8 +108,8 @@ them). Only the literal is copied into the rewrite, so a comment inside the
 parentheses has no home and leaves the call a finding with no fix
 (`[no-fix: comment]`) in Go and Java. A Go method expression,
 `(*ldclient.LDClient).BoolVariation(c, "k", ...)`, reads its key after the
-receiver argument, so it has the same key, category and fingerprint as the
-method call; its receiver is a type, never a proven client, so it is skipped as
+receiver argument, so it follows the same rule and has the same key and
+fingerprint as the method call (the method call may be rewritten); its receiver is a type, never a proven client, so it is skipped as
 `receiver-unproven`.
 
 ## Java planner notes

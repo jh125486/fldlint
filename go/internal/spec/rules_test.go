@@ -162,6 +162,10 @@ func TestRules(t *testing.T) {
 		if has := r.Go.ArgCount != nil; has != (r.Skip != "") {
 			t.Errorf("rule %q: argCount present = %v, report-only = %v", r.ID, has, r.Skip != "")
 		}
+		// fldlint-sarif recognises a method expression by a fixed arity.
+		if ac := r.Go.ArgCount; ac != nil && r.KeyArg >= 0 && ac.Min != ac.Max {
+			t.Errorf("rule %q: keyed Go rule has argCount min %d != max %d", r.ID, ac.Min, ac.Max)
+		}
 	}
 }
 

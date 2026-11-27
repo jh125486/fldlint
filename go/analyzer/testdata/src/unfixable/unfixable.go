@@ -20,14 +20,14 @@ func InContext(userKey string) bool {
 // A // comment between the receiver and the method cannot be hoisted.
 func LineInCallee(userKey string) bool {
 	/* want `Migrate boolean flag "b" to OpenFeature` */ on, _ := ldClient. // note
-		BoolVariation("b", ldcontext.New(userKey), false)
+										BoolVariation("b", ldcontext.New(userKey), false)
 	return on
 }
 
 // A multi-line block comment between receiver and method cannot be hoisted.
 func BlockInCallee(userKey string) bool {
 	/* want `Migrate boolean flag "c" to OpenFeature` */ on, _ := ldClient. /* a
-	b */ BoolVariation("c", ldcontext.New(userKey), false)
+		b */BoolVariation("c", ldcontext.New(userKey), false)
 	return on
 }
 
@@ -45,5 +45,17 @@ func Directive(userKey string) bool {
 		ldcontext.New(userKey),
 		false, //nolint:gosec
 	)
+	return on
+}
+
+// Only the key literal is copied into the rewrite, so a comment inside the
+// parentheses around it has no home: the diagnostic stays, the fix is withheld.
+func CommentInKeyParens(userKey string) bool {
+	on, _ := ldClient.BoolVariation(( /* c */ "e"), ldcontext.New(userKey), false) // want `Migrate boolean flag "e" to OpenFeature`
+	return on
+}
+
+func CommentAfterKeyParens(userKey string) bool {
+	on, _ := ldClient.BoolVariation(("f" /* c */), ldcontext.New(userKey), false) // want `Migrate boolean flag "f" to OpenFeature`
 	return on
 }

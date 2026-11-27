@@ -95,6 +95,21 @@ class BoolVariationToOpenFeatureTest implements RewriteTest {
   }
 
   @Test
+  void commentInsideParenthesesAroundTheKeyIsReportedWithNoFix() {
+    for (String key : new String[] {"(/* c */ \"k\")", "(\"k\" /* c */)"}) {
+      String source =
+          body(
+              "    boolean f(LDClient ld, String u) {",
+              "        return ld.boolVariation(" + key + ", LDContext.create(u), false);",
+              "    }");
+      rewriteRun(BoolVariationToOpenFeatureTest::migrate, java(source));
+      List<LaunchDarklyUsage.Row> rows = find(source);
+      assertEquals(1, rows.size(), key);
+      assertEquals("comment", rows.get(0).noFix, key);
+    }
+  }
+
+  @Test
   void commentInsideAnArgumentsOwnTextIsCopiedWithIt() {
     rewriteRun(
         BoolVariationToOpenFeatureTest::migrate,
