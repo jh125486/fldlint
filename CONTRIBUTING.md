@@ -26,12 +26,12 @@ Install it once: `brew install go-task`, or `mise use -g go-task`, or
 `go install github.com/go-task/task/v3/cmd/task@latest`. CI pins go-task 3.54.0 (bumped deliberately in `.github/workflows/ci.yml`); any recent 3.x works locally. It is a developer
 tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 
-`task check` runs `check:shared`, `check:go`, `check:js`, `java:lint` and `java:test`; the required `check` jobs run these per changed area on the Node 22 leg, and `check:node` on the Node 24 and 26 legs. The separate non-required `typescript-next` canary runs `task js:ts-next`, which `task check` does not include.
+Locally, `task check` runs `check:shared`, `check:go`, `check:js`, `java:lint` and `java:test` (`java:smoke` is separate). CI does not call `task check` as one job; see "CI" below. The separate non-required `typescript-next` canary runs `task js:ts-next`, which `task check` does not include.
 
 | Task | Does |
 |------|------|
 | `task` / `task --list` | Lists tasks |
-| `task check` | `check:shared`, `check:go`, `check:js`, `java:lint`, `java:test` (the full local gate; CI runs it per area, see above) |
+| `task check` | `check:shared`, `check:go`, `check:js`, `java:lint`, `java:test` (the full local gate; CI runs the parts per area, see "CI" below) |
 | `task spec:check` | Validates `rules.yaml` and every `case.yaml` (the one YAML loader), runs the codegens including `spec/generated/spec.json`, fails on drift, then runs `spec:tags` |
 | `task spec:gen` | Validates the spec and regenerates `spec/generated/spec.json` and the committed JS and Go rule tables |
 | `task spec:tags` | Checks mandatory shape-tag coverage (`bool-variation` only) and a rewrite case per rule for each language with a template (`ALLOW_EMPTY=1` tolerates missing fixtures) |
@@ -48,7 +48,20 @@ tool, not a project dependency: nothing in `go.mod` or `package.json` uses it.
 | `task lint` | `js:lint`, `go:lint` and `java:lint` |
 | `task test` | `js:test`, `go:test` and `java:test` |
 
-CI calls `task check` (required `check` job, with `FLDLINT_SKIP_JAVA=1` because it has no JDK 21 set up), `task workflows:lint` (`workflows` job; whether it is required is an owner decision), `task js:test-eslint9` (`eslint-9` job: ESLint 9 coverage for the plugin's peer range), `task java:lint java:test` (the path-filtered `java` job: it runs on changes under `java/`, `spec/`, `go/internal/spec/`, `Taskfile.yml` or `ci.yml`, and always on pushes to `main`) and `task js:ts-next` (non-required canary).
+### CI
+
+CI (`.github/workflows/ci.yml`) classifies the changed paths (`.github/scripts/classify-changes.sh`) into go, js, java, shared and workflows flags and runs work per area; a docs-only change skips most of it, and pushes to `main` run everything. The jobs:
+
+- `check` (matrix of Node 22, 24 and 26; which checks are required is set by the repository ruleset, not by this file). The Node 22 leg (the 22.13.0 engines floor) runs `task check:shared` when `shared` is set, `task check:go` when `go` is set and `task check:js` when `js` is set. The Node 24 and 26 legs run `task check:node` when `js` is set. The job sets `FLDLINT_SKIP_JAVA=1` and has no JDK.
+- `java` (not required): `task java:lint java:test java:smoke`, gated by the `java` flag.
+- `golangci-plugin` (not required): `task go:plugin-smoke`, gated by the `go` flag.
+- `eslint-9`: `task js:test-eslint9` (ESLint 9 coverage for the plugin's peer range), when `js` is set.
+- `workflows`: `task workflows:lint`, when `workflows` is set; whether it is required is an owner decision.
+- `typescript-next`: `task js:ts-next`, a non-required canary.
+- CodeQL and dependency review are separate workflows (see below), also checked by the ruleset.
+
+### Toolchains
+
 Java needs JDK 21 (`maven.compiler.release=8` targets Java 8 bytecode, ADR 009 D7) and `unzip` on the PATH (the wrapper uses it to unpack the pinned Maven zip; without it `mvnw` falls back to the `.tar.gz` and fails with a `distributionSha256Sum` mismatch error): `java/mvnw` downloads a pinned Maven (script-only wrapper, checksum verified). Run the harness against another spec root with `cd java && ./mvnw verify -Dfldlint.specRoot=<dir>` (the root must contain `generated/spec.json`; an explicit missing root fails). Java never parses YAML; it reads `spec/generated/spec.json` ([ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)), and `task spec:gen` also regenerates `RulesGen.java`. Requires Node `>=22.13` (CI runs 22, 24 and 26; also typechecks on Node 22.13.0 against `@types/node` 22.13.0) and
 the Go version in `go/go.mod`. CodeQL and dependency review run only when the
 repository variable `GHAS_ENABLED` is `'true'` (`vars.GHAS_ENABLED == 'true'`);

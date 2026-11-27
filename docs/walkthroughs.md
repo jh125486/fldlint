@@ -1,4 +1,4 @@
-# Walkthroughs: how the README examples were produced
+# README walkthroughs
 
 Every command below was run from a checkout of this repository on 2026-11-26
 (macOS arm64, Node v26.13.1, go1.27.4, Temurin JDK 21.0.13). The inputs are
@@ -69,8 +69,8 @@ cd <repo>
 npx --yes codemod@1.18.7 workflow run -w js/packages/codemod -t <target> --no-interactive
 ```
 
-Observed (exit 0, which is also the exit code when everything was skipped, see
-the [codemod README](../js/packages/codemod/README.md)):
+Observed (exit 0; the codemod exits 0 even when every call is skipped, see the
+[codemod README](../js/packages/codemod/README.md)):
 
 ```text
 Workflow started f0ad4ab6-8656-4ac9-bca1-49ad4bb9a3e9
@@ -87,9 +87,8 @@ same rewrite as the ESLint fixer.
 
 ## Go
 
-The Go analyzer's tests use SDK stubs (a GOPATH tree under
-`go/analyzer/testdata/src`), so the fixture compiles without the real SDKs.
-This is the same stub setup as the SARIF example in [go/README.md](../go/README.md#example).
+The fixtures compile against the SDK stubs in `go/analyzer/testdata/src` (a
+GOPATH tree), not the real SDKs.
 
 ```sh
 W=<tmp>/gow; mkdir -p $W/src/flags $W/src/skips
@@ -151,7 +150,7 @@ cd smoke && ../mvnw -B \
 ```
 
 Observed: exit 0 and `BUILD SUCCESS`. A dry run exits 0 even when it would
-change files; the end of the output lists the recipes that would make changes
+change files. The end of the output lists the recipes that would change files
 and the patch location:
 
 ```text
@@ -173,10 +172,9 @@ With `-DfailOnDryRunResults=true` added, the same command ends in
 
 The generated `rewrite.patch`, minus its `index` lines, is identical to the
 committed [`java/smoke/expected.patch`](../java/smoke/expected.patch) (checked
-with `diff`); the README quotes it. The input is
+with `diff`). The input is
 [`java/smoke/src/main/java/smoke/SmokeFlags.java`](../java/smoke/src/main/java/smoke/SmokeFlags.java).
 
 The shared `aliased-import` fixture's Java before/after
 (`spec/fixtures/bool-variation/aliased-import/java/{Before,After}.java`) is run by the
-conformance test: `cd java && ./mvnw -B test -Dtest='ConformanceTest'` passed
-(93 tests run, 0 failures, 24 skipped by the harness).
+conformance test: `cd java && ./mvnw -B test -Dtest='ConformanceTest'` passes.

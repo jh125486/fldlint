@@ -1,41 +1,34 @@
 # fldlint
 
 fldlint finds LaunchDarkly server-SDK flag evaluations in JavaScript/TypeScript,
-Go and Java, and migrates the ones it can prove safe to OpenFeature. Calls it
-cannot prove safe are reported with a skip category and left alone.
+Go and Java and rewrites them to OpenFeature when a fixed set of checks passes
+(flag key, context, default type, client binding). Any other call is reported
+with a skip category and left unchanged.
 
-> Status: **not released.** There are no releases and no tags, and nothing is
-> published to npm, Maven Central or the Go module proxy. Use it from a checkout
-> of this repository.
+> Status: **not released.** No tags, no releases; nothing is on npm (every
+> package is `private`), Maven Central or the Go module proxy. Use it from a
+> checkout.
 
-**This is a separate project from [flaglint](https://github.com/flaglint)
-(similar name).** It is derived in part from flaglint-js and flaglint-go under
-the MIT license; see [NOTICE](NOTICE) and [ADR 005](docs/adr/005-attribution-and-porting-policy.md).
-It is not affiliated with or endorsed by the flaglint project.
+**Not [flaglint](https://github.com/flaglint).** fldlint is a separate project,
+derived in part from flaglint-js and flaglint-go under the MIT license
+([NOTICE](NOTICE), [ADR 005](docs/adr/005-attribution-and-porting-policy.md)),
+and is not affiliated with or endorsed by the flaglint project.
 
-LaunchDarkly is a trademark of its owner. fldlint is an independent project
-and is not affiliated with, sponsored by or endorsed by LaunchDarkly or the
-OpenFeature project.
+## Tools
 
-## What works today
+| Ecosystem | Ships as | Docs |
+|-----------|----------|------|
+| JS/TS | `eslint-plugin-fldlint` (ESLint, `--fix`) and `@fldlint/codemod` (`npx codemod`), both on `@fldlint/core` | [plugin](js/packages/eslint-plugin/README.md), [codemod](js/packages/codemod/README.md) |
+| Go | `fldlint`, `fldlint-fix` (`go vet -vettool`, `go fix -fixtool`), the golangci-lint module plugin (`go/golangci`), optional `fldlint-sarif`; go-server-sdk v7 only | [go/README.md](go/README.md) |
+| Java | OpenRewrite recipes that rewrite `boolVariation`, `stringVariation`, `doubleVariation` and `intVariation`, plus a search recipe that reports the rest | [java/README.md](java/README.md) |
 
-| Ecosystem | Tool | Details |
-|-----------|------|---------|
-| JS/TS | ESLint plugin `eslint-plugin-fldlint` (runs through `eslint`, fixes with `--fix`) and an `npx codemod` package `@fldlint/codemod`, both over the shared planner `@fldlint/core`. | [plugin](js/packages/eslint-plugin/README.md), [codemod](js/packages/codemod/README.md). There is no fldlint CLI: `@fldlint/cli` is an unimplemented placeholder. |
-| Go | `go/analysis` analyzer with suggested fixes, as the `fldlint` binary (standalone), the `fldlint-fix` binary (`go vet -vettool`, `go fix -fixtool`), a golangci-lint module plugin (`go/golangci`) and the optional `fldlint-sarif` converter. go-server-sdk v7 only. | [go/README.md](go/README.md) (commands, observed exit codes) |
-| Java | OpenRewrite recipes that rewrite `boolVariation`, `stringVariation`, `doubleVariation` and `intVariation`, plus a search recipe that reports everything else. | [java/README.md](java/README.md) |
-
-Nothing is published: every npm package is `private`, and the Java artifact and
-Go module have no release. Each ecosystem has its own detection engine; they
-share data, not code ([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)),
-and each tool follows its ecosystem's conventions
-([ADR 008](docs/adr/008-idiomatic-per-ecosystem.md)), so exit codes differ
-([exit-codes.md](spec/contracts/exit-codes.md)).
+There is no JS command-line tool: `@fldlint/cli` is an empty placeholder.
+Each tool follows its ecosystem's conventions, so exit codes differ between them
+([exit-codes.md](spec/contracts/exit-codes.md), [ADR 008](docs/adr/008-idiomatic-per-ecosystem.md)).
 
 ## What gets rewritten
 
-The rewriting rules are in [`spec/rules.yaml`](spec/rules.yaml). The OpenFeature
-call takes the arguments in a different order, so the rewrite reorders them:
+Rules are in [`spec/rules.yaml`](spec/rules.yaml). OpenFeature takes the default before the context:
 
 ```text
 LaunchDarkly:  client.boolVariation(key, context, default)
@@ -50,10 +43,9 @@ OpenFeature:   ofClient.getBooleanValue(key, default, context)
 | `java-int-variation` | none | none | `intVariation` to `getIntegerValue(..).intValue()` |
 | `json-variation` | `jsonVariation` to `getObjectValue` | none | none |
 
-What happens to the context argument
+The context argument is converted only when it is a simple single-kind literal;
+anything else is skipped as `context-unproven`
 ([placeholders.md](spec/contracts/placeholders.md), [ADR 006](docs/adr/006-context-conversion-skipped-unless-provable.md)):
-it is converted only when it is a simple single-kind literal; anything else is
-`context-unproven` and the call is not edited.
 
 - JS/TS: `{ key: x }` or `{ kind: "user", key: x }` becomes `{ targetingKey: x }`.
 - Go: `ldcontext.New(x)` becomes `openfeature.NewEvaluationContext(x, nil)`, and
@@ -62,27 +54,30 @@ it is converted only when it is a simple single-kind literal; anything else is
   only `context.Context` parameter, else `context.TODO()`.
 - Java: `LDContext.create(x)` becomes `new ImmutableContext(x)`.
 
-The call is replaced by a call on the OpenFeature client that is already in
-scope; fldlint never creates a client and never deletes the LaunchDarkly client
-declaration ([ADR 010](docs/adr/010-planner-step-order-and-receiver-removal.md)).
-The reordering means a side effect in the default or in the context key runs in
-a different order after the rewrite (known and accepted, see placeholders.md).
+The rewritten call uses the OpenFeature client already in scope. fldlint never
+creates a client and never deletes the LaunchDarkly client declaration
+([ADR 010](docs/adr/010-planner-step-order-and-receiver-removal.md)). Because
+the arguments are reordered, a side effect in the default or the context key
+runs in a different order after the rewrite; this is accepted (see placeholders.md).
 
-Report-only (always reported, never edited): `*Variation*Detail` calls
-(`detail`), `allFlagsState` (`bulk`), and `variation`, `migrationVariation`,
-Go `IntVariation` and `JSONVariation`, Java `jsonValueVariation`
-(`type-mismatch`).
+Always reported, never edited:
+
+| Category | Calls |
+|----------|-------|
+| `detail` | the `*Variation*Detail` calls |
+| `bulk` | `allFlagsState` |
+| `type-mismatch` | `variation`, `migrationVariation`, Go `IntVariation` and `JSONVariation`, Java `jsonValueVariation` |
 
 ## Examples
 
-Every example is a shared fixture under
-[`spec/fixtures/bool-variation/`](spec/fixtures/bool-variation/), run with the
-tool from this checkout. The setup for each command is in
-[docs/walkthroughs.md](docs/walkthroughs.md). Positions are `line:column`.
+Inputs are fixtures from [`spec/fixtures/bool-variation/`](spec/fixtures/bool-variation/):
+`aliased-import` (rewritten) and `dynamic-key` (skipped). Setup for each
+command is in [docs/walkthroughs.md](docs/walkthroughs.md); paths in the output
+are shortened. Positions are `line:column`.
 
 ### JS/TS
 
-Fixture `aliased-import/js/input.ts` and `output.ts`:
+`aliased-import/js/input.ts` and `output.ts`:
 
 ```ts
 // before
@@ -91,8 +86,8 @@ return await ldClient.boolVariation("dark-mode", { kind: "user", key: userKey },
 return await client.getBooleanValue("dark-mode", false, { targetingKey: userKey });
 ```
 
-`npx eslint src` (paths shortened), with `darkmode.ts` from fixture
-`aliased-import` and `feature.ts` from fixture `dynamic-key` (exit 0: the preset sets `warn`, and warnings do not fail ESLint):
+`npx eslint src`, with `darkmode.ts` = `aliased-import` and `feature.ts` =
+`dynamic-key`. It exits 0 because the preset sets every rule to `warn`:
 
 ```text
 src/darkmode.ts
@@ -106,11 +101,19 @@ src/feature.ts
 ```
 
 `npx eslint --max-warnings 0 src` exits 1; `npx eslint --fix src/darkmode.ts`
-exits 0 and produces the `after` above. The skipped call has no fix.
+exits 0 and produces the `after` above. `feature.ts` is not changed.
+
+The codemod (command under [Install from source](#install-from-source)) makes
+the same rewrite and prints the skip. It exits 0 even when it skips, so check its output:
+
+```text
+src/feature.ts
+  src/feature.ts:8:16  bool-variation  Flag key is not a static string [skip: dynamic-key]
+```
 
 ### Go
 
-Fixture `aliased-import/go/input.go` and `output.go.golden`:
+`aliased-import/go/input.go` and `output.go.golden`:
 
 ```go
 // before
@@ -119,20 +122,19 @@ on, _ := ldClient.BoolVariation("dark-mode", ldcontext.New("user"), false)
 on, _ := client.BooleanValue(context.TODO(), "dark-mode", false, openfeature.NewEvaluationContext("user", nil))
 ```
 
-`fldlint ./flags ./skips` (paths shortened) on that file plus fixture
-`dynamic-key/go/input.go`, against the SDK stubs in `go/analyzer/testdata`. It exits **3** because there are
-findings (Go framework exit codes; see [go/README.md](go/README.md)):
+`fldlint ./flags ./skips` on the two fixtures, against the SDK stubs in
+`go/analyzer/testdata`, exits 3 because there are findings ([go/README.md](go/README.md)):
 
 ```text
 flags/input.go:21:11: Migrate boolean flag "dark-mode" to OpenFeature
 skips/input.go:14:11: Flag key is not a static string [skip: dynamic-key]
 ```
 
-`fldlint -fix ./flags` exits 0 and writes exactly the golden file.
+`fldlint -fix ./flags` exits 0 and produces `output.go.golden`.
 
 ### Java
 
-Fixture `aliased-import/java/Before.java` and `After.java`:
+`aliased-import/java/Before.java` and `After.java`:
 
 ```java
 // before
@@ -141,13 +143,11 @@ return ldClient.boolVariation("new-checkout", create(userKey), false);
 return client.getBooleanValue("new-checkout", false, new ImmutableContext(userKey)).booleanValue();
 ```
 
-The smoke project [`java/smoke`](java/smoke/README.md) runs the recipes through
-`rewrite-maven-plugin` 6.46.1 `dryRun` (commands in
-[docs/walkthroughs.md](docs/walkthroughs.md)). It exits 0 with `BUILD SUCCESS`
-even though it would change files; add `-DfailOnDryRunResults=true` to make it
-exit 1. The patch it writes (identical to
-[`java/smoke/expected.patch`](java/smoke/expected.patch)) contains a rewrite
-and, from the search recipe, a skip marker:
+[`java/smoke`](java/smoke/README.md) runs the recipes through
+`rewrite-maven-plugin` 6.46.1 `dryRun`. It exits 0 with `BUILD SUCCESS` even
+when it would change files; add `-DfailOnDryRunResults=true` to exit 1 instead.
+The patch it writes matches [`java/smoke/expected.patch`](java/smoke/expected.patch):
+one rewrite, and one skip marker from the search recipe:
 
 ```diff
 -        boolean on = ld.boolVariation("smoke-bool", LDContext.create(userKey), false);
@@ -157,24 +157,34 @@ and, from the search recipe, a skip marker:
 +        boolean dynamic = /*~~(Flag key is not a static string [skip: dynamic-key])~~>*/ld.boolVariation(dynamicKey, LDContext.create(userKey), false);
 ```
 
-The marker is a comment only; the call itself is unchanged.
+The marker is a comment; the call is unchanged.
 
-### Codemod (JS/TS)
+## Install from source
 
-`npx codemod@1.18.7 workflow run -w js/packages/codemod -t <target> --no-interactive`
-rewrote `darkmode.ts` as above and printed the skip (exit 0; the codemod exits 0
-even when it skips, so read its output):
+Tasks use [go-task](https://taskfile.dev) (`task --list`; table in
+[CONTRIBUTING.md](CONTRIBUTING.md)). Requirements: Node `>=22.13`, the Go
+version in `go/go.mod`, and JDK 21 and `unzip` (`java/mvnw` uses it) for Java.
 
-```text
-src/feature.ts
-  src/feature.ts:8:16  bool-variation  Flag key is not a static string [skip: dynamic-key]
-```
+- ESLint plugin: `cd js && npm ci && npm run build`, then in your project
+  `npm install --save-dev eslint @typescript-eslint/parser <repo>/js/packages/eslint-plugin`
+  and an `eslint.config.js` as in the [plugin README](js/packages/eslint-plugin/README.md).
+- Codemod: `cd js && npm ci && npm run build -w @fldlint/codemod`, then
+  `npx codemod@1.18.7 workflow run -w js/packages/codemod -t <target> --no-interactive`
+  from the repository root. The target must be a clean Git tree or use `--allow-dirty`.
+- Go: `cd go && go install ./cmd/fldlint ./cmd/fldlint-fix ./cmd/fldlint-sarif`,
+  then `fldlint ./...` (see [go/README.md](go/README.md)).
+- Java: `task java:test` (or `./mvnw -B verify` in `java/`) builds and tests;
+  `task java:smoke` runs the recipes through `rewrite-maven-plugin` `dryRun`
+  against `java/smoke`.
+
+`task test` runs all tests; `task check` is the full local gate;
+`task spec:check` checks generated code for drift.
 
 ## How it works
 
 ```mermaid
 flowchart LR
-  rules["spec/rules.yaml"] --> loader["JS loader (js/packages/spec): the only YAML reader"]
+  rules["spec/rules.yaml"] --> loader["JS loader (js/packages/spec)"]
   cases["spec/fixtures/*/*/case.yaml"] --> loader
   schema["spec/schema JSON Schemas"] --> loader
   loader -->|"task spec:gen"| json["spec/generated/spec.json"]
@@ -186,13 +196,15 @@ flowchart LR
   cases -.-> java
 ```
 
-The loader validates the rules and fixtures and writes `spec.json`, which is
-committed, along with generated rule tables for each engine (`rules.gen.ts`,
-`rules_gen.go`, `RulesGen.java`). Go and Java contain no YAML code
-([ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)). The engines
-share data, not code ([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)).
-Edit the YAML, run `task spec:gen`, commit the output; `task spec:check` fails
-on drift.
+The JS loader is the only YAML reader
+([ADR 011](docs/adr/011-parse-yaml-once-emit-canonical-json.md)). It validates
+rules and fixtures, then writes the committed `spec.json` and each engine's rule
+table (`rules.gen.ts`, `rules_gen.go`, `RulesGen.java`). The engines share this
+data, not code ([ADR 002](docs/adr/002-spec-as-data-not-shared-engine.md)). To
+change a rule, edit the YAML, run `task spec:gen` and commit the output;
+`task spec:check` fails if they drift. [`spec/contracts/`](spec/contracts/)
+defines output format, fingerprint, baseline, SARIF, placeholders and exit
+codes; decisions are in [docs/adr/](docs/adr/).
 
 Every engine decides each detected call with the same fixed step order, first
 match wins ([ADR 010](docs/adr/010-planner-step-order-and-receiver-removal.md),
@@ -215,46 +227,17 @@ flowchart TD
   s6 -->|"yes"| done["Rewrite the call"]
 ```
 
-A skipped call is reported and not edited. The same step order does not always
-give the same outcome in every language, because the facts differ: a
+The order is the same in every language, but the answers can differ. A
 function-local client whose only use is the rewritten call is rewritten in JS
-but skipped as `receiver-unproven` in Go (fixture `stranded-local-client`).
+but skipped as `receiver-unproven` in Go, because Go rejects the unused variable
+(fixture `stranded-local-client`).
 
-## Try it from source
+## Contributing and license
 
-Requirements: Node `>=22.13`, the Go version in `go/go.mod`, and JDK 21 and
-`unzip` for Java (`java/mvnw` needs it). Dev tasks run through [go-task](https://taskfile.dev); `task --list`
-shows them (table in [CONTRIBUTING.md](CONTRIBUTING.md)).
-
-- ESLint plugin: `cd js && npm ci && npm run build`, then in your project
-  `npm install --save-dev eslint @typescript-eslint/parser <repo>/js/packages/eslint-plugin`
-  and an `eslint.config.js` as in the [plugin README](js/packages/eslint-plugin/README.md).
-- Codemod: `cd js && npm ci && npm run build -w @fldlint/codemod`, then
-  `npx codemod@1.18.7 workflow run -w js/packages/codemod -t <target> --no-interactive`
-  from the repository root. The target must be a clean Git tree or use `--allow-dirty`.
-- Go: `cd go && go install ./cmd/fldlint ./cmd/fldlint-fix ./cmd/fldlint-sarif`,
-  then `fldlint ./...` (see [go/README.md](go/README.md)).
-- Java: `task java:test` (or `./mvnw -B verify` in `java/`) builds and tests;
-  `task java:smoke` runs the recipes through `rewrite-maven-plugin` `dryRun`
-  against `java/smoke`.
-
-`task test` runs the JS, Go and Java tests. `task check` is the full local gate
-(shared checks, Go, JS, and Java lint and tests). CI does not run it as one job:
-on the Node 22 leg it runs `check:shared`, `check:go` and `check:js` per
-changed area, and the Node 24 and 26 legs run `check:node`. Java runs in its own
-non-required job. The required checks also include `dco`, CodeQL and dependency
-review. `task spec:check` validates the spec and checks generated code for drift.
-
-## Shared spec
-
-[`spec/`](spec/) is the source of truth: `rules.yaml` (rule ids, messages,
-per-language methods and templates, skip categories), JSON Schemas, fixtures
-(`case.yaml` per case), and [contracts](spec/contracts/) for output format,
-fingerprint, baseline, SARIF, placeholders and exit codes. Decisions are
-recorded in [docs/adr/](docs/adr/).
-
-## Contributing
-
-See [CONTRIBUTING.md](CONTRIBUTING.md) (tasks, conventions, sign-off) and
-[AGENTS.md](AGENTS.md) (rules for coding agents). Licensed under the
+See [CONTRIBUTING.md](CONTRIBUTING.md) (tasks, conventions, sign-off, CI) and
+[AGENTS.md](AGENTS.md) (for coding agents). Licensed under the
 [MIT License](LICENSE); attribution is in [NOTICE](NOTICE).
+
+LaunchDarkly is a trademark of its owner. fldlint is an independent project
+and is not affiliated with, sponsored by or endorsed by LaunchDarkly or the
+OpenFeature project.
