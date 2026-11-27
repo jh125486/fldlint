@@ -247,9 +247,9 @@ fldlint -json ./... | fldlint-sarif > fldlint.sarif
 
 ## Not available yet
 
-golangci-lint module plugin and a real-SDK compile check module
-are tracked in #18 and not implemented. Behaviour under golangci-lint and gopls
-is unverified.
+The golangci-lint module plugin is in [go/golangci](golangci/README.md) (usage
+unverified until a tag exists). A real-SDK compile check module is tracked in
+#18 and not implemented. Behaviour under gopls is unverified.
 
 ## Tests
 
