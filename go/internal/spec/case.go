@@ -8,8 +8,8 @@ type Diagnostic struct {
 	Col    int    `json:"col"`
 	RuleID string `json:"ruleId"`
 	Skip   string `json:"skip,omitempty"`
-	// NoFix is "comment" for a rewritable call reported with no fix (only Java
-	// fixtures carry it today).
+	// NoFix is "comment" for a rewritable call reported with no fix (every
+	// language that reports one).
 	NoFix string `json:"noFix,omitempty"`
 }
 

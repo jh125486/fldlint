@@ -47,3 +47,15 @@ func Directive(userKey string) bool {
 	)
 	return on
 }
+
+// Only the key literal is copied into the rewrite, so a comment inside the
+// parentheses around it has no home: the diagnostic stays, the fix is withheld.
+func CommentInKeyParens(userKey string) bool {
+	on, _ := ldClient.BoolVariation(( /* c */ "e"), ldcontext.New(userKey), false) // want `Migrate boolean flag "e" to OpenFeature`
+	return on
+}
+
+func CommentAfterKeyParens(userKey string) bool {
+	on, _ := ldClient.BoolVariation(("f" /* c */), ldcontext.New(userKey), false) // want `Migrate boolean flag "f" to OpenFeature`
+	return on
+}

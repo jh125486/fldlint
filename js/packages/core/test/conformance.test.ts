@@ -7,7 +7,7 @@ import { analyze, rewrite } from "../src/index.js";
 const root = resolveSpecRoot();
 
 interface Expected {
-  diagnostics: { line: number; col: number; ruleId: string; skip?: string }[];
+  diagnostics: { line: number; col: number; ruleId: string; skip?: string; noFix?: string }[];
   output: boolean;
 }
 
@@ -25,6 +25,7 @@ describe(`js conformance (spec root: ${root})`, () => {
           col: site.col,
           ruleId: site.ruleId,
           ...(result.kind === "skip" && { skip: result.category }),
+          ...(result.kind === "unfixable" && { noFix: "comment" }),
         }));
         expect(got).toEqual(expected.diagnostics.map((d) => ({ ...d })));
       });

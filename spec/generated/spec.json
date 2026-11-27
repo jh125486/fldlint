@@ -1112,6 +1112,31 @@
       }
     },
     {
+      "path": "bool-variation/go-method-expression",
+      "case": {
+        "id": "go-method-expression",
+        "rule": "bool-variation",
+        "tags": [
+          "go",
+          "method-expression"
+        ],
+        "description": "A method expression, (*ldclient.LDClient).BoolVariation(c, \"k\", ...), reads the key after the receiver argument, but its receiver is a type, not a proven client expression, so the call is reported as receiver-unproven and not rewritten.",
+        "expect": {
+          "go": {
+            "diagnostics": [
+              {
+                "line": 20,
+                "col": 18,
+                "ruleId": "bool-variation",
+                "skip": "receiver-unproven"
+              }
+            ],
+            "output": false
+          }
+        }
+      }
+    },
+    {
       "path": "bool-variation/goctx-param",
       "case": {
         "id": "goctx-param",
@@ -1741,6 +1766,96 @@
               }
             ],
             "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/static-key-parenthesized",
+      "case": {
+        "id": "static-key-parenthesized",
+        "rule": "bool-variation",
+        "tags": [
+          "key-parenthesized"
+        ],
+        "description": "A parenthesized string-literal flag key is as static as the bare literal, so it is rewritten and its fingerprint key is the literal's value in every language.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 25,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 20,
+                "col": 18,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 27,
+                "ruleId": "bool-variation"
+              }
+            ],
+            "output": true
+          }
+        }
+      }
+    },
+    {
+      "path": "bool-variation/static-key-parenthesized-comment",
+      "case": {
+        "id": "static-key-parenthesized-comment",
+        "rule": "bool-variation",
+        "tags": [
+          "key-parenthesized",
+          "comment"
+        ],
+        "description": "A comment inside the parentheses around a static flag key has no home (only the literal is copied), so the call is reported with no fix in every language and the source is unchanged.",
+        "expect": {
+          "js": {
+            "diagnostics": [
+              {
+                "line": 8,
+                "col": 25,
+                "ruleId": "bool-variation",
+                "noFix": "comment"
+              }
+            ],
+            "output": false
+          },
+          "go": {
+            "diagnostics": [
+              {
+                "line": 20,
+                "col": 18,
+                "ruleId": "bool-variation",
+                "noFix": "comment"
+              }
+            ],
+            "output": false
+          },
+          "java": {
+            "diagnostics": [
+              {
+                "line": 12,
+                "col": 27,
+                "ruleId": "bool-variation",
+                "noFix": "comment"
+              }
+            ],
+            "output": false
           }
         }
       }

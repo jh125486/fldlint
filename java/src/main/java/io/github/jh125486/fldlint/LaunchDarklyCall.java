@@ -98,8 +98,21 @@ final class LaunchDarklyCall {
     // The static key is the finding's fingerprint identity (fingerprint.md), so every per-flag
     // rule reads it, report-only ones included. A rule with no keyArg (all-flags-state) is keyless.
     J.Literal key = null;
+    boolean keyParenComment = false;
     if (rule.getKeyArg() >= 0) {
       Expression keyArg = args.get(rule.getKeyArg());
+      // A parenthesized literal is as static as the bare one (the JS parser drops the
+      // parentheses too); only the literal is copied, so a comment inside them has no home.
+      while (keyArg instanceof J.Parentheses) {
+        J.Parentheses<?> parens = (J.Parentheses<?>) keyArg;
+        if (!(parens.getTree() instanceof Expression)) {
+          break;
+        }
+        keyParenComment |=
+            hasComment(parens.getTree().getPrefix())
+                || hasComment(parens.getPadding().getTree().getAfter());
+        keyArg = (Expression) parens.getTree();
+      }
       if (keyArg instanceof J.Literal
           && ((J.Literal) keyArg).getType() == JavaType.Primitive.String
           && ((J.Literal) keyArg).getValue() instanceof String) {
@@ -130,7 +143,7 @@ final class LaunchDarklyCall {
     J.Identifier client = ClientBindingProof.prove(cursor);
     site.clientBound(client != null && !importedNameClash(cursor));
     site.receiverPure(isPure(m.getSelect()));
-    site.commentsUnhomed(hasUnhomedComment(m, cursor, contextArg));
+    site.commentsUnhomed(keyParenComment || hasUnhomedComment(m, cursor, contextArg));
 
     return new LaunchDarklyCall(rule, site.build(), key, defaultArg, contextKey, client);
   }

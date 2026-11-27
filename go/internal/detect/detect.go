@@ -105,10 +105,8 @@ func argCountOK(info *types.Info, call *ast.CallExpr, rule spec.Rule, method str
 	// A method expression, (*Client).M(c, args...), passes the receiver as
 	// the first argument; it is not one of the method's own arguments.
 	recv := 0
-	if sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr); ok {
-		if s := info.Selections[sel]; s != nil && s.Kind() == types.MethodExpr {
-			recv = 1
-		}
+	if isMethodExpr(info, call) {
+		recv = 1
 	}
 	if call.Ellipsis.IsValid() {
 		return ac.Max == 0 && len(call.Args)-1-recv >= ac.Min+shift
@@ -120,6 +118,27 @@ func argCountOK(info *types.Info, call *ast.CallExpr, rule spec.Rule, method str
 		}
 	}
 	return ac.Accepts(n-recv, shift)
+}
+
+// isMethodExpr reports whether call invokes a method expression,
+// (*T).M(recv, args...), whose first argument is the receiver.
+func isMethodExpr(info *types.Info, call *ast.CallExpr) bool {
+	sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
+	if !ok {
+		return false
+	}
+	s := info.Selections[sel]
+	return s != nil && s.Kind() == types.MethodExpr
+}
+
+// callArgs returns the method's own arguments: for a method expression the
+// leading receiver argument is not one of them, so rule argument positions
+// index the result, not call.Args.
+func callArgs(info *types.Info, call *ast.CallExpr) []ast.Expr {
+	if isMethodExpr(info, call) && len(call.Args) > 0 {
+		return call.Args[1:]
+	}
+	return call.Args
 }
 
 // valueKind maps a rule value type to the Go basic kind of its default and
@@ -211,15 +230,18 @@ func (e *Env) Site(f File, call *ast.CallExpr, method string) planner.CallSite {
 	if !ok || call.Ellipsis.IsValid() {
 		return site
 	}
+	args := callArgs(e.Info, call)
 	arg := func(i int) ast.Expr {
-		if j := argIndex(rule, method, i); j >= 0 && j < len(call.Args) {
-			return call.Args[j]
+		if j := argIndex(rule, method, i); j >= 0 && j < len(args) {
+			return args[j]
 		}
 		return nil
 	}
 	fa := &site.Facts
 
-	lit, isLit := arg(rule.KeyArg).(*ast.BasicLit)
+	// A parenthesized string literal is as static as the bare one: ESLint's
+	// parser drops the parentheses, so every engine reads the same key.
+	lit, isLit := ast.Unparen(arg(rule.KeyArg)).(*ast.BasicLit)
 	isLit = isLit && lit.Kind == token.STRING
 	if isLit {
 		// A key that is not valid UTF-8 is not a fingerprint key: JS cannot
@@ -349,10 +371,11 @@ func (e *Env) openFeatureName(f File, pos token.Pos) (name string, add, ok bool)
 // the standard library package (ok is false when it is shadowed).
 func (e *Env) goctx(f File, call *ast.CallExpr, method string, rule spec.Rule) (src string, addImport, ok bool) {
 	if at, isCtx := rule.Go.CtxArg[method]; isCtx {
-		if at >= len(call.Args) {
+		args := callArgs(e.Info, call)
+		if at >= len(args) {
 			return "", false, false
 		}
-		return e.text(f, call.Args[at]), false, true
+		return e.text(f, args[at]), false, true
 	}
 	if name := e.ctxParam(f, call); name != "" {
 		return name, false, true

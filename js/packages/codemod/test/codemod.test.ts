@@ -23,7 +23,7 @@ describe("shared JS fixtures through the bundled transform", () => {
     const dir = join(c.dir, "js");
     const input = readFileSync(join(dir, "input.ts"), "utf8");
     const hasOutput = existsSync(join(dir, "output.ts"));
-    const expected = (c.data as { expect?: { js?: { diagnostics: { line: number; col: number; skip?: string }[] } } }).expect?.js;
+    const expected = (c.data as { expect?: { js?: { diagnostics: { line: number; col: number; skip?: string; noFix?: string }[] } } }).expect?.js;
     describe(c.relPath, () => {
       if (hasOutput) {
         const output = readFileSync(join(dir, "output.ts"), "utf8");
@@ -36,12 +36,13 @@ describe("shared JS fixtures through the bundled transform", () => {
       } else {
         it("returns null (file untouched)", () => expect(bundle.default(fake(input))).toBeNull());
       }
-      it("reports every skip with its category", () => {
+      it("reports every skip with its category and every no-fix finding", () => {
         const { reports } = runCodemod(input, "input.ts");
-        const want = (expected?.diagnostics ?? []).filter((d) => d.skip);
+        const want = (expected?.diagnostics ?? []).filter((d) => d.skip || d.noFix);
         expect(reports).toHaveLength(want.length);
         want.forEach((d, i) => {
-          expect(reports[i]).toMatch(new RegExp(`^input\\.ts:${d.line}:${d.col}  \\S+  .+ \\[skip: ${d.skip}\\]$`));
+          const suffix = d.skip ? `skip: ${d.skip}` : `no-fix: ${d.noFix}`;
+          expect(reports[i]).toMatch(new RegExp(`^input\\.ts:${d.line}:${d.col}  \\S+  .+ \\[${suffix}\\]$`));
         });
       });
     });
