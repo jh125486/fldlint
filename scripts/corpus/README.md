@@ -37,8 +37,8 @@ deadline and the repo is reported as `timeout`). The clone is
 
 | Lang | Report | Fix (temp copy) | Build before and after the fix |
 |------|--------|-----------------|--------------------------------|
-| js | ESLint flat config with the plugin built from this checkout and `@typescript-eslint/parser`, `--format json` ([walkthroughs](../../docs/walkthroughs.md)) | `eslint --fix` | `tsc --noEmit` when a `tsconfig.json` exists (after `npm install --ignore-scripts`) |
-| go | `fldlint -json ./...` built from `go/`, run in the repo's own module (`go mod download`, or `go mod tidy` when no `go.sum` is committed) | `fldlint -fix ./...` | `go build ./...` |
+| js | ESLint flat config with the plugin built from this checkout and `@typescript-eslint/parser`, `--format json` ([walkthroughs](../../docs/walkthroughs.md)) | `eslint --fix` | this checkout's `tsc --noEmit` when a `tsconfig.json` exists (after `npm install --ignore-scripts`, with the repo's `.npmrc` files removed) |
+| go | `fldlint -json ./...` built from `go/`, run in the repo's own module (`go mod download`, or `go mod tidy` when no `go.sum` is committed). Exit 1 with JSON (packages skipped) is counted in `analysisErrors` | `fldlint -fix ./...` | `go build ./...` then `go vet ./...`; only vet's type-check failures (`vet: ...`, for example a broken `_test.go`) fail the build step, not ordinary vet findings |
 | java | `rewrite-maven-plugin:dryRun` with the `FindLaunchDarklyUsage` recipe of [`java/smoke`](../../java/smoke/README.md) and `-Drewrite.exportDatatables=true` (the `LaunchDarklyUsage` table) | `rewrite:run` with `MigrateLaunchDarklyToOpenFeature` only | `mvn -q compile` |
 
 Dependency prep (npm install, go mod tidy) is committed in the temp repo before
@@ -85,8 +85,14 @@ and the weekly workflow; unit-tested in `compare.test.mjs`) **fails** when:
    (fldlint, ESLint or the rewrite plugin crashed, printed no JSON, exported no
    data table, or the analysis reported package errors for a repo that builds).
 4. **Nothing was verified**: no repo has `status: ok`, or the result is empty.
-5. **Findings vanish**: `counts.total` drops from above zero to zero, or a
-   `noFix` count rises (a rewrite was withheld).
+5. **Findings vanish or errors appear at an unchanged SHA**: with the same
+   SHA (and no floating dependencies, i.e. the repo was not `tidied`)
+   `counts.total` may not decrease, and `parseErrors` or `analysisErrors`
+   may not rise; at the same SHA `counts.total` may never drop to zero. A
+   `noFix` count may never rise (a rewrite was withheld). With a changed
+   SHA these are only notes.
+6. **An unknown error kind**, or rewrites in a repo whose snapshot entry is
+   missing or not ok.
 
 It only **warns** (exit 0) on infrastructure trouble: a clone, fetch,
 dependency step or timeout (`errorKind: infra`, `timeout`); a build that was
@@ -108,10 +114,12 @@ after the fix:
   part of `task check` (as `corpus:selftest:go` in `check:go`), together with
   `corpus:test` in `check:shared`.
 - js: the `aliased-import` fixture input with the real npm SDK packages; the
-  fixed file must equal `output.ts`. It first deletes every workspace `dist/`
-  and rebuilds `js/` from scratch (so a build that only works from stale
-  output, for example with lifecycle scripts disabled, is caught), and plants a
-  hostile `.npmrc` registry that the pinned environment must override.
+  fixed file must equal `output.ts`. It copies `js/` and `spec/` (without
+  `node_modules` and `dist/`) into a temp dir, runs `npm ci` and builds there
+  (so a build that only works from stale output, for example with lifecycle
+  scripts disabled, is caught, and the checkout that runs the test is never
+  modified), and plants hostile `.npmrc` files (default and scoped registry)
+  that the runner must neutralise.
 - java: `java/smoke` with the real jars from Maven.
 
 The JS and Java cases need the network (or warm npm and Maven caches) and take
@@ -123,12 +131,14 @@ calls.
 ## Security: this runs third-party build tooling
 
 Building a pinned third-party repository executes its build tooling, and no
-setting here makes that safe by itself: `tsc` is taken from the repo's own
-`node_modules/.bin` when it has one, Maven honours the repo's
+setting here makes that safe by itself: Maven honours the repo's
 `.mvn/jvm.config`, `.mvn/maven.config` and `.mvn/extensions.xml`, its plugins
 and annotation processors run during `mvn compile`, `go build` runs cgo and
-whatever the toolchain compiles, and npm reads the repo's `.npmrc` for
-everything the environment does not override. What limits the damage:
+whatever the toolchain compiles, and the installed `node_modules` come from
+the repo's `package.json` and lockfile (including lockfile `resolved` URLs,
+which stay repo-controlled and can point at another host). The JS path runs this
+checkout's `tsc` and ESLint, never the repo's own binaries, and installs run
+with lifecycle scripts off. What limits the damage:
 
 - **The SHA pin.** A repo is built only at the reviewed commit in
   `spec/corpus.json` (but see the `go.sum` note above for floating
@@ -147,10 +157,17 @@ everything the environment does not override. What limits the damage:
   `GIT_CONFIG_GLOBAL=/dev/null`, `GIT_CONFIG_NOSYSTEM=1`,
   `core.hooksPath=/dev/null` and https-only; npm gets
   `NPM_CONFIG_REGISTRY=https://registry.npmjs.org/`, `IGNORE_SCRIPTS=true`,
-  empty user and global config and a non-existent git binary (environment beats
-  a project `.npmrc`; the self-test checks it); Go runs with `GOENV=off`,
-  `GOTOOLCHAIN=local` and a per-run `GOMODCACHE` and `GOCACHE`; Maven uses a
-  per-run `-Dmaven.repo.local`; the npm cache is per run too.
+  empty user and global config and a non-existent git binary, and every
+  `.npmrc` in the clone is deleted before `npm install` (the environment only
+  overrides the default registry, not scoped ones; the self-test plants both);
+  Go runs with `GOENV=off`, `GOTOOLCHAIN=local` and a per-run `GOMODCACHE` and
+  `GOCACHE`; Maven uses a per-run `-Dmaven.repo.local` and an empty
+  `settings.xml` for user and global settings (so `<server>` credentials in
+  `~/.m2/settings.xml` cannot be sent to a pom's repository); third-party steps
+  get a throwaway `HOME` (no `~/.netrc`, `~/.npmrc`); the npm cache is per run
+  too. The caches are shared by the repos of one run, not isolated per repo.
+  This checkout's own trusted builds keep the real `HOME` and pass `GOPROXY`,
+  `GOFLAGS`, `GOMODCACHE`, `GOCACHE` and `GOPRIVATE` through.
 - **Validated inputs.** Names, URLs and SHAs come only from `spec/corpus.json`
   and are validated (name `[a-z0-9-]`, `https://github.com/<owner>/<repo>`,
   40-hex SHA, bounded timeout and depth, string types). Every child process is

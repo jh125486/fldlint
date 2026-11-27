@@ -255,7 +255,7 @@ tasks:
   corpus:test:
     desc: Unit tests of the corpus pass/fail logic and child-environment allowlist (node:test, offline)
     cmds:
-      - node --test scripts/corpus/
+      - node --test scripts/corpus/*.test.mjs
 
   corpus:selftest:
     desc: Run the corpus apply-fix-then-build path on local fixture projects (Go offline with SDK stubs, JS via npm, Java via Maven; needs network or warm caches, about 40s). Not part of 'task check' except the offline Go case (corpus:selftest:go)

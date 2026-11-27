@@ -1,7 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { compare } from "./compare.mjs";
-import { childEnv } from "./run.mjs";
+import { childEnv, initCaches } from "./run.mjs";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
 
 const counts = (o = {}) => ({ total: 0, rewrites: {}, skips: {}, noFix: {}, ...o });
 const okBuild = { cmd: "go build ./...", ok: true, exit: 0 };
@@ -14,6 +17,7 @@ const repo = (o = {}) => ({
   ...o,
 });
 const snap = { repos: { a: repo() } };
+const big = () => ({ repos: { a: repo({ counts: counts({ total: 50, skips: { "dynamic-key": 50 } }) }) } });
 
 test("compare", async (t) => {
   const cases = [
@@ -32,14 +36,27 @@ test("compare", async (t) => {
     { name: "pre-fix build already broken warns", result: { a: repo({ build: { pre: badBuild, post: badBuild } }) }, fail: 0, warn: 1 },
     { name: "post-fix build timeout warns", result: { a: repo({ build: { pre: okBuild, post: { ...badBuild, timedOut: true } } }) }, fail: 0, warn: 1 },
     { name: "total drop to zero fails", result: { a: repo({ counts: counts() }) }, fail: 1, warn: 0 },
-    { name: "total drop to non-zero is a note", result: { a: repo({ counts: counts({ total: 1, skips: { "dynamic-key": 1 } }) }) }, fail: 0, warn: 0 },
+    { name: "same SHA: total drop to non-zero fails", result: { a: repo({ counts: counts({ total: 1, skips: { "dynamic-key": 1 } }) }) }, fail: 1, warn: 0 },
     { name: "no-fix rise fails (rewrite moved into noFix)", result: { a: repo({ counts: counts({ total: 2, skips: { "dynamic-key": 1 }, noFix: { "bool-variation:comment": 1 } }) }) }, fail: 1, warn: 0 },
-    { name: "analysis errors on a building repo fail", result: { a: repo({ counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 1, warn: 0 },
+    { name: "analysis errors on a building repo fail", result: { a: repo({ counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 2, warn: 0 },
+    { name: "same SHA: 50 -> 1 findings fails", snap: big(), result: { a: repo({ counts: counts({ total: 1, skips: { "dynamic-key": 1 } }) }) }, fail: 1, warn: 0 },
+    { name: "same SHA, tidied (floating deps): 50 -> 1 is a note", snap: big(), result: { a: repo({ tidied: true, counts: counts({ total: 1, skips: { "dynamic-key": 1 } }) }) }, fail: 0, warn: 0 },
+    { name: "same SHA, tidied: 50 -> 0 still fails", snap: big(), result: { a: repo({ tidied: true, counts: counts() }) }, fail: 1, warn: 0 },
+    { name: "changed SHA: 50 -> 1 is a note", snap: big(), result: { a: repo({ sha: "b".repeat(40), counts: counts({ total: 1, skips: { "dynamic-key": 1 } }) }) }, fail: 0, warn: 0 },
+    { name: "changed SHA: 50 -> 0 is a note", snap: big(), result: { a: repo({ sha: "b".repeat(40), counts: counts() }) }, fail: 0, warn: 0 },
+    { name: "same SHA: parseErrors 0 -> 40 fails", result: { a: repo({ counts: counts({ total: 2, skips: { "dynamic-key": 2 }, parseErrors: { "parse-error": 40 } }) }) }, fail: 1, warn: 0 },
+    { name: "changed SHA: parseErrors 0 -> 40 is a note", result: { a: repo({ sha: "b".repeat(40), counts: counts({ total: 2, skips: { "dynamic-key": 2 }, parseErrors: { "parse-error": 40 } }) }) }, fail: 0, warn: 0 },
+    { name: "same SHA: analysisErrors rise on a repo whose build is broken only warns", result: { a: repo({ build: { pre: badBuild, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 0, warn: 1 },
+    { name: "Go package that fails its type-check (go vet) with a failing pre-build is infra, a warning", result: { a: repo({ build: { pre: { cmd: "go build ./... && go vet ./...", ok: false, exit: 1 }, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { "pkg [pkg.test]": 1 } }) }) }, fail: 0, warn: 1 },
+    { name: "Go analysis error although build and vet pass is a tool failure", result: { a: repo({ build: { pre: { cmd: "go build ./... && go vet ./...", ok: true, exit: 0 }, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { "pkg [pkg.test]": 1 } }) }) }, fail: 2, warn: 0 },
+    { name: "unknown errorKind fails", result: { a: repo(), b: repo({ status: "error", errorKind: "mystery", error: "x" }) }, fail: 1, warn: 0 },
+    { name: "timeout inside a tool step fails", result: { a: repo(), b: repo({ status: "timeout", errorKind: "tool", error: "t" }) }, fail: 1, warn: 0 },
+    { name: "snapshot entry not ok but the repo has rewrites fails", snap: { repos: { a: repo({ status: "error" }) } }, result: { a: repo({ counts: counts({ total: 1, rewrites: { "bool-variation": 1 } }) }) }, fail: 1, warn: 0 },
     { name: "analysis errors on a broken repo warn", result: { a: repo({ build: { pre: badBuild, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 0, warn: 1 },
   ];
   for (const c of cases) {
     await t.test(c.name, () => {
-      const r = compare({ repos: c.result }, snap);
+      const r = compare({ repos: c.result }, c.snap ?? snap);
       assert.equal(r.failures.length, c.fail, JSON.stringify(r));
       assert.equal(r.warnings.length, c.warn, JSON.stringify(r));
     });
@@ -55,6 +72,35 @@ test("childEnv", async (t) => {
       assert.equal(env.PATH, "/bin");
       assert.equal(env.GIT_CONFIG_GLOBAL, "/dev/null");
     }
+  });
+  await t.test("untrusted profile pins every setting (removing one fails this test)", () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), "childenv-"));
+    try {
+      const c = initCaches(dir);
+      const u = childEnv(false, {}, base, c);
+      assert.equal(u.GOENV, "off");
+      assert.equal(u.GOTOOLCHAIN, "local");
+      assert.equal(u.GOFLAGS, "-modcacherw");
+      assert.equal(u.GOMODCACHE, c.gomod);
+      assert.equal(u.GOCACHE, c.gocache);
+      assert.equal(u.NPM_CONFIG_CACHE, c.npm);
+      assert.equal(u.NPM_CONFIG_GIT, "/nonexistent/git");
+      assert.equal(u.NPM_CONFIG_USERCONFIG, c.npmUser);
+      assert.equal(u.NPM_CONFIG_GLOBALCONFIG, c.npmGlobal);
+      assert.notEqual(c.npmUser, c.npmGlobal);
+      assert.equal(u.HOME, c.home);
+      assert.notEqual(u.HOME, base.HOME);
+      assert.equal(u.GIT_CONFIG_NOSYSTEM, "1");
+      assert.equal(fs.readFileSync(c.settings, "utf8").trim(), "<settings/>");
+    } finally {
+      fs.rmSync(dir, { recursive: true, force: true });
+    }
+  });
+  await t.test("trusted profile keeps the real HOME and passes Go settings through, without GOTOOLCHAIN=local forced", () => {
+    const e = childEnv(true, {}, { ...base, GOPROXY: "https://p", GOFLAGS: "-mod=mod", GOMODCACHE: "/m", GOCACHE: "/c", GOPRIVATE: "x" });
+    assert.equal(e.HOME, "/h");
+    for (const [k, v] of Object.entries({ GOPROXY: "https://p", GOFLAGS: "-mod=mod", GOMODCACHE: "/m", GOCACHE: "/c", GOPRIVATE: "x" })) assert.equal(e[k], v, k);
+    assert.equal(e.GOTOOLCHAIN, undefined);
   });
   await t.test("untrusted pins npm registry and disables scripts; trusted keeps scripts enabled", () => {
     const u = childEnv(false, {}, base);
