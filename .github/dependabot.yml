@@ -4,6 +4,11 @@ updates:
     directory: /
     schedule:
       interval: weekly
+    groups:
+      # init and analyze must stay on the same version.
+      codeql-action:
+        patterns:
+          - "github/codeql-action/*"
   - package-ecosystem: npm
     directory: /js
     schedule:
@@ -17,6 +22,12 @@ updates:
       - dependency-name: "@types/node"
         versions: [">=25.0.0 <26.0.0", ">=27.0.0 <28.0.0", ">=29.0.0 <30.0.0"]
     groups:
+      # Listed first: Dependabot assigns a dependency to the first group that
+      # matches, so these move together instead of landing in js-dev-minor-patch.
+      typescript-eslint:
+        patterns:
+          - "@typescript-eslint/*"
+          - "typescript-eslint"
       js-dev-minor-patch:
         dependency-type: development
         update-types: ["minor", "patch"]
