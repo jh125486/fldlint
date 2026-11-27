@@ -46,13 +46,18 @@ test("compare", async (t) => {
     { name: "changed SHA: 50 -> 0 is a note", snap: big(), result: { a: repo({ sha: "b".repeat(40), counts: counts() }) }, fail: 0, warn: 0 },
     { name: "same SHA: parseErrors 0 -> 40 fails", result: { a: repo({ counts: counts({ total: 2, skips: { "dynamic-key": 2 }, parseErrors: { "parse-error": 40 } }) }) }, fail: 1, warn: 0 },
     { name: "changed SHA: parseErrors 0 -> 40 is a note", result: { a: repo({ sha: "b".repeat(40), counts: counts({ total: 2, skips: { "dynamic-key": 2 }, parseErrors: { "parse-error": 40 } }) }) }, fail: 0, warn: 0 },
-    { name: "same SHA: analysisErrors rise on a repo whose build is broken only warns", result: { a: repo({ build: { pre: badBuild, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 0, warn: 1 },
-    { name: "Go package that fails its type-check (go vet) with a failing pre-build is infra, a warning", result: { a: repo({ build: { pre: { cmd: "go build ./... && go vet ./...", ok: false, exit: 1 }, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { "pkg [pkg.test]": 1 } }) }) }, fail: 0, warn: 1 },
+    { name: "same SHA: analysisErrors rise on a repo whose build is broken only warns", result: { a: repo({ build: { pre: badBuild, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 0, warn: 2 },
+    { name: "Go package that fails its type-check (go vet) with a failing pre-build is infra, a warning", result: { a: repo({ build: { pre: { cmd: "go build ./... && go vet ./...", ok: false, exit: 1 }, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { "pkg [pkg.test]": 1 } }) }) }, fail: 0, warn: 2 },
     { name: "Go analysis error although build and vet pass is a tool failure", result: { a: repo({ build: { pre: { cmd: "go build ./... && go vet ./...", ok: true, exit: 0 }, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { "pkg [pkg.test]": 1 } }) }) }, fail: 2, warn: 0 },
     { name: "unknown errorKind fails", result: { a: repo(), b: repo({ status: "error", errorKind: "mystery", error: "x" }) }, fail: 1, warn: 0 },
     { name: "timeout inside a tool step fails", result: { a: repo(), b: repo({ status: "timeout", errorKind: "tool", error: "t" }) }, fail: 1, warn: 0 },
     { name: "snapshot entry not ok but the repo has rewrites fails", snap: { repos: { a: repo({ status: "error" }) } }, result: { a: repo({ counts: counts({ total: 1, rewrites: { "bool-variation": 1 } }) }) }, fail: 1, warn: 0 },
-    { name: "analysis errors on a broken repo warn", result: { a: repo({ build: { pre: badBuild, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 0, warn: 1 },
+    { name: "dependency install failure with no post build warns", result: { a: repo({ deps: { ok: false }, build: { pre: { skipped: "no tsconfig.json" } } }) }, fail: 0, warn: 1 },
+    { name: "pre build fails and there is no post build warns", result: { a: repo({ build: { pre: badBuild } }) }, fail: 0, warn: 1 },
+    { name: "pre ok, files fixed, no post build fails", result: { a: repo({ fixedFiles: 2, build: { pre: okBuild } }) }, fail: 1, warn: 0 },
+    { name: "pre ok, no changes, no post build needs no warning", result: { a: repo({ build: { pre: okBuild } }) }, fail: 0, warn: 0 },
+    { name: "pre skipped, rewrites, no post build warns", result: { a: repo({ counts: counts({ total: 2, rewrites: { "bool-variation": 1 }, skips: { "dynamic-key": 1 } }), build: { pre: { skipped: "x" } } }), n: repo() }, snap: { repos: { a: repo({ counts: counts({ total: 2, rewrites: { "bool-variation": 1 }, skips: { "dynamic-key": 1 } }) }) } }, fail: 0, warn: 1 },
+    { name: "analysis errors on a broken repo warn", result: { a: repo({ build: { pre: badBuild, post: { skipped: "x" } }, counts: counts({ total: 2, skips: { "dynamic-key": 2 }, analysisErrors: { pkg: 1 } }) }) }, fail: 0, warn: 2 },
   ];
   for (const c of cases) {
     await t.test(c.name, () => {

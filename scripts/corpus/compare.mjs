@@ -28,12 +28,18 @@ export function compare(result, snapshot) {
     }
     const pre = r.build?.pre;
     const post = r.build?.post;
+    const counts = r.counts ?? { total: 0, rewrites: {}, skips: {}, noFix: {} };
+    // The build checks are the safety net, so say loudly whenever one did not run or could not give a verdict.
+    if (r.deps?.ok === false) warnings.push(`${name}: installing dependencies failed (npm install), so the build check did not run`);
+    if (pre && pre.ok === false) warnings.push(`${name}: the build already fails before fixing (${pre.cmd}), so there is no safety verdict`);
     if (post && post.ok === false) {
       if (post.timedOut) warnings.push(`${name}: ${post.cmd} timed out after the fixes were applied; no safety verdict`);
-      else if (pre && pre.ok === false) warnings.push(`${name}: the build already fails before fixing (${pre.cmd}), so no safety verdict`);
-      else failures.push(`${name}: SAFETY BUG: ${post.cmd} fails after the fixes were applied (it passed before)`);
+      else if (!(pre && pre.ok === false)) failures.push(`${name}: SAFETY BUG: ${post.cmd} fails after the fixes were applied (it passed before)`);
     }
-    const counts = r.counts ?? { total: 0, rewrites: {}, skips: {}, noFix: {} };
+    if (!post && (r.fixedFiles > 0 || sum(counts.rewrites) > 0)) {
+      if (pre && pre.ok === true && r.fixedFiles > 0) failures.push(`${name}: ${r.fixedFiles} file(s) were fixed but the post-fix build did not run (the safety check was skipped)`);
+      else warnings.push(`${name}: rewrites were found but there is no post-fix build result (the safety check did not run)`);
+    }
     if (counts.analysisErrors) {
       const msg = `${name}: the analysis reported errors for ${Object.keys(counts.analysisErrors).length} package(s)`;
       if (pre && pre.ok === true) failures.push(`${msg} although the repo builds`);
