@@ -3,9 +3,10 @@
 //
 //   node scripts/corpus/run.mjs run     [--lang js|go|java|all] [--only a,b] [--out file]
 //   node scripts/corpus/run.mjs compare <result.json> [snapshot.json]
+//   node scripts/corpus/run.mjs selftest [--lang go|js|java]   (task corpus:selftest)
 //   node scripts/corpus/run.mjs summary <result.json> [snapshot.json]
 //
-// Uses only Node built-ins plus the `yaml` package that js/ already depends on.
+// Uses only Node built-ins (the corpus is JSON; js/ is needed only for the built ESLint plugin).
 // Every repo is cloned into a temp dir, analysed in report mode, fixed in that
 // temp copy only, built, and deleted. Nothing is ever pushed or commented.
 import { spawn } from "node:child_process";
@@ -20,8 +21,9 @@ const root = path.resolve(here, "../..");
 const jsDir = path.join(root, "js");
 const requireJs = createRequire(path.join(jsDir, "package.json"));
 const MAVEN_PLUGIN = "org.openrewrite.maven:rewrite-maven-plugin:6.46.1";
-const RECIPES_ALL =
-  "io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature,io.github.jh125486.fldlint.FindLaunchDarklyUsage";
+// Find only: run together with Migrate (as java/smoke does) it sees the already rewritten tree and
+// exports no rows for the rewritable calls, so the report pass is a separate, Find-only dryRun.
+const RECIPES_ALL = "io.github.jh125486.fldlint.FindLaunchDarklyUsage";
 const RECIPE_FIX = "io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature";
 const LANGS = ["js", "go", "java"];
 
@@ -36,7 +38,7 @@ function sh(cmd, args, { cwd, env, deadline, input } = {}) {
     if (budget <= 0) return resolve({ code: null, stdout: "", stderr: "", timedOut: true });
     const child = spawn(cmd, args, {
       cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", CI: "1", ...env },
+      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", CI: "1", GOTOOLCHAIN: "local", NPM_CONFIG_IGNORE_SCRIPTS: "true", ...env },
       detached: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -91,20 +93,25 @@ const must = (r, what) => {
 
 // ------------------------------------------------------------------- corpus
 
+/** Everything from corpus.json is validated here; it is the only source of names, URLs and SHAs. */
 function loadCorpus() {
-  const { parse } = requireJs("yaml");
-  const doc = parse(fs.readFileSync(path.join(root, "spec/corpus.yaml"), "utf8"));
+  const doc = JSON.parse(fs.readFileSync(path.join(root, "spec/corpus.json"), "utf8"));
   const repos = [];
   const seen = new Set();
+  const int = (v, max) => Number.isInteger(v) && v > 0 && v <= max;
   for (const lang of LANGS) {
     for (const r of doc[lang] ?? []) {
       for (const k of ["name", "url", "sha", "license", "note", "timeout", "depth"]) {
-        if (r[k] === undefined || r[k] === "") throw new Error(`corpus.yaml: ${lang}/${r.name}: missing ${k}`);
+        if (r[k] === undefined || r[k] === "") throw new Error(`corpus.json: ${lang}/${r.name}: missing ${k}`);
       }
-      if (r.language !== lang) throw new Error(`corpus.yaml: ${r.name}: language ${r.language} under ${lang}`);
-      if (!/^[0-9a-f]{40}$/.test(r.sha)) throw new Error(`corpus.yaml: ${r.name}: sha must be 40 hex chars`);
-      if (!/^https:\/\/github\.com\//.test(r.url)) throw new Error(`corpus.yaml: ${r.name}: url must be https://github.com/...`);
-      if (seen.has(r.name)) throw new Error(`corpus.yaml: duplicate name ${r.name}`);
+      if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(r.name)) throw new Error(`corpus.json: bad name ${JSON.stringify(r.name)}`);
+      if (r.language !== lang) throw new Error(`corpus.json: ${r.name}: language ${r.language} under ${lang}`);
+      if (!/^[0-9a-f]{40}$/.test(r.sha)) throw new Error(`corpus.json: ${r.name}: sha must be 40 hex chars`);
+      if (!/^https:\/\/github\.com\/[A-Za-z0-9_.-]+\/[A-Za-z0-9_.-]+$/.test(r.url) || r.url.endsWith("/.") || r.url.includes("/.."))
+        throw new Error(`corpus.json: ${r.name}: url must be https://github.com/<owner>/<repo>`);
+      if (!int(r.timeout, 7200)) throw new Error(`corpus.json: ${r.name}: timeout must be 1..7200 seconds`);
+      if (!int(r.depth, 50)) throw new Error(`corpus.json: ${r.name}: depth must be 1..50`);
+      if (seen.has(r.name)) throw new Error(`corpus.json: duplicate name ${r.name}`);
       seen.add(r.name);
       repos.push(r);
     }
@@ -145,7 +152,7 @@ async function clone(repo, dir, deadline) {
   must(await sh("git", ["init", "-q", dir], { deadline }), "git init");
   must(await sh("git", ["remote", "add", "origin", repo.url], { cwd: dir, deadline }), "git remote add");
   must(
-    await sh("git", ["fetch", "-q", "--depth", String(repo.depth), "origin", repo.sha], { cwd: dir, deadline }),
+    await sh("git", ["-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "fetch", "-q", "--depth", String(repo.depth), "origin", repo.sha], { cwd: dir, deadline }),
     "git fetch",
   );
   must(await sh("git", ["checkout", "-q", "FETCH_HEAD"], { cwd: dir, deadline }), "git checkout");
@@ -307,6 +314,7 @@ async function analyzeGo(repo, dir, tmp, deadline, out) {
 // --------------------------------------------------------------------- Java
 
 let javaCoords;
+let javaVersion;
 async function prepareJava() {
   const javaDir = path.join(root, "java");
   const mvnw = path.join(javaDir, "mvnw");
@@ -318,7 +326,8 @@ async function prepareJava() {
     { cwd: javaDir },
   );
   if (r.code !== 0) throw new Error(`reading the recipe version failed: ${tail(r.stderr)}`);
-  javaCoords = `io.github.jh125486:fldlint-rewrite:${r.stdout.trim()}`;
+  javaVersion = r.stdout.trim();
+  javaCoords = `io.github.jh125486:fldlint-rewrite:${javaVersion}`;
 }
 
 /** Minimal RFC 4180 reader: quoted fields, doubled quotes, embedded newlines. */
@@ -359,7 +368,7 @@ function findFiles(dir, name, acc = []) {
 async function analyzeJava(repo, dir, tmp, deadline, out) {
   const mvnw = path.join(root, "java", "mvnw");
   if (!fs.existsSync(path.join(dir, "pom.xml"))) throw new StepError("no pom.xml at the repository root");
-  const common = ["-B", "-Drewrite.recipeArtifactCoordinates=" + javaCoords];
+  const common = ["-B", "-Drewrite.recipeArtifactCoordinates=" + javaCoords, "-Dfldlint.version=" + javaVersion];
   out.build.pre = buildResult(await sh(mvnw, ["-B", "-q", "compile"], { cwd: dir, deadline }), "mvn -q compile");
   must(
     await sh(
@@ -581,6 +590,89 @@ function cmdSummary(argv) {
   console.log(lines.join("\n"));
 }
 
+// ----------------------------------------------------------------- selftest
+
+/** Make a throwaway repo out of files copied from this checkout (never a third-party repo). */
+async function localRepo(tmp, copies, deadline) {
+  const top = path.join(tmp, "work");
+  fs.mkdirSync(top, { recursive: true });
+  for (const [from, to] of copies) {
+    fs.cpSync(path.join(root, from), path.join(top, to), {
+      recursive: true,
+      filter: (src) => !/[\\/](target|node_modules|go\.sum)$/.test(src),
+    });
+  }
+  must(await sh("git", ["init", "-q", top], { deadline }), "repo init");
+  await commitBaseline(top, deadline);
+  return top;
+}
+
+const fixture = "spec/fixtures/bool-variation/aliased-import";
+
+const selftests = {
+  // Smoke module of the golangci plugin: fixture input and golden plus SDK stubs (offline).
+  async go(tmp, deadline, out) {
+    process.env.GOPROXY = "off";
+    const top = await localRepo(tmp, [["go/golangci/testdata/smoke", "smoke"], ["go/golangci/testdata/stubs", "stubs"]], deadline);
+    await prepareGo(tmp);
+    await analyzeGo({}, path.join(top, "smoke"), tmp, deadline, out);
+    const want = fs.readFileSync(path.join(root, "go/golangci/testdata/smoke/flags/flags.go.golden"), "utf8");
+    const got = fs.readFileSync(path.join(top, "smoke/flags/flags.go"), "utf8");
+    if (got !== want) throw new StepError("fixed flags.go differs from flags.go.golden");
+  },
+  // The shared aliased-import fixture; real SDK packages from npm (needs network).
+  async js(tmp, deadline, out) {
+    const top = await localRepo(tmp, [[`${fixture}/js/input.ts`, "src/darkmode.ts"]], deadline);
+    fs.writeFileSync(
+      path.join(top, "package.json"),
+      JSON.stringify({ name: "selftest", private: true, type: "module", dependencies: { "@launchdarkly/node-server-sdk": "^9.0.0", "@openfeature/server-sdk": "^1.0.0" } }),
+    );
+    fs.writeFileSync(
+      path.join(top, "tsconfig.json"),
+      JSON.stringify({ compilerOptions: { target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext", strict: true, skipLibCheck: true, noEmit: true }, include: ["src"] }),
+    );
+    await prepareJs();
+    await analyzeJs({}, top, tmp, deadline, out);
+    const want = fs.readFileSync(path.join(root, fixture, "js/output.ts"), "utf8");
+    if (fs.readFileSync(path.join(top, "src/darkmode.ts"), "utf8") !== want) throw new StepError("fixed darkmode.ts differs from output.ts");
+  },
+  // java/smoke: real LaunchDarkly and OpenFeature jars from Maven (needs network or a warm ~/.m2).
+  async java(tmp, deadline, out) {
+    const top = await localRepo(tmp, [["java/smoke", "smoke"]], deadline);
+    await prepareJava();
+    await analyzeJava({}, path.join(top, "smoke"), tmp, deadline, out);
+  },
+};
+
+async function cmdSelftest(argv) {
+  const only = arg(argv, "--lang", "all");
+  const langs = LANGS.filter((l) => only === "all" || only === l);
+  const timeout = 900_000;
+  let failed = 0;
+  for (const lang of langs) {
+    const tmp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), `fldlint-corpus-self-${lang}-`));
+    const out = { build: {} };
+    const t0 = Date.now();
+    let problem;
+    try {
+      await selftests[lang](tmp, Date.now() + timeout, out);
+      const rewrites = sum(out.counts?.rewrites);
+      if (!(rewrites > 0)) problem = `expected rewrites > 0, got ${rewrites}: ${JSON.stringify(out.counts)}`;
+      else if (!(out.fixedFiles > 0)) problem = "the fix changed no files";
+      else if (out.build.pre?.ok !== true) problem = `build before the fix: ${JSON.stringify(out.build.pre)}`;
+      else if (out.build.post?.ok !== true) problem = `post-fix build: ${JSON.stringify(out.build.post)}`;
+    } catch (e) {
+      problem = String(e.message ?? e);
+    } finally {
+      fs.rmSync(tmp, { recursive: true, force: true });
+    }
+    const secs = ((Date.now() - t0) / 1000).toFixed(1);
+    if (problem) (failed++, console.log(`selftest ${lang}: FAIL (${secs}s): ${problem}`));
+    else console.log(`selftest ${lang}: ok (${secs}s): rewrites ${JSON.stringify(out.counts.rewrites)}, ${out.fixedFiles} file(s) fixed, post-fix build ok`);
+  }
+  process.exitCode = failed ? 1 : 0;
+}
+
 const cmd = process.argv[2];
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
   const rest = process.argv.slice(3);
@@ -588,6 +680,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     if (cmd === "run") await cmdRun(rest);
     else if (cmd === "compare") cmdCompare(rest);
     else if (cmd === "snapshot") cmdSnapshot(rest);
+    else if (cmd === "selftest") await cmdSelftest(rest);
     else if (cmd === "summary") cmdSummary(rest);
     else {
       console.error("usage: run.mjs run|compare|summary ...");

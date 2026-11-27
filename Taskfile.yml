@@ -225,29 +225,36 @@ tasks:
         vars: {UPDATE: "1"}
 
   corpus:
-    desc: Real-repo corpus (spec/corpus.yaml; needs network, git, Go, Node, JDK 21), read-only dry runs, fixes applied in temp copies only, then compare with spec/corpus-snapshot.json. Not part of 'task check'
+    desc: Real-repo corpus (spec/corpus.json; needs network, git, Go, Node, JDK 21), read-only dry runs, fixes applied in temp copies only, then compare with spec/corpus-snapshot.json. Not part of 'task check'
     deps: [js:install]
     cmds:
-      - node scripts/corpus/run.mjs run --lang {{.LANG | default "all"}} --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs run --out tmp/corpus/result.json
       - node scripts/corpus/run.mjs compare tmp/corpus/result.json
 
   corpus:js:
     desc: Corpus, JS repos only
+    deps: [js:install]
     cmds:
-      - task: corpus
-        vars: {LANG: js}
+      - node scripts/corpus/run.mjs run --lang js --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
 
   corpus:go:
     desc: Corpus, Go repos only
     cmds:
-      - task: corpus
-        vars: {LANG: go}
+      - node scripts/corpus/run.mjs run --lang go --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
 
   corpus:java:
     desc: Corpus, Java repos only (JDK 21)
     cmds:
-      - task: corpus
-        vars: {LANG: java}
+      - node scripts/corpus/run.mjs run --lang java --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
+
+  corpus:selftest:
+    desc: Run the corpus apply-fix-then-build path on local fixture projects (Go offline with SDK stubs, JS via npm, Java via Maven; needs network or warm caches, about 20s). Not part of 'task check'
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs selftest
 
   corpus:update:
     desc: Re-run the whole corpus and rewrite spec/corpus-snapshot.json (review the diff; a rewrite-count rise needs a fixture)

@@ -1,7 +1,7 @@
 name: Corpus
 
 # Issue #21 Part 2: read-only dry runs of the three tools over the pinned public
-# repos in spec/corpus.yaml. Not a required check. Fixes are applied in temp
+# repos in spec/corpus.json. Not a required check. Fixes are applied in temp
 # copies only; nothing is pushed, opened or commented upstream. No secrets.
 on:
   schedule:
@@ -48,12 +48,14 @@ jobs:
         run: |
           set -o pipefail
           node scripts/corpus/run.mjs summary tmp/corpus/result.json >> "$GITHUB_STEP_SUMMARY"
-          # The full JSON travels in the summary: actions/upload-artifact is not an approved
-          # action yet (AGENTS.md: new Actions need owner approval). Swap this for an upload
-          # step once it is approved.
-          {
-            printf '\n<details><summary>result.json</summary>\n\n```json\n'
-            cat tmp/corpus/result.json
-            printf '\n```\n</details>\n'
-          } >> "$GITHUB_STEP_SUMMARY"
           node scripts/corpus/run.mjs compare tmp/corpus/result.json
+      - name: Upload the result
+        if: always()
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: corpus-result
+          path: |
+            tmp/corpus/result.json
+            tmp/corpus/*.fix.patch
+          if-no-files-found: ignore
+          retention-days: 14
