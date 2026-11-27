@@ -1,0 +1,47 @@
+{
+	"dyn": {
+		"fldlint": [
+			{
+				"category": "bool-variation",
+				"posn": "{{ROOT}}/dyn/dyn.go:14:11",
+				"end": "{{ROOT}}/dyn/dyn.go:14:83",
+				"message": "Flag key is not a static string [skip: dynamic-key]"
+			}
+		]
+	},
+	"flags": {
+		"fldlint": [
+			{
+				"category": "bool-variation",
+				"posn": "{{ROOT}}/flags/input.go:20:35",
+				"end": "{{ROOT}}/flags/input.go:20:100",
+				"message": "Migrate boolean flag \"cafe-menu\" to OpenFeature",
+				"suggested_fixes": [
+					{
+						"message": "Migrate boolean flag \"cafe-menu\" to OpenFeature",
+						"edits": [
+							{
+								"filename": "{{ROOT}}/flags/input.go",
+								"start": 24,
+								"end": 24,
+								"new": "\t\"context\"\n"
+							},
+							{
+								"filename": "{{ROOT}}/flags/input.go",
+								"start": 40,
+								"end": 94,
+								"new": ""
+							},
+							{
+								"filename": "{{ROOT}}/flags/input.go",
+								"start": 411,
+								"end": 476,
+								"new": "client.BooleanValue(context.TODO(), \"cafe-menu\", false, openfeature.NewEvaluationContext(\"user\", nil))"
+							}
+						]
+					}
+				]
+			}
+		]
+	}
+}

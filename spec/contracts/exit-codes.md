@@ -96,14 +96,26 @@ Consequences for the Go tools:
 - `-fix` rewrites in place and exits `0`; `-fix -diff` previews. There is no
   `--fix-dry-run`.
 - `-json` is the framework's format (positions as `file:line:col` strings,
-  byte offsets for edits); it is not fldlint's JSON format. A `-format`
-  sarif option, if offered, is an extra.
+  byte offsets for edits); it is not fldlint's JSON format. The tools have
+  no SARIF option; the optional `fldlint-sarif` command converts `-json` output
+  (see below).
 - The unitchecker binary only runs under `go vet -vettool` / `go fix -fixtool`.
 - The `go fix -diff` exit code is toolchain-dependent (1 on go1.27.4, 0 on
   go1.26.0): check for a non-empty diff instead of relying on the exit code.
 
 Commands were run from a scratch module outside this repository; the
 throwaway code is not part of the repo.
+
+### `fldlint-sarif` (optional extra)
+
+`fldlint -json ./... | fldlint-sarif` ([go/README.md](../../go/README.md#sarif-fldlint-sarif))
+has its own exit codes, independent of `fldlint`'s and unaffected by findings:
+
+| Code | Meaning |
+|------|---------|
+| `0` | SARIF written, including when there are no findings (`-h` also exits 0). |
+| `1` | Unusable input: empty or malformed JSON, an analysis error object inside it, an unknown rule id, an unreadable or unparsable source file, a bad position, or a path outside `-root`. Nothing on stdout. |
+| `2` | Usage: unknown flag, positional argument, bad `-severity` (or unknown rule id); or an invalid `-baseline` (missing, malformed, unsupported `version`, per [baseline.md](baseline.md)). |
 
 ### Observed with the real analyzer
 
