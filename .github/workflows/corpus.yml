@@ -1,0 +1,59 @@
+name: Corpus
+
+# Issue #21 Part 2: read-only dry runs of the three tools over the pinned public
+# repos in spec/corpus.yaml. Not a required check. Fixes are applied in temp
+# copies only; nothing is pushed, opened or commented upstream. No secrets.
+on:
+  schedule:
+    - cron: "17 5 * * 1" # Mondays 05:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: corpus
+  cancel-in-progress: false
+
+jobs:
+  corpus:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 24
+          cache: npm
+          cache-dependency-path: js/package-lock.json
+      - uses: actions/setup-go@d8cbb8045d7f43706b9177cceb36c1f91a6644d5 # v7.1.0
+        with:
+          go-version-file: go/go.mod
+          cache-dependency-path: go/go.sum
+      - uses: actions/setup-java@d1374f8ac74474200d16ef8ecee22c7ae7a51880 # v6.3.0
+        with:
+          distribution: temurin
+          java-version: 21
+          cache: maven
+          cache-dependency-path: java/pom.xml
+      - name: Install JS dependencies
+        run: npm ci
+        working-directory: js
+      - name: Run the corpus
+        run: node scripts/corpus/run.mjs run --out tmp/corpus/result.json
+      - name: Compare with the snapshot
+        if: ${{ !cancelled() }}
+        run: |
+          set -o pipefail
+          node scripts/corpus/run.mjs summary tmp/corpus/result.json >> "$GITHUB_STEP_SUMMARY"
+          # The full JSON travels in the summary: actions/upload-artifact is not an approved
+          # action yet (AGENTS.md: new Actions need owner approval). Swap this for an upload
+          # step once it is approved.
+          {
+            printf '\n<details><summary>result.json</summary>\n\n```json\n'
+            cat tmp/corpus/result.json
+            printf '\n```\n</details>\n'
+          } >> "$GITHUB_STEP_SUMMARY"
+          node scripts/corpus/run.mjs compare tmp/corpus/result.json

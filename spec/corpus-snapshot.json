@@ -1,0 +1,217 @@
+{
+  "repos": {
+    "hello-go": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "cmd": "go build ./...",
+          "exit": 0,
+          "ok": true
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "dynamic-key": 1
+        },
+        "total": 1
+      },
+      "fixedFiles": 0,
+      "language": "go",
+      "license": "Apache-2.0",
+      "name": "hello-go",
+      "sha": "67e44e5665ca34c8c8cf312232490a59bad7e176",
+      "status": "ok",
+      "tidied": true,
+      "url": "https://github.com/launchdarkly/hello-go"
+    },
+    "hello-node-server": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "skipped": "no tsconfig.json"
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "type-mismatch": 2
+        },
+        "total": 2
+      },
+      "fixedFiles": 0,
+      "language": "js",
+      "license": "Apache-2.0",
+      "name": "hello-node-server",
+      "sha": "becd95a34abe9dd929f0f1a2c445aa331a4879bd",
+      "status": "ok",
+      "url": "https://github.com/launchdarkly/hello-node-server"
+    },
+    "hello-node-typescript": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "cmd": "tsc --noEmit",
+          "exit": 0,
+          "ok": true
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "type-mismatch": 2
+        },
+        "total": 2
+      },
+      "fixedFiles": 0,
+      "language": "js",
+      "license": "Apache-2.0",
+      "name": "hello-node-typescript",
+      "sha": "dd1b12455f584cfce1fc43a12ae6d29ca23af1ae",
+      "status": "ok",
+      "url": "https://github.com/launchdarkly/hello-node-typescript"
+    },
+    "hello-openfeature-node-server": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "skipped": "no tsconfig.json"
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {},
+        "total": 0
+      },
+      "fixedFiles": 0,
+      "language": "js",
+      "license": "Apache-2.0",
+      "name": "hello-openfeature-node-server",
+      "sha": "b6ed121abbfc36906596da6e6a1801a90e75452f",
+      "status": "ok",
+      "url": "https://github.com/launchdarkly/hello-openfeature-node-server"
+    },
+    "launchdarkly-java-sdk-demo": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "cmd": "mvn -q compile",
+          "exit": 0,
+          "ok": true
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "dynamic-key": 4
+        },
+        "total": 4
+      },
+      "fixedFiles": 0,
+      "language": "java",
+      "license": "MIT",
+      "name": "launchdarkly-java-sdk-demo",
+      "sha": "43a18805f6fdd69f39c0bc9eeb16351fc313db56",
+      "status": "ok",
+      "url": "https://github.com/launchdarkly-labs/launchdarkly-java-sdk-demo"
+    },
+    "ld-sample-app-go": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "cmd": "go build ./...",
+          "exit": 0,
+          "ok": true
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "context-unproven": 1
+        },
+        "total": 1
+      },
+      "fixedFiles": 0,
+      "language": "go",
+      "license": "Apache-2.0",
+      "name": "ld-sample-app-go",
+      "sha": "42cad6bfaf0b6bef3f14f7173e4393f5f8b5acb6",
+      "status": "ok",
+      "url": "https://github.com/launchdarkly-labs/ld-sample-app-go"
+    },
+    "ld-sample-app-java": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "cmd": "mvn -q compile",
+          "exit": 0,
+          "ok": true
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "context-unproven": 4
+        },
+        "total": 4
+      },
+      "fixedFiles": 0,
+      "language": "java",
+      "license": "Apache-2.0",
+      "name": "ld-sample-app-java",
+      "sha": "4e6122211418cc44fb0f6a5f7452a79b8f7ea786",
+      "status": "ok",
+      "url": "https://github.com/launchdarkly-labs/ld-sample-app-java"
+    },
+    "weaviate": {
+      "build": {
+        "post": {
+          "skipped": "nothing changed"
+        },
+        "pre": {
+          "cmd": "go build ./...",
+          "exit": 0,
+          "ok": true
+        }
+      },
+      "counts": {
+        "noFix": {},
+        "rewrites": {},
+        "skips": {
+          "dynamic-key": 6,
+          "type-mismatch": 2
+        },
+        "total": 8
+      },
+      "fixedFiles": 0,
+      "language": "go",
+      "license": "BSD-3-Clause AND LicenseRef-Weaviate",
+      "name": "weaviate",
+      "sha": "5d678d7acf9e66f60b880ecaa1ce9952c1d4b530",
+      "status": "ok",
+      "url": "https://github.com/weaviate/weaviate"
+    }
+  },
+  "schema": 1
+}

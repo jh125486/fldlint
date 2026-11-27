@@ -224,6 +224,38 @@ tasks:
       - task: java:smoke
         vars: {UPDATE: "1"}
 
+  corpus:
+    desc: Real-repo corpus (spec/corpus.yaml; needs network, git, Go, Node, JDK 21), read-only dry runs, fixes applied in temp copies only, then compare with spec/corpus-snapshot.json. Not part of 'task check'
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs run --lang {{.LANG | default "all"}} --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs compare tmp/corpus/result.json
+
+  corpus:js:
+    desc: Corpus, JS repos only
+    cmds:
+      - task: corpus
+        vars: {LANG: js}
+
+  corpus:go:
+    desc: Corpus, Go repos only
+    cmds:
+      - task: corpus
+        vars: {LANG: go}
+
+  corpus:java:
+    desc: Corpus, Java repos only (JDK 21)
+    cmds:
+      - task: corpus
+        vars: {LANG: java}
+
+  corpus:update:
+    desc: Re-run the whole corpus and rewrite spec/corpus-snapshot.json (review the diff; a rewrite-count rise needs a fixture)
+    deps: [js:install]
+    cmds:
+      - node scripts/corpus/run.mjs run --out tmp/corpus/result.json
+      - node scripts/corpus/run.mjs snapshot tmp/corpus/result.json
+
   workflows:test:
     desc: Table test for the CI change classifier (.github/scripts/classify-changes.sh)
     cmds:
