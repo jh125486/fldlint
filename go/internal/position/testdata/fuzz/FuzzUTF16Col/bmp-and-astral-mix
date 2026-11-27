@@ -1,0 +1,5 @@
+go test fuzz v1
+string("a\n")
+string("\u00e9\U0001f600\u4e2d call")
+uint16(9)
+int16(9)

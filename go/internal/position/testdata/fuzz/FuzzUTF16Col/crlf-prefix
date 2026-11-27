@@ -1,0 +1,5 @@
+go test fuzz v1
+string("x\x0d\n")
+string("\x09\x09call()")
+uint16(2)
+int16(2)
