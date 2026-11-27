@@ -259,7 +259,11 @@ func readDiags(r io.Reader) ([]diag, error) {
 type source struct {
 	src  []byte
 	fset *token.FileSet
-	ast  *ast.File
+	// lines holds the byte offset of the start of each line.
+	lines []int
+	// calls maps a call's start offset to the calls starting there, in
+	// source (preorder) order.
+	calls map[int][]*ast.CallExpr
 }
 
 func load(path string, cache map[string]*source, read func(string) ([]byte, error)) (*source, error) {
@@ -275,7 +279,20 @@ func load(path string, cache map[string]*source, read func(string) ([]byte, erro
 	if err != nil {
 		return nil, inputErr("parsing %s: %v", path, err)
 	}
-	s := &source{src: b, fset: fset, ast: f}
+	s := &source{src: b, fset: fset, lines: []int{0}, calls: map[int][]*ast.CallExpr{}}
+	for i, c := range b {
+		if c == '\n' {
+			s.lines = append(s.lines, i+1)
+		}
+	}
+	tf := fset.File(f.Pos())
+	ast.Inspect(f, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			off := tf.Offset(call.Pos())
+			s.calls[off] = append(s.calls[off], call)
+		}
+		return true
+	})
 	cache[path] = s
 	return s, nil
 }
@@ -295,29 +312,29 @@ func splitPosn(posn string) (file string, line, col int, err error) {
 	return m[1], line, col, nil
 }
 
-// offsetOf is the byte offset of a 1-based line and byte column in src.
-func offsetOf(src []byte, line, col int) (int, bool) {
-	off := 0
-	for l := 1; l < line; l++ {
-		i := bytes.IndexByte(src[off:], '\n')
-		if i < 0 {
-			return 0, false
-		}
-		off += i + 1
-	}
-	off += col - 1
-	if off > len(src) {
+// offsetOf is the byte offset of a 1-based line and byte column. A column may
+// point at the line's newline but not past it.
+func (s *source) offsetOf(line, col int) (int, bool) {
+	if line < 1 || line > len(s.lines) {
 		return 0, false
 	}
-	if i := bytes.IndexByte(src[off-(col-1):], '\n'); i >= 0 && col-1 > i {
-		return 0, false // beyond the end of the line
+	start := s.lines[line-1]
+	end := len(s.src) // end of the line, excluding its newline
+	if line < len(s.lines) {
+		end = s.lines[line] - 1
+	}
+	off := start + col - 1
+	if off > end {
+		return 0, false
 	}
 	return off, true
 }
 
-// relUnder returns file relative to root. When file is not under root as
-// spelled, both are retried with symlinks resolved (a root reached through a
-// symlink, such as /var and /private/var on macOS).
+// relUnder returns file relative to root, or false when file is outside root.
+// Containment is decided after resolving symlinks on both, so a symlink under
+// root that points outside it is rejected, while a root reached through a
+// symlink (such as /var and /private/var on macOS) still works. The returned
+// path is the unresolved one whenever file is lexically under root.
 func relUnder(root, file string) (string, bool) {
 	inside := func(rel string, err error) (string, bool) {
 		if err != nil || rel == ".." || strings.HasPrefix(rel, ".."+string(filepath.Separator)) {
@@ -325,15 +342,25 @@ func relUnder(root, file string) (string, bool) {
 		}
 		return rel, true
 	}
-	if rel, ok := inside(filepath.Rel(root, file)); ok {
-		return rel, true
-	}
-	r, err1 := filepath.EvalSymlinks(root)
-	f, err2 := filepath.EvalSymlinks(file)
-	if err1 != nil || err2 != nil {
+	lexical, lexOK := inside(filepath.Rel(root, file))
+	r, err := filepath.EvalSymlinks(root)
+	if err != nil {
 		return "", false
 	}
-	return inside(filepath.Rel(r, f))
+	f, err := filepath.EvalSymlinks(file)
+	if err != nil {
+		// Unresolvable (missing or dangling): it cannot be read either, so
+		// the caller reports that; only a lexically contained path gets there.
+		return lexical, lexOK
+	}
+	resolved, ok := inside(filepath.Rel(r, f))
+	if !ok {
+		return "", false
+	}
+	if lexOK {
+		return lexical, true
+	}
+	return resolved, true
 }
 
 func build(d diag, root string, o Options, rules map[string]spec.Rule, cache map[string]*source, read func(string) ([]byte, error)) (*pending, error) {
@@ -357,14 +384,14 @@ func build(d diag, root string, o Options, rules map[string]spec.Rule, cache map
 	if err != nil {
 		return nil, err
 	}
-	off, inFile := offsetOf(s.src, line, col)
+	off, inFile := s.offsetOf(line, col)
 	if !inFile {
 		return nil, inputErr("position %s is outside the file (line or column past its end)", d.Posn)
 	}
 	endOff := -1
 	if d.End != "" {
 		if ef, el, ec, err := splitPosn(d.End); err == nil && ef == file {
-			if eo, ok := offsetOf(s.src, el, ec); ok {
+			if eo, ok := s.offsetOf(el, ec); ok {
 				endOff = eo
 			}
 		}
@@ -404,35 +431,28 @@ func staticKey(s *source, rule spec.Rule, off, endOff int) *string {
 	if rule.KeyArg < 0 || rule.Go == nil {
 		return nil
 	}
-	var key *string
-	ast.Inspect(s.ast, func(n ast.Node) bool {
-		call, ok := n.(*ast.CallExpr)
-		if !ok || key != nil {
-			return key == nil
-		}
-		tf := s.fset.File(call.Pos())
-		if tf.Offset(call.Pos()) != off || (endOff >= 0 && tf.Offset(call.End()) != endOff) {
-			return true
+	for _, call := range s.calls[off] {
+		if endOff >= 0 && s.fset.File(call.Pos()).Offset(call.End()) != endOff {
+			continue
 		}
 		sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
 		if !ok || call.Ellipsis.IsValid() {
-			return true
+			continue
 		}
 		i := rule.KeyArg
 		if at, ok := rule.Go.CtxArg[sel.Sel.Name]; ok && i >= at {
 			i++
 		}
 		if i >= len(call.Args) {
-			return true
+			continue
 		}
 		if lit, ok := call.Args[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
 			if v, err := strconv.Unquote(lit.Value); err == nil {
-				key = fingerprint.StaticKey(&v)
+				return fingerprint.StaticKey(&v)
 			}
 		}
-		return true
-	})
-	return key
+	}
+	return nil
 }
 
 // assignFingerprints numbers duplicates per file and sets each result's

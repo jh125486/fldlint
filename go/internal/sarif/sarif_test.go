@@ -459,6 +459,22 @@ func TestConvert(t *testing.T) {
 			},
 		},
 		{
+			name:  "file symlink escaping the root",
+			files: map[string]string{"a.go": two},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "link.go", ":5:6"), "m"}) },
+			opts: func(t *testing.T, r string) sarif.Options {
+				outside := filepath.Join(t.TempDir(), "outside.go")
+				if err := os.WriteFile(outside, []byte(two), 0o644); err != nil {
+					t.Fatal(err)
+				}
+				if err := os.Symlink(outside, filepath.Join(r, "link.go")); err != nil {
+					t.Skipf("symlinks unavailable: %v", err)
+				}
+				return sarif.Options{Root: r}
+			},
+			wantErr: "outside the scan root",
+		},
+		{
 			name:  "root reached through a symlink",
 			files: map[string]string{"a.go": two},
 			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":5:6"), "m"}) },
