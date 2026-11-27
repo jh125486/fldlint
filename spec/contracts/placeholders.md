@@ -29,8 +29,7 @@ autoformat produces, which is the one place Java is not textually exact.
 Rewriting replaces the whole call range, so comments inside it are placed
 explicitly, identically in JS and Go (issue #31). Comments inside an argument's
 own text are copied with it, except a comment inside the parentheses around a
-static key (see Static key): only the key literal is copied, so Go has no home
-for it and reports the call with no fix. The others:
+static key (see Static key), which is never copied. The others:
 
 - A comment touching an argument (before the separating comma, trailing it on
   its line, or on or above its line ahead of it) moves with that argument when
@@ -61,8 +60,7 @@ for it and reports the call with no fix. The others:
   then a finding with no fix (`[no-fix: comment]`); homing comments by moving
   them with their arguments is not implemented in Java. A comment inside an
   argument's own text is copied with it, except a comment inside the
-  parentheses around a static key: only the literal is copied, so the call is a
-  finding with no fix.
+  parentheses around a static key (see Static key).
 - JS only: a comment inside a parenthesized callee, `(ld).boolVariation(...)`
   or any callee whose `(` cannot be located behind trivia, is conservatively
   unfixable. JS argument text is copied from the argument node, so parentheses
@@ -104,12 +102,20 @@ a `static final String` constant and a method call are `dynamic-key`.
 
 Parentheses around the literal do not change that: `(("k"))` is static in every
 language and the key is `k` (ESLint's parser drops them; Go and Java unwrap
-them). Only the literal is copied into the rewrite, so a comment inside the
-parentheses has no home and leaves the call a finding with no fix
-(`[no-fix: comment]`) in Go and Java. A Go method expression,
-`(*ldclient.LDClient).BoolVariation(c, "k", ...)`, reads its key after the
-receiver argument, so it follows the same rule and has the same key and
-fingerprint as the method call (the method call may be rewritten); its receiver is a type, never a proven client, so it is skipped as
+them). Only the literal is copied into the rewrite.
+
+A comment between the parentheses around a static key (`("k" /* c */)`,
+`( /* c */ "k")`, at any level of nesting) is `[no-fix: comment]` in every
+language: the call is reported, not rewritten, and the source is unchanged.
+Comments inside a flag key's own parentheses are not idiomatic, and the
+engines cannot home them identically (the JS parser has no parentheses to
+attach them to). A comment outside the parentheses but inside the call is
+homed as usual.
+
+A Go method expression, `(*ldclient.LDClient).BoolVariation(c, "k", ...)`,
+reads its key after the receiver argument, so it follows the same rule and has
+the same key and fingerprint as the method call (the method call may be
+rewritten); its receiver is a type, never a proven client, so it is skipped as
 `receiver-unproven`.
 
 ## Java planner notes

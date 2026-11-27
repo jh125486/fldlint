@@ -142,6 +142,13 @@ describe("a comment with no home withholds the fix", () => {
     { name: "an eslint-disable directive before an argument", call: `ld.boolVariation(\n  /* eslint-disable-next-line x */\n  "k", { key: u }, false)` },
     { name: "a nolint directive between arguments", call: `ld.boolVariation("k", /* nolint */ { key: u }, false)` },
     { name: "a multi-line block comment between receiver and method", call: `ld /* a\n b */ .boolVariation("k", { key: u }, false)` },
+    { name: "after the key inside the parentheses around it", call: `ld.boolVariation(("k" /* c */), { key: u }, false)` },
+    { name: "before the key inside the parentheses around it", call: `ld.boolVariation(( /* c */ "k"), { key: u }, false)` },
+    { name: "a line comment inside the parentheses around the key", call: `ld.boolVariation(("k" // c\n), { key: u }, false)` },
+    { name: "at the inner level of nested parentheses around the key", call: `ld.boolVariation((( /* c */ "k")), { key: u }, false)` },
+    { name: "at the outer level of nested parentheses around the key", call: `ld.boolVariation((/* c */ ("k")), { key: u }, false)` },
+    { name: "after the inner parenthesis of nested parentheses around the key", call: `ld.boolVariation((("k") /* c */), { key: u }, false)` },
+    { name: "inside the parentheses around a key that is not the first argument", call: `ld.boolVariation(("k" /* c */), { key: u }, false)` },
   ];
   for (const { name, call } of cases) {
     it(name, () => {
@@ -152,6 +159,20 @@ describe("a comment with no home withholds the fix", () => {
       expect(rewrite(src)).toBe(src);
     });
   }
+
+  it("parentheses around the key without a comment inside are static and rewritten without them", () => {
+    for (const key of [`("k")`, `((("k")))`, `( "k" )`]) {
+      expect(rewrite(stmt(`ld.boolVariation(${key}, { key: u }, false)`))).toBe(stmt(`c.getBooleanValue("k", false, { targetingKey: u })`));
+    }
+  });
+
+  it("comments outside the parentheses around the key are homed as before", () => {
+    expect(rewrite(stmt(`ld.boolVariation(/* a */ ("k") /* b */, { key: u }, false)`))).toBe(
+      stmt(`c.getBooleanValue(/* a */ "k" /* b */, false, { targetingKey: u })`),
+    );
+    // Not the key: a comment in the parentheses around another argument is homed as it was.
+    expect(rewrite(stmt(`ld.boolVariation("k", ( /* c */ { key: u }), false)`))).toBe(stmt(`c.getBooleanValue("k", false, /* c */ { targetingKey: u })`));
+  });
 
   it("only the unfixable call is held back; its neighbour is still rewritten", () => {
     const src = `${PRE}const a = ld.boolVariation("a", { key: u /* x */ }, false);\nconst b = ld.boolVariation("b", { key: u }, false);\n`;

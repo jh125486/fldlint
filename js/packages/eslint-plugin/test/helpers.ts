@@ -29,4 +29,6 @@ export function fix(code: string, parser: ParserName) {
   return linter().verifyAndFix(code, config(parser), FILE);
 }
 
+export const noFixOf = (m: L.LintMessage): string | undefined => /\[no-fix: ([\w-]+)\]$/.exec(m.message)?.[1];
+
 export const skipOf = (m: L.LintMessage): string | undefined => /\[skip: ([\w-]+)\]$/.exec(m.message)?.[1];

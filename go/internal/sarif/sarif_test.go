@@ -440,7 +440,9 @@ func TestConvert(t *testing.T) {
 		{
 			name:  "method expression of a detail rule",
 			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (*ldclient.LDClient).BoolVariationDetail(c, \"bd-key\", u, false)\n}\n"},
-			in:    func(r string) string { return diagJSON([3]string{"bool-variation-detail", posn(r, "a.go", ":4:6"), "m"}) },
+			in: func(r string) string {
+				return diagJSON([3]string{"bool-variation-detail", posn(r, "a.go", ":4:6"), "m"})
+			},
 			check: wantFP("bool-variation-detail", "a.go", strp("bd-key")),
 		},
 		{

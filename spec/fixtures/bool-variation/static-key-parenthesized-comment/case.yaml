@@ -1,0 +1,8 @@
+id: static-key-parenthesized-comment
+rule: bool-variation
+tags: [key-parenthesized, comment]
+description: A comment inside the parentheses around a static flag key has no home (only the literal is copied), so the call is reported with no fix in every language and the source is unchanged.
+expect:
+  js: {diagnostics: [{line: 8, col: 25, ruleId: bool-variation, noFix: comment}], output: false}
+  go: {diagnostics: [{line: 20, col: 18, ruleId: bool-variation, noFix: comment}], output: false}
+  java: {diagnostics: [{line: 12, col: 27, ruleId: bool-variation, noFix: comment}], output: false}

@@ -363,6 +363,37 @@ class Detector {
   }
 
   /**
+   * The source range, outermost `(` through its `)`, of the parentheses around
+   * a static string key, or undefined when the key is not parenthesized. The
+   * ESTree drops them, so they are found by scanning past whitespace and
+   * comments on both sides of the literal; `open` is the call's own `(`.
+   */
+  private keyParens(key: Node | undefined, open: number, inCall: readonly TSESTree.Comment[]): [number, number] | undefined {
+    if (staticKey(key) === undefined) return undefined;
+    const lefts: number[] = [];
+    let pos = key!.range[0];
+    for (;;) {
+      const c = inCall.find((x) => x.range[1] === pos);
+      if (c) pos = c.range[0];
+      else if (pos > 0 && /\s/.test(this.source.charAt(pos - 1))) pos--;
+      else if (pos - 1 > open && this.source.charAt(pos - 1) === "(") lefts.push(--pos);
+      else break;
+    }
+    if (lefts.length === 0) return undefined;
+    let end = key!.range[1];
+    for (let n = 0; n < lefts.length; ) {
+      const c = inCall.find((x) => x.range[0] === end);
+      if (c) end = c.range[1];
+      else if (/\s/.test(this.source.charAt(end))) end++;
+      else if (this.source.charAt(end) === ")") {
+        end++;
+        n++;
+      } else return undefined;
+    }
+    return [lefts[lefts.length - 1]!, end];
+  }
+
+  /**
    * Place every comment inside the call range: those in an argument's own text
    * are copied with it; the rest attach to the argument they touch, to the
    * head (before the `(`) or to the tail (after the last argument). Returns
@@ -399,6 +430,12 @@ class Detector {
       open = c.range[1];
     }
     if (this.source.charAt(open) !== "(") notes.unhomed = true;
+
+    // A comment inside the parentheses around a static key has no home: the
+    // parser drops those parentheses and only the literal is copied, so Go and
+    // Java report the call with no fix too (placeholders.md, "Static key").
+    const keyParens = this.keyParens(args[rule.keyArg ?? -1], open, inCall);
+    if (keyParens && inCall.some((c) => keyParens[0] <= c.range[0] && c.range[1] <= keyParens[1])) notes.unhomed = true;
 
     for (const c of inCall) {
       const [cs, ce] = c.range;
