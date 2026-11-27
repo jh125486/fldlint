@@ -1,0 +1,4 @@
+go test fuzz v1
+string("src/a.ts")
+string("\xff\xfe")
+int(2)

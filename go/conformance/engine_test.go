@@ -104,10 +104,12 @@ func (w *workspace) load(t *testing.T) *packages.Package {
 // finding is one reported diagnostic in the contract's coordinates.
 type finding struct {
 	line, col int
-	ruleID    string
-	skip      string
-	hasFix    bool
-	edits     []analysis.TextEdit
+	// start, end are the byte offsets of the reported call.
+	start, end int
+	ruleID     string
+	skip       string
+	hasFix     bool
+	edits      []analysis.TextEdit
 }
 
 // runEngine runs the analyzer over the fixture input and returns its findings
@@ -141,7 +143,7 @@ func runSource(t *testing.T, src []byte, caseDir string, tolerateTypeErrors bool
 		}
 		for _, d := range act.Diagnostics {
 			p := act.Package.Fset.Position(d.Pos)
-			f := finding{line: p.Line, col: position.UTF16Col(src, p.Offset), ruleID: d.Category}
+			f := finding{line: p.Line, col: position.UTF16Col(src, p.Offset), start: p.Offset, end: act.Package.Fset.Position(d.End).Offset, ruleID: d.Category}
 			if _, rest, ok := strings.Cut(d.Message, "[skip: "); ok {
 				f.skip = strings.TrimSuffix(rest, "]")
 			}
@@ -312,9 +314,19 @@ func removeUnusedImports(t *testing.T, src []byte, caseDir string) []byte {
 // source, which must compile; it fails if the loop does not settle.
 func converge(t *testing.T, src []byte, caseDir string) []byte {
 	t.Helper()
+	return convergeFrom(t, src, caseDir, nil, nil)
+}
+
+// convergeFrom is converge when the caller already ran the engine over src:
+// the first run reuses that result instead of loading the package again.
+func convergeFrom(t *testing.T, src []byte, caseDir string, first []finding, firstOffset func(token.Pos) int) []byte {
+	t.Helper()
 	const maxRuns = 5
 	for run := 1; run <= maxRuns; run++ {
-		got, offset := runSource(t, src, caseDir, false)
+		got, offset := first, firstOffset
+		if run > 1 || first == nil {
+			got, offset = runSource(t, src, caseDir, false)
+		}
 		var edits []analysis.TextEdit
 		for _, f := range got {
 			edits = append(edits, f.edits...)

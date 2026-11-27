@@ -1,0 +1,5 @@
+go test fuzz v1
+string("")
+string("\ufeffx")
+uint16(3)
+int16(3)
