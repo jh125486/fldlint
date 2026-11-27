@@ -231,6 +231,11 @@ func checkEngine(t *testing.T, c *spec.Case, caseDir string) {
 	}
 
 	if !want.Output {
+		for _, f := range got {
+			if len(f.edits) > 0 {
+				t.Errorf("%d:%d: output is false but a fix is offered", f.line, f.col)
+			}
+		}
 		return
 	}
 

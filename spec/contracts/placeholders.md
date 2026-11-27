@@ -29,7 +29,7 @@ autoformat produces, which is the one place Java is not textually exact.
 Rewriting replaces the whole call range, so comments inside it are placed
 explicitly, identically in JS and Go (issue #31). Comments inside an argument's
 own text are copied with it, except a comment inside the parentheses around a
-static key (see Static key), which is never copied. The others:
+static key, which makes the call `[no-fix: comment]` (see Static key). The others:
 
 - A comment touching an argument (before the separating comma, trailing it on
   its line, or on or above its line ahead of it) moves with that argument when

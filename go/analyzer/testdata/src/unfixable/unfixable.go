@@ -20,14 +20,14 @@ func InContext(userKey string) bool {
 // A // comment between the receiver and the method cannot be hoisted.
 func LineInCallee(userKey string) bool {
 	/* want `Migrate boolean flag "b" to OpenFeature` */ on, _ := ldClient. // note
-										BoolVariation("b", ldcontext.New(userKey), false)
+		BoolVariation("b", ldcontext.New(userKey), false)
 	return on
 }
 
 // A multi-line block comment between receiver and method cannot be hoisted.
 func BlockInCallee(userKey string) bool {
 	/* want `Migrate boolean flag "c" to OpenFeature` */ on, _ := ldClient. /* a
-		b */BoolVariation("c", ldcontext.New(userKey), false)
+	b */ BoolVariation("c", ldcontext.New(userKey), false)
 	return on
 }
 

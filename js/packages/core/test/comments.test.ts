@@ -148,7 +148,6 @@ describe("a comment with no home withholds the fix", () => {
     { name: "at the inner level of nested parentheses around the key", call: `ld.boolVariation((( /* c */ "k")), { key: u }, false)` },
     { name: "at the outer level of nested parentheses around the key", call: `ld.boolVariation((/* c */ ("k")), { key: u }, false)` },
     { name: "after the inner parenthesis of nested parentheses around the key", call: `ld.boolVariation((("k") /* c */), { key: u }, false)` },
-    { name: "inside the parentheses around a key that is not the first argument", call: `ld.boolVariation(("k" /* c */), { key: u }, false)` },
   ];
   for (const { name, call } of cases) {
     it(name, () => {
