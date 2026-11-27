@@ -43,7 +43,6 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
-          registry-url: https://registry.npmjs.org/
           package-manager-cache: false
 
       - name: Verify linked release tags and package manifests
@@ -114,10 +113,6 @@ jobs:
     needs: build
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    environment: release
-    concurrency:
-      group: release-npm
-      cancel-in-progress: false
     permissions:
       contents: read
       id-token: write
