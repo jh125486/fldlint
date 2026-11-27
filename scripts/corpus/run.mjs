@@ -16,6 +16,8 @@ import os from "node:os";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
+import { compare, sum } from "./compare.mjs";
+
 const here = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(here, "../..");
 const jsDir = path.join(root, "js");
@@ -30,15 +32,89 @@ const LANGS = ["js", "go", "java"];
 // ---------------------------------------------------------------- processes
 
 const children = new Set();
+const tmpDirs = new Set();
+
+/** A temp dir that the signal handler also removes. */
+function makeTmp(prefix) {
+  const d = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), prefix));
+  tmpDirs.add(d);
+  return d;
+}
+function removeTmp(d) {
+  fs.rmSync(d, { recursive: true, force: true });
+  tmpDirs.delete(d);
+}
+function killAll() {
+  for (const c of children) kill(c);
+  for (const d of tmpDirs) fs.rmSync(d, { recursive: true, force: true });
+  tmpDirs.clear();
+}
+
+// Child environments are built from an allowlist: nothing like GH_TOKEN, AWS_*, SSH_AUTH_SOCK or
+// npm tokens reaches a process, whatever the parent has. Per-run caches (set by initCaches) keep
+// third-party builds from touching the caches a workflow may persist.
+const ENV_ALLOW = [
+  "PATH", "HOME", "USER", "LOGNAME", "LANG", "LC_ALL", "TERM", "TMPDIR", "TMP", "TEMP", "RUNNER_TEMP",
+  "JAVA_HOME", "GOROOT", "GOPATH", "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
+  "SSL_CERT_FILE", "SSL_CERT_DIR", "NODE_EXTRA_CA_CERTS", "MISE_DATA_DIR", "MISE_CONFIG_DIR", "MISE_CACHE_DIR",
+];
+let caches = null;
+function initCaches(dir) {
+  caches = {
+    gomod: path.join(dir, "gomod"),
+    gocache: path.join(dir, "gocache"),
+    m2: path.join(dir, "m2"),
+    npm: path.join(dir, "npm"),
+    // npm refuses the same file for the user and global config, so each gets its own empty one.
+    npmUser: path.join(dir, "npmrc-user"),
+    npmGlobal: path.join(dir, "npmrc-global"),
+  };
+  fs.writeFileSync(caches.npmUser, "");
+  fs.writeFileSync(caches.npmGlobal, "");
+}
+
+/** @param {boolean} trusted true for builds of this checkout, false (default) for third-party code */
+export function childEnv(trusted, extra = {}, base = process.env) {
+  const env = {};
+  for (const k of ENV_ALLOW) if (base[k] !== undefined) env[k] = base[k];
+  env.CI = "1";
+  env.GIT_TERMINAL_PROMPT = "0";
+  env.GIT_CONFIG_NOSYSTEM = "1";
+  env.GIT_CONFIG_GLOBAL = "/dev/null";
+  env.GOTOOLCHAIN = "local";
+  if (!trusted) {
+    // Environment beats a repo's .npmrc, go.env-style files and user config, so a cloned repo
+    // cannot redirect installs to another registry or turn lifecycle scripts back on.
+    Object.assign(env, {
+      NPM_CONFIG_REGISTRY: "https://registry.npmjs.org/",
+      NPM_CONFIG_IGNORE_SCRIPTS: "true",
+      NPM_CONFIG_GIT: "/nonexistent/git",
+      NPM_CONFIG_AUDIT: "false",
+      NPM_CONFIG_FUND: "false",
+      GOENV: "off",
+      GOFLAGS: "-modcacherw",
+    });
+    if (caches) {
+      Object.assign(env, {
+        GOMODCACHE: caches.gomod,
+        GOCACHE: caches.gocache,
+        NPM_CONFIG_CACHE: caches.npm,
+        NPM_CONFIG_USERCONFIG: caches.npmUser,
+        NPM_CONFIG_GLOBALCONFIG: caches.npmGlobal,
+      });
+    }
+  }
+  return { ...env, ...extra };
+}
 
 /** Run a command; kills its whole process group at the deadline. Never throws. */
-function sh(cmd, args, { cwd, env, deadline, input } = {}) {
+function sh(cmd, args, { cwd, env, deadline, input, trusted = false } = {}) {
   return new Promise((resolve) => {
     const budget = deadline ? deadline - Date.now() : Infinity;
     if (budget <= 0) return resolve({ code: null, stdout: "", stderr: "", timedOut: true });
     const child = spawn(cmd, args, {
       cwd,
-      env: { ...process.env, GIT_TERMINAL_PROMPT: "0", GIT_CONFIG_NOSYSTEM: "1", CI: "1", GOTOOLCHAIN: "local", NPM_CONFIG_IGNORE_SCRIPTS: "true", ...env },
+      env: childEnv(trusted, env),
       detached: true,
       stdio: ["pipe", "pipe", "pipe"],
     });
@@ -84,12 +160,21 @@ function kill(child) {
 const tail = (s, n = 2000) => (s.length > n ? "..." + s.slice(-n) : s);
 
 class Timeout extends Error {}
-class StepError extends Error {}
-const must = (r, what) => {
+/** kind "infra": clone, fetch, dependency or environment trouble (a warning). kind "tool": fldlint itself misbehaved (a failure). */
+class StepError extends Error {
+  constructor(message, kind = "infra") {
+    super(message);
+    this.kind = kind;
+  }
+}
+const must = (r, what, kind = "infra") => {
   if (r.timedOut) throw new Timeout(what);
-  if (r.code !== 0) throw new StepError(`${what} failed (exit ${r.code}): ${tail(r.stderr || r.stdout, 600)}`);
+  if (r.code !== 0) throw new StepError(`${what} failed (exit ${r.code}): ${tail(r.stderr || r.stdout, 600)}`, kind);
   return r;
 };
+
+/** git with hooks disabled (the clone is untrusted); the environment already ignores user and system config. */
+const git = (args, opts = {}) => sh("git", ["-c", "core.hooksPath=/dev/null", ...args], opts);
 
 // ------------------------------------------------------------------- corpus
 
@@ -101,8 +186,8 @@ function loadCorpus() {
   const int = (v, max) => Number.isInteger(v) && v > 0 && v <= max;
   for (const lang of LANGS) {
     for (const r of doc[lang] ?? []) {
-      for (const k of ["name", "url", "sha", "license", "note", "timeout", "depth"]) {
-        if (r[k] === undefined || r[k] === "") throw new Error(`corpus.json: ${lang}/${r.name}: missing ${k}`);
+      for (const k of ["name", "url", "sha", "language", "license", "note"]) {
+        if (typeof r[k] !== "string" || r[k] === "") throw new Error(`corpus.json: ${lang}/${r.name}: ${k} must be a non-empty string`);
       }
       if (!/^[a-z0-9][a-z0-9-]{0,63}$/.test(r.name)) throw new Error(`corpus.json: bad name ${JSON.stringify(r.name)}`);
       if (r.language !== lang) throw new Error(`corpus.json: ${r.name}: language ${r.language} under ${lang}`);
@@ -149,33 +234,32 @@ function sortKeys(o) {
 // ------------------------------------------------------------------ cloning
 
 async function clone(repo, dir, deadline) {
-  must(await sh("git", ["init", "-q", dir], { deadline }), "git init");
-  must(await sh("git", ["remote", "add", "origin", repo.url], { cwd: dir, deadline }), "git remote add");
+  must(await git(["init", "-q", dir], { deadline }), "git init");
+  must(await git(["remote", "add", "origin", repo.url], { cwd: dir, deadline }), "git remote add");
   must(
-    await sh("git", ["-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "fetch", "-q", "--depth", String(repo.depth), "origin", repo.sha], { cwd: dir, deadline }),
+    await git(["-c", "protocol.allow=never", "-c", "protocol.https.allow=always", "fetch", "-q", "--depth", String(repo.depth), "origin", repo.sha], { cwd: dir, deadline }),
     "git fetch",
   );
-  must(await sh("git", ["checkout", "-q", "FETCH_HEAD"], { cwd: dir, deadline }), "git checkout");
-  const head = (await sh("git", ["rev-parse", "HEAD"], { cwd: dir, deadline })).stdout.trim();
+  must(await git(["checkout", "-q", "FETCH_HEAD"], { cwd: dir, deadline }), "git checkout");
+  const head = (await git(["rev-parse", "HEAD"], { cwd: dir, deadline })).stdout.trim();
   if (head !== repo.sha) throw new StepError(`checked out ${head}, expected ${repo.sha}`);
 }
 
-/** Commit the dependency prep so later diffs show only fldlint's own edits. */
+/** Commit the dependency prep so later diffs show only fldlint's own edits. Must succeed, or prep would leak into the fix. */
 async function commitBaseline(dir, deadline) {
-  await sh("git", ["add", "-A"], { cwd: dir, deadline });
-  await sh(
-    "git",
-    ["-c", "user.name=corpus", "-c", "user.email=corpus@invalid", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "prep"],
-    { cwd: dir, deadline },
+  must(await git(["add", "-A"], { cwd: dir, deadline }), "git add (baseline)");
+  must(
+    await git(["-c", "user.name=corpus", "-c", "user.email=corpus@invalid", "-c", "commit.gpgsign=false", "commit", "-q", "--allow-empty", "-m", "prep"], { cwd: dir, deadline }),
+    "git commit (baseline)",
   );
 }
 
 async function changedFiles(dir, deadline) {
-  const r = await sh("git", ["status", "--porcelain", "--untracked-files=no"], { cwd: dir, deadline });
+  const r = must(await git(["status", "--porcelain", "--untracked-files=no"], { cwd: dir, deadline }), "git status");
   return r.stdout.split("\n").filter(Boolean).length;
 }
 async function fixPatch(dir, deadline) {
-  return (await sh("git", ["diff"], { cwd: dir, deadline })).stdout;
+  return must(await git(["diff", "--no-ext-diff", "--no-textconv"], { cwd: dir, deadline }), "git diff").stdout;
 }
 
 const buildResult = (r, cmd) => ({
@@ -190,7 +274,8 @@ const skippedBuild = (why) => ({ skipped: why });
 // ----------------------------------------------------------------------- JS
 
 async function prepareJs() {
-  const r = await sh("npm", ["run", "build", "--silent"], { cwd: jsDir });
+  // Trusted: this checkout's own build. Lifecycle scripts must run (the workspaces build through pre-hooks).
+  const r = await sh("npm", ["run", "build", "--silent"], { cwd: jsDir, trusted: true });
   if (r.code !== 0) throw new Error(`building js/ failed: ${tail(r.stderr || r.stdout)}`);
 }
 
@@ -217,14 +302,14 @@ async function runEslint(dir, cfg, deadline, fix) {
   const args = ["--config", cfg, "--format", "json", "--no-warn-ignored"];
   if (fix) args.push("--fix");
   args.push(".");
-  const r = await sh(eslint, args, { cwd: dir, deadline });
+  const r = await sh(eslint, args, { cwd: dir, deadline, trusted: true });
   if (r.timedOut) throw new Timeout("eslint");
-  if (r.code !== 0 && r.code !== 1) throw new StepError(`eslint exit ${r.code}: ${tail(r.stderr || r.stdout, 600)}`);
+  if (r.code !== 0 && r.code !== 1) throw new StepError(`eslint exit ${r.code}: ${tail(r.stderr || r.stdout, 600)}`, "tool");
   let files;
   try {
     files = JSON.parse(r.stdout);
   } catch {
-    throw new StepError(`eslint did not print JSON: ${tail(r.stdout || r.stderr, 600)}`);
+    throw new StepError(`eslint did not print JSON: ${tail(r.stdout || r.stderr, 600)}`, "tool");
   }
   return files;
 }
@@ -270,12 +355,12 @@ async function analyzeJs(repo, dir, tmp, deadline, out) {
 let fldlintBin;
 async function prepareGo(tmp) {
   fldlintBin = path.join(tmp, "bin", "fldlint");
-  const r = await sh("go", ["build", "-o", fldlintBin, "./cmd/fldlint"], { cwd: path.join(root, "go") });
+  const r = await sh("go", ["build", "-o", fldlintBin, "./cmd/fldlint"], { cwd: path.join(root, "go"), trusted: true });
   if (r.code !== 0) throw new Error(`building fldlint failed: ${tail(r.stderr)}`);
 }
 
 async function analyzeGo(repo, dir, tmp, deadline, out) {
-  const env = {};
+  const env = { ...(repo.env ?? {}) };
   if (!fs.existsSync(path.join(dir, "go.mod"))) throw new StepError("no go.mod at the repository root");
   if (fs.existsSync(path.join(dir, "go.sum"))) {
     must(await sh("go", ["mod", "download"], { cwd: dir, deadline, env }), "go mod download");
@@ -286,12 +371,19 @@ async function analyzeGo(repo, dir, tmp, deadline, out) {
   }
   await commitBaseline(dir, deadline);
   out.build.pre = buildResult(await sh("go", ["build", "./..."], { cwd: dir, deadline, env }), "go build ./...");
+  // If the repo does not build on its own, fldlint failing to load it is the repo's problem (infra).
+  const kind = out.build.pre.ok ? "tool" : "infra";
   const r = await sh(fldlintBin, ["-json", "./..."], { cwd: dir, deadline, env });
   if (r.timedOut) throw new Timeout("fldlint -json");
-  if (r.code !== 0) throw new StepError(`fldlint -json exit ${r.code}: ${tail(r.stderr || r.stdout, 600)}`);
+  if (r.code !== 0) throw new StepError(`fldlint -json exit ${r.code}: ${tail(r.stderr || r.stdout, 600)}`, kind);
   const counts = newCounts();
   const text = r.stdout.trim();
-  const doc = text ? JSON.parse(text) : {};
+  let doc;
+  try {
+    doc = text ? JSON.parse(text) : {};
+  } catch {
+    throw new StepError("fldlint -json did not print JSON", kind);
+  }
   for (const [pkg, analyzers] of Object.entries(doc)) {
     const res = analyzers.fldlint;
     if (!res) continue;
@@ -302,7 +394,7 @@ async function analyzeGo(repo, dir, tmp, deadline, out) {
     for (const d of res) addFinding(counts, fromMessage(d.category, d.message));
   }
   out.counts = counts;
-  must(await sh(fldlintBin, ["-fix", "./..."], { cwd: dir, deadline, env }), "fldlint -fix");
+  must(await sh(fldlintBin, ["-fix", "./..."], { cwd: dir, deadline, env }), "fldlint -fix", kind);
   out.fixedFiles = await changedFiles(dir, deadline);
   out.patch = await fixPatch(dir, deadline);
   out.build.post =
@@ -318,12 +410,15 @@ let javaVersion;
 async function prepareJava() {
   const javaDir = path.join(root, "java");
   const mvnw = path.join(javaDir, "mvnw");
-  let r = await sh(mvnw, ["-B", "-q", "-DskipTests", "install"], { cwd: javaDir });
+  // The recipes (and everything Maven fetches for them) go into the per-run local repo that the
+  // third-party builds also use, so no persisted ~/.m2 is touched by third-party code.
+  const repo = `-Dmaven.repo.local=${caches.m2}`;
+  let r = await sh(mvnw, ["-B", "-q", "-DskipTests", repo, "install"], { cwd: javaDir, trusted: true });
   if (r.code !== 0) throw new Error(`installing the recipes failed: ${tail(r.stderr || r.stdout)}`);
   r = await sh(
     mvnw,
-    ["-q", "-B", "org.apache.maven.plugins:maven-help-plugin:3.6.0:evaluate", "-Dexpression=project.version", "-DforceStdout"],
-    { cwd: javaDir },
+    ["-q", "-B", repo, "org.apache.maven.plugins:maven-help-plugin:3.6.0:evaluate", "-Dexpression=project.version", "-DforceStdout"],
+    { cwd: javaDir, trusted: true },
   );
   if (r.code !== 0) throw new Error(`reading the recipe version failed: ${tail(r.stderr)}`);
   javaVersion = r.stdout.trim();
@@ -356,11 +451,14 @@ function parseCsv(text) {
   return rows;
 }
 
+/** Regular files only: a cloned repo could plant a symlink where a result file is expected. */
 function findFiles(dir, name, acc = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
     const p = path.join(dir, e.name);
-    if (e.isDirectory()) findFiles(p, name, acc);
-    else if (e.name.endsWith(name)) acc.push(p);
+    const st = fs.lstatSync(p);
+    if (st.isSymbolicLink()) continue;
+    if (st.isDirectory()) findFiles(p, name, acc);
+    else if (st.isFile() && e.name.endsWith(name) && st.size < 32 * 1024 * 1024) acc.push(p);
   }
   return acc;
 }
@@ -368,8 +466,11 @@ function findFiles(dir, name, acc = []) {
 async function analyzeJava(repo, dir, tmp, deadline, out) {
   const mvnw = path.join(root, "java", "mvnw");
   if (!fs.existsSync(path.join(dir, "pom.xml"))) throw new StepError("no pom.xml at the repository root");
-  const common = ["-B", "-Drewrite.recipeArtifactCoordinates=" + javaCoords, "-Dfldlint.version=" + javaVersion];
-  out.build.pre = buildResult(await sh(mvnw, ["-B", "-q", "compile"], { cwd: dir, deadline }), "mvn -q compile");
+  const m2 = `-Dmaven.repo.local=${caches.m2}`;
+  const common = ["-B", m2, "-Drewrite.recipeArtifactCoordinates=" + javaCoords, "-Dfldlint.version=" + javaVersion];
+  const compile = () => sh(mvnw, ["-B", "-q", m2, "compile"], { cwd: dir, deadline });
+  out.build.pre = buildResult(await compile(), "mvn -q compile");
+  const kind = out.build.pre.ok ? "tool" : "infra";
   must(
     await sh(
       mvnw,
@@ -377,19 +478,21 @@ async function analyzeJava(repo, dir, tmp, deadline, out) {
       { cwd: dir, deadline },
     ),
     "rewrite:dryRun",
+    kind,
   );
   const counts = newCounts();
-  const csvs = findFiles(path.join(dir, "target", "rewrite"), "LaunchDarklyUsage.csv");
-  if (csvs.length === 0 && fs.existsSync(path.join(dir, "target", "rewrite", "datatables"))) {
-    throw new StepError("dryRun exported no LaunchDarklyUsage data table");
-  }
+  // A successful dry run always exports the datatables directory (RecipeRunStats, even with zero
+  // findings); without it the export silently broke. No LaunchDarklyUsage table means no findings.
+  const tables = path.join(dir, "target", "rewrite", "datatables");
+  if (!fs.existsSync(tables)) throw new StepError("dryRun succeeded but exported no datatables directory", kind);
+  const csvs = findFiles(tables, "LaunchDarklyUsage.csv");
   const seen = new Set();
   for (const csv of csvs) {
     // OpenRewrite prefixes the CSV with `# @name ...` comment lines.
     const [head, ...rows] = parseCsv(fs.readFileSync(csv, "utf8")).filter((r) => !r[0].startsWith("#"));
-    const col = (n) => head.indexOf(n);
+    const col = (n) => (head ?? []).indexOf(n);
     const [iRule, iSkip, iNoFix, iFp] = [col("ruleId"), col("skip"), col("noFix"), col("fingerprint")];
-    if (iRule < 0 || iSkip < 0) throw new StepError(`unexpected data table columns: ${head.join("|")}`);
+    if (iRule < 0 || iSkip < 0) throw new StepError("unexpected LaunchDarklyUsage data table columns", kind);
     for (const r of rows) {
       const key = `${r[col("sourcePath")]}:${r[col("line")]}:${r[col("col")]}:${iFp >= 0 ? r[iFp] : ""}`;
       if (seen.has(key)) continue;
@@ -401,13 +504,11 @@ async function analyzeJava(repo, dir, tmp, deadline, out) {
   must(
     await sh(mvnw, [...common, `${MAVEN_PLUGIN}:run`, `-Drewrite.activeRecipes=${RECIPE_FIX}`], { cwd: dir, deadline }),
     "rewrite:run",
+    kind,
   );
   out.fixedFiles = await changedFiles(dir, deadline);
   out.patch = await fixPatch(dir, deadline);
-  out.build.post =
-    out.fixedFiles === 0
-      ? skippedBuild("nothing changed")
-      : buildResult(await sh(mvnw, ["-B", "-q", "compile"], { cwd: dir, deadline }), "mvn -q compile");
+  out.build.post = out.fixedFiles === 0 ? skippedBuild("nothing changed") : buildResult(await compile(), "mvn -q compile");
 }
 
 // ------------------------------------------------------------------- driver
@@ -417,7 +518,7 @@ const analyzers = { js: analyzeJs, go: analyzeGo, java: analyzeJava };
 async function runRepo(repo, outDir) {
   const started = Date.now();
   const deadline = started + repo.timeout * 1000;
-  const tmp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), `fldlint-corpus-${repo.name}-`));
+  const tmp = makeTmp(`fldlint-corpus-${repo.name}-`);
   const dir = path.join(tmp, "repo");
   const out = {
     name: repo.name,
@@ -433,6 +534,8 @@ async function runRepo(repo, outDir) {
     await analyzers[repo.language](repo, dir, tmp, deadline, out);
   } catch (e) {
     out.status = e instanceof Timeout ? "timeout" : "error";
+    // Anything that is not a classified step failure is a bug in this runner or fldlint: a tool error.
+    out.errorKind = e instanceof Timeout ? "infra" : (e.kind ?? "tool");
     out.error = e instanceof Timeout ? `timed out after ${repo.timeout}s in: ${e.message}` : tail(String(e.message ?? e), 1500);
   } finally {
     if (out.patch && outDir && (out.build.post?.ok === false || process.env.CORPUS_KEEP_PATCHES === "1")) {
@@ -440,7 +543,7 @@ async function runRepo(repo, outDir) {
       fs.writeFileSync(path.join(outDir, `${repo.name}.fix.patch`), out.patch);
     }
     delete out.patch;
-    fs.rmSync(tmp, { recursive: true, force: true });
+    removeTmp(tmp);
     out.durationMs = Date.now() - started;
   }
   return out;
@@ -451,91 +554,54 @@ function arg(argv, name, dflt) {
   return i >= 0 ? argv[i + 1] : dflt;
 }
 
+function writeResult(outFile, results) {
+  fs.mkdirSync(path.dirname(outFile), { recursive: true });
+  const doc = { schema: 1, generatedAt: new Date().toISOString(), repos: sortKeys(results) };
+  fs.writeFileSync(outFile, JSON.stringify(doc, null, 2) + "\n");
+}
+
 async function cmdRun(argv) {
   const lang = arg(argv, "--lang", "all");
   const only = arg(argv, "--only", "")?.split(",").filter(Boolean) ?? [];
   const outFile = path.resolve(arg(argv, "--out", path.join(root, "tmp/corpus/result.json")));
   const outDir = path.dirname(outFile);
-  let repos = loadCorpus().filter((r) => (lang === "all" || r.language === lang) && (!only.length || only.includes(r.name)));
+  const repos = loadCorpus().filter((r) => (lang === "all" || r.language === lang) && (!only.length || only.includes(r.name)));
   if (repos.length === 0) throw new Error("no repositories selected");
-  const prep = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), "fldlint-corpus-prep-"));
-  const cleanup = () => {
-    for (const c of children) kill(c);
-    fs.rmSync(prep, { recursive: true, force: true });
-  };
-  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => (cleanup(), process.exit(130)));
+  const prep = makeTmp("fldlint-corpus-prep-");
+  initCaches(prep);
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => (killAll(), process.exit(130)));
   const results = {};
   try {
     const langs = new Set(repos.map((r) => r.language));
-    if (langs.has("js")) await prepareJs();
-    if (langs.has("go")) await prepareGo(prep);
-    if (langs.has("java")) await prepareJava();
+    // A failed preparation is written as an error result for each repo, so result.json always exists.
+    try {
+      if (langs.has("js")) await prepareJs();
+      if (langs.has("go")) await prepareGo(prep);
+      if (langs.has("java")) await prepareJava();
+    } catch (e) {
+      for (const repo of repos) {
+        results[repo.name] = { name: repo.name, language: repo.language, url: repo.url, sha: repo.sha, license: repo.license, status: "error", errorKind: "tool", error: tail(String(e.message), 1500), build: {} };
+      }
+      writeResult(outFile, results);
+      throw e;
+    }
     for (const repo of repos) {
       process.stderr.write(`corpus: ${repo.language}/${repo.name} @ ${repo.sha.slice(0, 12)} ...\n`);
       const r = await runRepo(repo, outDir);
       results[repo.name] = r;
+      writeResult(outFile, results);
       process.stderr.write(
         `corpus:   ${r.status} in ${(r.durationMs / 1000).toFixed(1)}s, findings ${r.counts?.total ?? "-"}, ` +
           `build pre/post ${buildWord(r.build.pre)}/${buildWord(r.build.post)}${r.error ? `, ${r.error.split("\n")[0]}` : ""}\n`,
       );
     }
   } finally {
-    cleanup();
+    killAll();
   }
-  fs.mkdirSync(outDir, { recursive: true });
-  const doc = { schema: 1, generatedAt: new Date().toISOString(), repos: sortKeys(results) };
-  fs.writeFileSync(outFile, JSON.stringify(doc, null, 2) + "\n");
   process.stderr.write(`corpus: wrote ${path.relative(root, outFile)}\n`);
 }
 
 const buildWord = (b) => (!b ? "-" : b.skipped ? "skip" : b.ok ? "ok" : "FAIL");
-
-// ------------------------------------------------------------------ compare
-
-const sum = (o) => Object.values(o ?? {}).reduce((a, b) => a + b, 0);
-
-/** @returns {{failures: string[], warnings: string[], notes: string[]}} */
-export function compare(result, snapshot) {
-  const failures = [];
-  const warnings = [];
-  const notes = [];
-  for (const [name, r] of Object.entries(result.repos)) {
-    const s = snapshot?.repos?.[name];
-    if (r.status !== "ok") {
-      warnings.push(`${name}: ${r.status}: ${r.error}`);
-      continue;
-    }
-    const pre = r.build.pre;
-    const post = r.build.post;
-    if (post && post.ok === false) {
-      if (pre && pre.ok === false) warnings.push(`${name}: the build already fails before fixing (${pre.cmd}), so no safety verdict`);
-      else failures.push(`${name}: SAFETY BUG: ${post.cmd} fails after the fixes were applied (it passed before)`);
-    }
-    if (!s || s.status !== "ok") {
-      if (!s) notes.push(`${name}: not in the snapshot; run \`task corpus:update\` after review`);
-      if (!s && sum(r.counts.rewrites) > 0) {
-        failures.push(`${name}: new repo with ${sum(r.counts.rewrites)} rewrite(s) and no snapshot entry`);
-      }
-      continue;
-    }
-    if (r.sha !== s.sha) notes.push(`${name}: pinned SHA changed (${s.sha.slice(0, 12)} -> ${r.sha.slice(0, 12)})`);
-    const rules = new Set([...Object.keys(r.counts.rewrites), ...Object.keys(s.counts.rewrites)]);
-    for (const rule of [...rules].sort()) {
-      const now = r.counts.rewrites[rule] ?? 0;
-      const was = s.counts.rewrites[rule] ?? 0;
-      if (now > was) failures.push(`${name}: rewrite count for ${rule} rose ${was} -> ${now} (add a fixture, then \`task corpus:update\`)`);
-      else if (now < was) notes.push(`${name}: rewrite count for ${rule} fell ${was} -> ${now}`);
-    }
-    for (const kind of ["skips", "noFix"]) {
-      for (const k of new Set([...Object.keys(r.counts[kind]), ...Object.keys(s.counts[kind])])) {
-        const now = r.counts[kind][k] ?? 0;
-        const was = s.counts[kind][k] ?? 0;
-        if (now !== was) notes.push(`${name}: ${kind} ${k} ${was} -> ${now}`);
-      }
-    }
-  }
-  return { failures, warnings, notes };
-}
 
 function readJson(p) {
   return fs.existsSync(p) ? JSON.parse(fs.readFileSync(p, "utf8")) : null;
@@ -551,7 +617,7 @@ function cmdSnapshot(argv) {
   if (bad.length) throw new Error(`cannot snapshot: not every repo ran ok (${bad.join(", ")})`);
   const repos = {};
   for (const n of want) {
-    const { durationMs, error, deps, ...r } = result.repos[n];
+    const { durationMs, error, errorKind, deps, ...r } = result.repos[n];
     repos[n] = { ...r, build: { pre: stripBuild(r.build.pre), post: stripBuild(r.build.post) } };
   }
   const out = path.resolve(argv[1] ?? path.join(root, "spec/corpus-snapshot.json"));
@@ -561,6 +627,7 @@ function cmdSnapshot(argv) {
 
 function cmdCompare(argv) {
   const result = readJson(path.resolve(argv[0] ?? "tmp/corpus/result.json"));
+  if (!result) throw new Error("no result.json to compare");
   const snapshot = readJson(path.resolve(argv[1] ?? path.join(root, "spec/corpus-snapshot.json")));
   const { failures, warnings, notes } = compare(result, snapshot);
   for (const w of warnings) console.log(`warning: ${w}`);
@@ -572,6 +639,10 @@ function cmdCompare(argv) {
 
 function cmdSummary(argv) {
   const result = readJson(path.resolve(argv[0] ?? "tmp/corpus/result.json"));
+  if (!result) {
+    console.log("## fldlint corpus\n\nNo result.json was written.");
+    return;
+  }
   const snapshot = readJson(path.resolve(argv[1] ?? path.join(root, "spec/corpus-snapshot.json")));
   const { failures, warnings, notes } = compare(result, snapshot);
   const fmt = (o) => Object.entries(o ?? {}).map(([k, v]) => `${k}: ${v}`).join(", ") || "-";
@@ -580,7 +651,7 @@ function cmdSummary(argv) {
   for (const [name, r] of Object.entries(result.repos)) {
     lines.push(
       `| ${name} | ${r.language} | ${r.status} | ${fmt(r.counts?.rewrites)} | ${fmt(r.counts?.skips)} | ${fmt(r.counts?.noFix)} | ` +
-        `${buildWord(r.build.pre)}/${buildWord(r.build.post)} | ${(r.durationMs / 1000).toFixed(0)}s |`,
+        `${buildWord(r.build.pre)}/${buildWord(r.build.post)} | ${((r.durationMs ?? 0) / 1000).toFixed(0)}s |`,
     );
   }
   const section = (title, items) => items.length && lines.push("", `### ${title}`, "", ...items.map((i) => `- ${i}`));
@@ -602,7 +673,7 @@ async function localRepo(tmp, copies, deadline) {
       filter: (src) => !/[\\/](target|node_modules|go\.sum)$/.test(src),
     });
   }
-  must(await sh("git", ["init", "-q", top], { deadline }), "repo init");
+  must(await git(["init", "-q", top], { deadline }), "repo init");
   await commitBaseline(top, deadline);
   return top;
 }
@@ -612,13 +683,13 @@ const fixture = "spec/fixtures/bool-variation/aliased-import";
 const selftests = {
   // Smoke module of the golangci plugin: fixture input and golden plus SDK stubs (offline).
   async go(tmp, deadline, out) {
-    process.env.GOPROXY = "off";
     const top = await localRepo(tmp, [["go/golangci/testdata/smoke", "smoke"], ["go/golangci/testdata/stubs", "stubs"]], deadline);
     await prepareGo(tmp);
-    await analyzeGo({}, path.join(top, "smoke"), tmp, deadline, out);
+    // GOPROXY=off proves the module needs no network (the stubs are replace directives).
+    await analyzeGo({ env: { GOPROXY: "off" } }, path.join(top, "smoke"), tmp, deadline, out);
     const want = fs.readFileSync(path.join(root, "go/golangci/testdata/smoke/flags/flags.go.golden"), "utf8");
     const got = fs.readFileSync(path.join(top, "smoke/flags/flags.go"), "utf8");
-    if (got !== want) throw new StepError("fixed flags.go differs from flags.go.golden");
+    if (got !== want) throw new StepError("fixed flags.go differs from flags.go.golden", "tool");
   },
   // The shared aliased-import fixture; real SDK packages from npm (needs network).
   async js(tmp, deadline, out) {
@@ -631,12 +702,23 @@ const selftests = {
       path.join(top, "tsconfig.json"),
       JSON.stringify({ compilerOptions: { target: "ES2022", module: "NodeNext", moduleResolution: "NodeNext", strict: true, skipLibCheck: true, noEmit: true }, include: ["src"] }),
     );
+    // A hostile .npmrc: if it were honoured, npm install would fail against this dead registry.
+    fs.writeFileSync(path.join(top, ".npmrc"), "registry=http://127.0.0.1:9/\n");
+    // A truly clean build: dist/ of every workspace is removed first, so a regression in the build
+    // (for example lifecycle scripts being disabled) cannot hide behind stale output.
+    for (const pkg of fs.readdirSync(path.join(jsDir, "packages"))) {
+      fs.rmSync(path.join(jsDir, "packages", pkg, "dist"), { recursive: true, force: true });
+      fs.rmSync(path.join(jsDir, "packages", pkg, "tsconfig.build.tsbuildinfo"), { force: true });
+    }
     await prepareJs();
+    for (const pkg of ["eslint-plugin", "core", "spec"]) {
+      if (!fs.existsSync(path.join(jsDir, "packages", pkg, "dist"))) throw new StepError(`clean build did not produce packages/${pkg}/dist`, "tool");
+    }
     await analyzeJs({}, top, tmp, deadline, out);
     const want = fs.readFileSync(path.join(root, fixture, "js/output.ts"), "utf8");
-    if (fs.readFileSync(path.join(top, "src/darkmode.ts"), "utf8") !== want) throw new StepError("fixed darkmode.ts differs from output.ts");
+    if (fs.readFileSync(path.join(top, "src/darkmode.ts"), "utf8") !== want) throw new StepError("fixed darkmode.ts differs from output.ts", "tool");
   },
-  // java/smoke: real LaunchDarkly and OpenFeature jars from Maven (needs network or a warm ~/.m2).
+  // java/smoke: real LaunchDarkly and OpenFeature jars from Maven (needs network or a warm local repo).
   async java(tmp, deadline, out) {
     const top = await localRepo(tmp, [["java/smoke", "smoke"]], deadline);
     await prepareJava();
@@ -647,10 +729,13 @@ const selftests = {
 async function cmdSelftest(argv) {
   const only = arg(argv, "--lang", "all");
   const langs = LANGS.filter((l) => only === "all" || only === l);
+  if (langs.length === 0) throw new Error(`unknown --lang ${only}`);
   const timeout = 900_000;
+  for (const sig of ["SIGINT", "SIGTERM"]) process.on(sig, () => (killAll(), process.exit(130)));
   let failed = 0;
   for (const lang of langs) {
-    const tmp = fs.mkdtempSync(path.join(process.env.RUNNER_TEMP || os.tmpdir(), `fldlint-corpus-self-${lang}-`));
+    const tmp = makeTmp(`fldlint-corpus-self-${lang}-`);
+    initCaches(tmp);
     const out = { build: {} };
     const t0 = Date.now();
     let problem;
@@ -664,7 +749,7 @@ async function cmdSelftest(argv) {
     } catch (e) {
       problem = String(e.message ?? e);
     } finally {
-      fs.rmSync(tmp, { recursive: true, force: true });
+      removeTmp(tmp);
     }
     const secs = ((Date.now() - t0) / 1000).toFixed(1);
     if (problem) (failed++, console.log(`selftest ${lang}: FAIL (${secs}s): ${problem}`));
@@ -683,7 +768,7 @@ if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.me
     else if (cmd === "selftest") await cmdSelftest(rest);
     else if (cmd === "summary") cmdSummary(rest);
     else {
-      console.error("usage: run.mjs run|compare|summary ...");
+      console.error("usage: run.mjs run|compare|snapshot|selftest|summary ...");
       process.exitCode = 2;
     }
   } catch (e) {
