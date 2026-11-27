@@ -45,6 +45,7 @@ type placedComment struct {
 // notes places the comments inside call. It returns nil when the call has
 // none that need placing.
 func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *fix.Notes {
+	args := callArgs(e.Info, call)
 	tf := e.Fset.File(call.Pos())
 	off := func(p token.Pos) int { return tf.Offset(p) }
 	start, end := off(call.Pos()), off(call.End())
@@ -89,8 +90,8 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 	}
 	// The kept part of the context argument: the expression ldcontext.New wraps.
 	var ctxKept ast.Expr
-	if j := argIndex(rule, method, rule.ContextArg); j >= 0 && j < len(call.Args) {
-		if inner, ok := ast.Unparen(call.Args[j]).(*ast.CallExpr); ok && len(inner.Args) == 1 {
+	if j := argIndex(rule, method, rule.ContextArg); j >= 0 && j < len(args) {
+		if inner, ok := ast.Unparen(args[j]).(*ast.CallExpr); ok && len(inner.Args) == 1 {
 			ctxKept = inner.Args[0]
 		}
 	}
@@ -113,8 +114,8 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 			slot(role).Lead = append(slot(role).Lead, c)
 		}
 	}
-	argStart := func(j int) int { return off(call.Args[j].Pos()) }
-	argEnd := func(j int) int { return off(call.Args[j].End()) }
+	argStart := func(j int) int { return off(args[j].Pos()) }
+	argEnd := func(j int) int { return off(args[j].End()) }
 	lparen := off(call.Lparen)
 	hasBreak := func(a, b int) bool { return bytes.ContainsAny(f.Src[a:b], "\n\r") }
 	commaAfter := func(from int) int {
@@ -133,7 +134,7 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 
 	for _, c := range inCall {
 		inside := -1
-		for j := range call.Args {
+		for j := range args {
 			if argStart(j) <= c.start && c.end <= argEnd(j) {
 				inside = j
 			}
@@ -141,7 +142,10 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 		if inside >= 0 {
 			// Copied verbatim with the argument, except inside the converted context.
 			role := roleOf(inside)
-			kept := role == "key" || role == "default" || role == "goctx" ||
+			// Only the key literal is copied; a comment in the parentheses
+			// around it would be lost.
+			keyKept := role == "key" && off(ast.Unparen(args[inside]).Pos()) <= c.start && c.end <= off(ast.Unparen(args[inside]).End())
+			kept := keyKept || role == "default" || role == "goctx" ||
 				(role == "evalctx" && ctxKept != nil && off(ctxKept.Pos()) <= c.start && c.end <= off(ctxKept.End()))
 			if !kept {
 				n.Unhomed = true
@@ -162,13 +166,13 @@ func (e *Env) notes(f File, call *ast.CallExpr, method string, rule spec.Rule) *
 			continue
 		}
 		next := -1
-		for j := range call.Args {
+		for j := range args {
 			if argStart(j) >= c.end {
 				next = j
 				break
 			}
 		}
-		prev := len(call.Args) - 1
+		prev := len(args) - 1
 		if next >= 0 {
 			prev = next - 1
 		}

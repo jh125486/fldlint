@@ -440,13 +440,25 @@ func staticKey(s *source, rule spec.Rule, off, endOff int) *string {
 			continue
 		}
 		i := rule.KeyArg
-		if at, ok := rule.Go.CtxArg[sel.Sel.Name]; ok && i >= at {
+		shift := 0
+		if at, ok := rule.Go.CtxArg[sel.Sel.Name]; ok {
+			shift = 1
+			if i >= at {
+				i++
+			}
+		}
+		// Without type information a method expression, (*T).M(recv, ...),
+		// is recognised by its extra leading argument: every keyed Go rule
+		// has a fixed arity (the highest of its key, default and context
+		// positions, plus the optional leading context.Context).
+		if len(call.Args) == max(rule.KeyArg, rule.DefaultArg, rule.ContextArg)+1+shift+1 {
 			i++
 		}
 		if i >= len(call.Args) {
 			continue
 		}
-		if lit, ok := call.Args[i].(*ast.BasicLit); ok && lit.Kind == token.STRING {
+		// A parenthesized literal is static, as in the analyzer.
+		if lit, ok := ast.Unparen(call.Args[i]).(*ast.BasicLit); ok && lit.Kind == token.STRING {
 			if v, err := strconv.Unquote(lit.Value); err == nil {
 				return fingerprint.StaticKey(&v)
 			}

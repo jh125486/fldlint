@@ -98,6 +98,16 @@ interpreted (`"x"`) or raw (`` `x` ``); a named constant is `dynamic-key`.
 In Java only a `String` literal counts (a text block is one); a concatenation,
 a `static final String` constant and a method call are `dynamic-key`.
 
+Parentheses around the literal do not change that: `(("k"))` is static in every
+language and the key is `k` (ESLint's parser drops them; Go and Java unwrap
+them). Only the literal is copied into the rewrite, so a comment inside the
+parentheses has no home and leaves the call a finding with no fix
+(`[no-fix: comment]`) in Go and Java. A Go method expression,
+`(*ldclient.LDClient).BoolVariation(c, "k", ...)`, reads its key after the
+receiver argument, so it has the same key, category and fingerprint as the
+method call; its receiver is a type, never a proven client, so it is skipped as
+`receiver-unproven`.
+
 ## Java planner notes
 
 The step order above is the Java order too, with these Java facts:

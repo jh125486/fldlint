@@ -22,4 +22,6 @@ func Keys(ctx context.Context, name string, c ldcontext.Context) {
 	_, _ = ld.IntVariation("a\xff", c, 1)                                 // want `method=IntVariation key=absent$`
 	_, _ = ld.BoolVariation("flag-d", c, false)                           // want `method=BoolVariation key="flag-d"`
 	_, _ = ld.BoolVariation("a\xed\xa0\x80", c, false)                    // want `method=BoolVariation key=absent-static`
+	_, _ = (*ldclient.LDClient).BoolVariation(ld, "flag-e", c, false)     // want `method=BoolVariation key="flag-e"`
+	_, _ = ld.BoolVariation(("flag-f"), c, false)                         // want `method=BoolVariation key="flag-f"`
 }

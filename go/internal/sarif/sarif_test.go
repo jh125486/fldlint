@@ -408,6 +408,24 @@ func TestConvert(t *testing.T) {
 			check: wantFP("bool-variation", "a.go", strp("ctx-key")),
 		},
 		{
+			name:  "parenthesized key literal is static",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = c.BoolVariation((\"paren-key\"), c, false)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("bool-variation", "a.go", strp("paren-key")),
+		},
+		{
+			name:  "method expression skips the receiver argument",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (*ldclient.LDClient).BoolVariation(c, \"mexpr-key\", u, false)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("bool-variation", "a.go", strp("mexpr-key")),
+		},
+		{
+			name:  "Ctx method expression skips receiver and context",
+			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = (*ldclient.LDClient).BoolVariationCtx(c, ctx, \"mexpr-ctx\", u, false)\n}\n"},
+			in:    func(r string) string { return diagJSON([3]string{"bool-variation", posn(r, "a.go", ":4:6"), "m"}) },
+			check: wantFP("bool-variation", "a.go", strp("mexpr-ctx")),
+		},
+		{
 			name:  "multi-line raw key with a no-fix suffix",
 			files: map[string]string{"a.go": "package p\n\nfunc f() {\n\t_ = c.BoolVariation(`raw\nmulti`, ldcontext.New(/* c */ \"user\"), false)\n}\n"},
 			in: func(r string) string {
