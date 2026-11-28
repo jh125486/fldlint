@@ -1,9 +1,19 @@
 {
   "name": "eslint-plugin-fldlint",
   "version": "0.0.0",
-  "private": true,
   "description": "ESLint plugin that reports (and where provable, autofixes) LaunchDarkly server SDK calls that can migrate to OpenFeature.",
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jh125486/fldlint.git",
+    "directory": "js/packages/eslint-plugin"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "provenance": true
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
   "exports": {

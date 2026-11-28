@@ -1,10 +1,21 @@
 {
   "name": "@fldlint/core",
   "version": "0.0.0",
-  "private": true,
   "type": "module",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jh125486/fldlint.git",
+    "directory": "js/packages/core"
+  },
+  "publishConfig": {
+    "registry": "https://registry.npmjs.org/",
+    "access": "public",
+    "provenance": true
+  },
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist"],
   "scripts": {
     "prebuild": "npm run build -w @fldlint/spec --silent",
     "build": "tsc -p tsconfig.build.json",

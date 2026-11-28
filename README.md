@@ -241,3 +241,80 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) (tasks, conventions, sign-off, CI) and
 LaunchDarkly is a trademark of its owner. fldlint is an independent project
 and is not affiliated with, sponsored by or endorsed by LaunchDarkly or the
 OpenFeature project.
+## Quickstarts
+
+These commands use the public artifacts after their first releases. See the
+[release checklist](docs/releasing.md) for availability and verification.
+
+### JavaScript and TypeScript
+
+Install the ESLint plugin into an ESLint 9 or 10 flat-config project.
+
+```sh
+npm install --save-dev eslint eslint-plugin-fldlint
+```
+
+```js
+// eslint.config.mjs
+import fldlint from "eslint-plugin-fldlint";
+
+export default [fldlint.configs.recommended];
+```
+
+Run `npx eslint src` to report findings or `npx eslint --fix src` to apply
+provable rewrites. For TypeScript parser setup, see the
+[plugin README](js/packages/eslint-plugin/README.md).
+
+After the Codemod registry publish is enabled, run
+`npx codemod @fldlint/launchdarkly-to-openfeature` from your project. The
+[Codemod README](js/packages/codemod/README.md) also shows how to run from a checkout.
+
+### Go
+
+```sh
+go install github.com/jh125486/fldlint/go/cmd/fldlint@v0.1.0
+bin=$(go env GOBIN)
+go vet -vettool="${bin:-$(go env GOPATH)/bin}/fldlint" ./...
+```
+
+Build a golangci-lint binary with the fldlint module plugin. Set the version
+to the released `go/golangci` module tag.
+
+```yaml
+# .custom-gcl.yml
+version: v2.15.0
+plugins:
+  - module: github.com/jh125486/fldlint/go/golangci
+    import: github.com/jh125486/fldlint/go/golangci
+    version: v0.1.0
+```
+
+Run `golangci-lint custom`, then enable `fldlint` in `.golangci.yml` and run
+`./custom-gcl run ./...`. See [go/golangci/README.md](go/golangci/README.md)
+for the complete configuration.
+
+### Java
+
+Once `io.github.jh125486:fldlint-rewrite` is on Maven Central, preview the
+migration from a Maven project.
+
+```sh
+mvn -U org.openrewrite.maven:rewrite-maven-plugin:6.46.1:dryRun \
+  -Drewrite.recipeArtifactCoordinates=io.github.jh125486:fldlint-rewrite:0.1.0 \
+  -Drewrite.activeRecipes=io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature
+```
+
+In a Gradle project, add this to `build.gradle.kts` and run `./gradlew rewriteDryRun`.
+
+```kotlin
+plugins { id("org.openrewrite.rewrite") version "7.41.0" }
+dependencies { rewrite("io.github.jh125486:fldlint-rewrite:0.1.0") }
+rewrite { activeRecipe("io.github.jh125486.fldlint.MigrateLaunchDarklyToOpenFeature") }
+```
+
+These examples use public plugin versions. See the
+[Java README](java/README.md) and [ADR 009](docs/adr/009-java-openrewrite-recipes.md)
+for compatibility and the Code Genome Project caveat.
+
+
+

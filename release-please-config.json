@@ -1,0 +1,120 @@
+{
+  "$schema": "https://raw.githubusercontent.com/googleapis/release-please/v17.6.0/schemas/config.json",
+  "initial-version": "0.1.0",
+  "include-component-in-tag": true,
+  "include-v-in-tag": true,
+  "separate-pull-requests": true,
+  "group-pull-request-title-pattern": "chore${scope}: release npm libraries",
+  "packages": {
+    "js/packages/spec": {
+      "release-type": "node",
+      "component": "spec",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/spec'].version"
+        }
+      ]
+    },
+    "js/packages/core": {
+      "release-type": "node",
+      "component": "core",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/core'].version"
+        },
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/core'].dependencies['@fldlint/spec']"
+        }
+      ]
+    },
+    "js/packages/eslint-plugin": {
+      "release-type": "node",
+      "component": "eslint-plugin-fldlint",
+      "extra-files": [
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/eslint-plugin'].version"
+        },
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/eslint-plugin'].dependencies['@fldlint/core']"
+        },
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/eslint-plugin'].dependencies['@fldlint/spec']"
+        },
+        {
+          "type": "json",
+          "path": "/js/packages/codemod/package.json",
+          "jsonpath": "$.devDependencies['@fldlint/core']"
+        },
+        {
+          "type": "json",
+          "path": "/js/packages/codemod/package.json",
+          "jsonpath": "$.devDependencies['@fldlint/spec']"
+        },
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/codemod'].devDependencies['@fldlint/core']"
+        },
+        {
+          "type": "json",
+          "path": "/js/package-lock.json",
+          "jsonpath": "$.packages['packages/codemod'].devDependencies['@fldlint/spec']"
+        },
+        {
+          "type": "yaml",
+          "path": "/js/packages/codemod/codemod.yaml",
+          "jsonpath": "$.version"
+        }
+      ]
+    },
+    "go": {
+      "release-type": "go",
+      "component": "go",
+      "tag-separator": "/"
+    },
+    "java": {
+      "release-type": "maven",
+      "component": "java",
+      "tag-separator": "/",
+      "extra-files": [
+        {
+          "type": "xml",
+          "path": "smoke/pom.xml",
+          "xpath": "/*/*[local-name()='properties']/*[local-name()='fldlint.version']"
+        }
+      ]
+    },
+    "go/golangci": {
+      "release-type": "go",
+      "component": "go/golangci",
+      "tag-separator": "/"
+    }
+  },
+  "plugins": [
+    {
+      "type": "node-workspace",
+      "merge": false
+    },
+    {
+      "type": "linked-versions",
+      "groupName": "npm",
+      "components": [
+        "spec",
+        "core",
+        "eslint-plugin-fldlint"
+      ]
+    }
+  ]
+}
