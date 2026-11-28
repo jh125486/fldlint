@@ -17,7 +17,7 @@
   "devDependencies": {
     "@fldlint/core": "0.0.0",
     "@fldlint/spec": "0.0.0",
-    "@types/node": "^22.0.0",
+    "@types/node": "^26.6.10",
     "esbuild": "^0.28.2"
   }
 }
