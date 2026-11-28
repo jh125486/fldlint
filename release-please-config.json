@@ -83,23 +83,6 @@
       "release-type": "go",
       "component": "go",
       "tag-separator": "/"
-    },
-    "java": {
-      "release-type": "maven",
-      "component": "java",
-      "tag-separator": "/",
-      "extra-files": [
-        {
-          "type": "xml",
-          "path": "smoke/pom.xml",
-          "xpath": "/*/*[local-name()='properties']/*[local-name()='fldlint.version']"
-        }
-      ]
-    },
-    "go/golangci": {
-      "release-type": "go",
-      "component": "go/golangci",
-      "tag-separator": "/"
     }
   },
   "plugins": [

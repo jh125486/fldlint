@@ -1,19 +1,25 @@
 # Releasing fldlint
 
 The maintainer owns registry setup, release PR merges, and publication approval.
-Complete the public-repository prerequisites in [#4] before the first release.
+The repository is public. Complete the release-specific GitHub settings below
+before the first release.
 
-| Release group | Tags | Distribution |
+| Active Release Please component | Tags | Distribution |
 | --- | --- | --- |
 | npm | `spec-vX.Y.Z`, `core-vX.Y.Z`, `eslint-plugin-fldlint-vX.Y.Z` | `@fldlint/spec`, `@fldlint/core`, `eslint-plugin-fldlint` on npm |
-| Go | `go/vX.Y.Z`, `go/golangci/vX.Y.Z` | Analyzer and golangci-lint module on the Go proxy |
-| Java | `java/vX.Y.Z` | Maven Central publishing and signing are tracked in [#12] |
+| Go analyzer | `go/vX.Y.Z` | Analyzer on the Go proxy |
 
-All groups start at `0.1.0`. The npm packages are linked and published in
-dependency order. Go and Java version independently. Codemod uses the npm
-version from the ESLint plugin release. Registry publishing from that tag is
-deferred until upstream pins the actions and CLI used by its publish action.
-The standalone JS CLI was deferred in [#16].
+The npm packages are linked, start at `0.1.0`, and publish in dependency
+order. The Go analyzer starts at `go/v0.1.0` and versions independently.
+Codemod uses the npm version from the ESLint plugin release. Registry
+publishing from that tag is deferred until upstream pins the actions and CLI
+used by its publish action. The standalone JS CLI was deferred in [#16].
+
+Java is not an active Release Please component. Re-add `java` only in the
+Maven Central publishing PR tracked by [#12]. The `go/golangci` module is also
+not active: first release `go/v0.1.0`, then update `go/golangci/go.mod` to
+require that tag and remove its local `replace`. Re-add `go/golangci` in the
+subsequent PR that makes the published plugin resolvable.
 
 Use conventional commits and include the affected package in the scope where
 useful, as in `fix(eslint-plugin): preserve comments`. Release Please uses
@@ -27,10 +33,22 @@ Markdown on GitHub.
 
 ## Prepare the registries
 
-- Make the repository public after completing [#4]. Configure the GitHub
-  `release` environment with maintainer approval and allow deployments from
-  `main` and from `eslint-plugin-fldlint-v*` tags for npm recovery. The
-  tagging and npm jobs both use this environment.
+- The following are owner-side GitHub settings, not repository files. Protect
+  the GitHub `release` environment with required reviewers and allow
+  deployments from `main` and the npm release tags (`spec-v*`, `core-v*`, and
+  `eslint-plugin-fldlint-v*`). The tagging and npm jobs both use this
+  environment.
+- Create a tag ruleset for `*-v*`, `go/*`, `go/golangci/*`, and `java/*`,
+  restricting creation to maintainers and the explicitly approved release
+  automation. The nested Go pattern is needed because `go/*` does not cover
+  tags below `go/golangci/`. Include deferred namespaces now. The Release
+  Please tagging job creates tags with `GITHUB_TOKEN`; require approval on the
+  `release` environment before it runs and keep `contents: write` limited to
+  that job. Before enforcing the ruleset, confirm GitHub offers a bypass actor
+  that covers this token identity. The app-level bypass can also be used by
+  other eligible write-enabled workflows. If the built-in GitHub Actions app
+  cannot bypass, leave tag creation restrictions unenforced and ask the owner
+  to choose another tag-creation identity before the first release.
 - Verify that the npm names and the `@fldlint` scope are available to the
   maintainer. For each missing package, locally stage an artifact under a
   disposable version with `npm stage publish --access public`. Leave it
@@ -91,16 +109,19 @@ Markdown on GitHub.
    ```
 
    Wait for `check (22)`, `check (24)`, `check (26)`, `dco` and the usual PR
-   reviews before the maintainer squash-merges. After a Java release, the
-   Maven strategy proposes a separate snapshot PR when you next run Release
-   Please. Merge the snapshot PR before preparing a later stable Java release.
-4. For the first golangci module tag, first release the analyzer module. Then update
-   `go/golangci/go.mod` to require the tagged analyzer version and remove its local
-   `replace`. Run Release Please again to create `go/golangci/v0.1.0`. This sequencing
-   makes the published plugin build from a resolvable Go module.
+   reviews before the maintainer squash-merges.
+4. Do not prepare Java or golangci-lint module release PRs yet: neither is an
+   active Release Please component. After `go/v0.1.0` exists, update
+   `go/golangci/go.mod` to require that tag and remove its local `replace`. In
+   the subsequent PR, re-add `go/golangci` to Release Please, then prepare
+   `go/golangci/v0.1.0`; this sequencing makes the published plugin build from
+   a resolvable Go module. Re-add `java` separately in the Maven Central
+   publishing PR tracked by [#12]. After a Java release, the Maven strategy
+   proposes a separate snapshot PR on its next run; merge that snapshot PR
+   before preparing a later stable Java release.
 5. After merge, check the Release Please run and approve the protected jobs
-   when ready. Use `git fetch --tags` and `git tag -l 'go/*' 'java/*' '*-v*'`
-   to inspect the tags. If only the npm job fails, re-run the failed jobs.
+   when ready. Use `git fetch --tags` and `git tag -l 'go/*' '*-v*'` to inspect
+   the tags. If only the npm job fails, re-run the failed jobs.
    If all three linked npm tags exist at the same release commit and the original
    run cannot be retried, the maintainer can recover from that tag with
    `gh workflow run release-please.yml --ref eslint-plugin-fldlint-vX.Y.Z`.
